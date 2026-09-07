@@ -173,6 +173,9 @@ def main():
             f.write(c_off.astype("<u4").tobytes())
             f.write(c_prot.astype("<u4").tobytes())
         carriers = {n: (int(c_off[i]), int(c_off[i + 1])) for i, n in enumerate(c_names)}
+        # The protein bundles key their annotation ranges by position in this list, so the
+        # site needs it to turn a concept name into the ranges a protein carries.
+        (a.out / "concept_columns.json").write_text(json.dumps(c_names, separators=(",", ":")))
 
     concepts = []
     for r in best.itertuples():

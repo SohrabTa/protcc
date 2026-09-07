@@ -18,3 +18,7 @@ dashboard/web/public/data/
 
 # macOS
 .DS_Store
+
+# Vite build output and the local data symlink
+dashboard/web/dist/
+dashboard/web/data
