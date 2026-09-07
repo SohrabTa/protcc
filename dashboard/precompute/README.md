@@ -10,12 +10,18 @@ Heavy stages read data that only exists on the LRZ cluster. Everything else runs
 | Stage | Script | Runs on | Reads | Writes |
 |---|---|---|---|---|
 | 0. Concept categories | `build_concept_categories.py` | local | the eval pairing tables | `concept_categories.csv` |
-| 1. Collect | InterPLM `collect_feature_activations.py` | cluster | the activation store, 208 shards | per-feature example proteins and statistics |
+| 1. Feature ranking | `build_feature_ranking.py` | cluster | the activation store, 208 shards | every latent-protein pair, ranked, plus the firing statistics |
 | 2. Tracks | *(to write)* | cluster | the activation store | one file per protein, every latent that fires on it |
-| 3. Depth profiles | *(to write)* | local | the checkpoint | 8192 x 24 decoder norms and cosine to peak |
-| 4. Indexes | *(to write)* | local | the eval tables, stages 0 and 3 | `concepts.json`, `features.json` |
+| 3. Depth profiles | `build_depth_profiles.py` | local | the checkpoint | 8192 x 24 decoder norms and cosine to peak |
+| 4. Indexes | *(to write)* | local | the eval tables, stages 0, 1 and 3 | `concepts.json`, `features.json` |
 | 5. Protein bundles | *(to write)* | cluster | the eval set annotations | sequence, name and concept masks, one file per shard |
 | 6. Structures | *(to write)* | cluster | AlphaFold via Foldcomp | backbone BinaryCIF, gzipped |
+
+Stage 1 replaces InterPLM's `collect_feature_activations.py`, which answers the same question
+by keeping the ten strongest proteins per latent plus ten sampled from each of five activation
+bands. We keep every latent-protein pair instead. The complete version is 156 million pairs,
+which is 625 MB at 4 bytes each, so the sampling saves little and costs the protein chooser.
+The top ten is then the head of a ranked run, and an activation band is a slice of it.
 
 The cluster is reachable as `ssh ai`. Cluster paths under
 `/dss/dssfs02/lwp-dss-0001/pn67na/pn67na-dss-0000/ga25ley2/` map to the local `data/` mirror.
