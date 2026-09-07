@@ -11,11 +11,11 @@ Heavy stages read data that only exists on the LRZ cluster. Everything else runs
 |---|---|---|---|---|
 | 0. Concept categories | `build_concept_categories.py` | local | the eval pairing tables | `concept_categories.csv` |
 | 1. Feature ranking | `build_feature_ranking.py` | cluster | the activation store, 208 shards | every latent-protein pair, ranked, plus the firing statistics |
-| 2. Tracks | *(to write)* | cluster | the activation store | one file per protein, every latent that fires on it |
+| 2. Track store | `build_track_store.py` + `submit_track_store.sh` | cluster | the activation store | one file per protein, every latent that fires on it |
 | 3. Depth profiles | `build_depth_profiles.py` | local | the checkpoint | 8192 x 24 decoder norms and cosine to peak |
 | 4. Indexes | *(to write)* | local | the eval tables, stages 0, 1 and 3 | `concepts.json`, `features.json` |
-| 5. Protein bundles | *(to write)* | cluster | the eval set annotations | sequence, name and concept masks, one file per shard |
-| 6. Structures | *(to write)* | cluster | AlphaFold via Foldcomp | backbone BinaryCIF, gzipped |
+| 5. Protein bundles | `build_protein_bundles.py` + `submit_protein_bundles.sh` | cluster | the eval set annotations | sequence, name, concept ranges, and the concept-to-proteins index |
+| 6. Structures | `build_structures.py` + `submit_structures.sh` | cluster | AlphaFold via Foldcomp | backbone mmCIF, gzipped |
 
 Stage 1 replaces InterPLM's `collect_feature_activations.py`, which answers the same question
 by keeping the ten strongest proteins per latent plus ten sampled from each of five activation
@@ -56,3 +56,12 @@ Every stage is a script that runs end to end from its inputs. Each one records t
 evaluation set and the Slurm job that produced its inputs into the manifest, so any number on the
 site can be traced back. The site's headline figures must reproduce the published result: 0.479
 average best test F1, 187 of 408 concepts, 1020 features paired, 8128 live latents.
+
+## Stage 6 ships mmCIF, not BinaryCIF, for now
+
+Gzipped backbone mmCIF is 59.6 bytes per residue, about 3.73 GB for the evaluation set.
+BinaryCIF would be 25.7, about 1.61 GB, and Mol* reads both. BinaryCIF is deferred because the
+converter that produces it ships with Mol* as a Node tool while the cluster container is a
+PyTorch image, and authoring the category by hand against the Python `ciftools` library carries a
+validation risk not worth taking before the viewer exists. Stage 6 is a leaf, so the format can
+change without touching anything upstream. The cost of waiting is 2.1 GB.
