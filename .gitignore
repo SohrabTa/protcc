@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.ruff_cache/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+
+# Precompute output. The data tree is rebuilt from the checkpoint and the
+# activation store, so it never belongs in git. See dashboard/precompute/README.md.
+dashboard/data/
+dashboard/web/public/data/
+*.bcif
+*.bcif.gz
+
+# macOS
+.DS_Store
