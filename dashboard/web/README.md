@@ -14,11 +14,15 @@ air-gappable.
 ## Running it
 
     npm install
-    npm run dev
+    npm start          # builds, then serves on http://localhost:4173
 
-`./data` is a symlink to `../data/web`, which the precompute writes. The dev server serves it
-through the symlink; a deployment drops the `data/` tree next to `index.html`. Nothing is copied
-into the bundle, because the full tree is several gigabytes.
+`npm start` is build plus serve. Use `npm run dev` while editing, which reloads on save.
+
+The data tree is never copied into the bundle: the full one is several gigabytes. `./data` is a
+symlink to `../data/web`, which the precompute writes, and `npm run serve` links the same tree
+into `dist/`. A real deployment drops the `data/` folder next to `index.html`.
+
+The build is about 22 kB of JavaScript and 6 kB of CSS, with no runtime dependencies.
 
 ## What is not done yet
 

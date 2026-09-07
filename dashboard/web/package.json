@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "serve": "ln -sfn ../../data/web dist/data && vite preview --port 4173 --open",
+    "start": "npm run build && npm run serve"
   },
   "devDependencies": {
     "typescript": "^5.6.3",
