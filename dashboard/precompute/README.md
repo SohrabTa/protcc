@@ -13,7 +13,7 @@ Heavy stages read data that only exists on the LRZ cluster. Everything else runs
 | 1. Feature ranking | `build_feature_ranking.py` | cluster | the activation store, 208 shards | every latent-protein pair, ranked, plus the firing statistics |
 | 2. Track store | `build_track_store.py` + `submit_track_store.sh` | cluster | the activation store | one file per protein, every latent that fires on it |
 | 3. Depth profiles | `build_depth_profiles.py` | local | the checkpoint | 8192 x 24 decoder norms and cosine to peak |
-| 4. Indexes | *(to write)* | local | the eval tables, stages 0, 1 and 3 | `concepts.json`, `features.json` |
+| 4. Indexes | `build_indexes.py` | local | stages 0, 1, 3 and 5 plus the eval tables | the data contract the site reads |
 | 5. Protein bundles | `build_protein_bundles.py` + `submit_protein_bundles.sh` | cluster | the eval set annotations | sequence, name, concept ranges, and the concept-to-proteins index |
 | 6. Structures | `build_structures.py` + `submit_structures.sh` | cluster | AlphaFold via Foldcomp | backbone mmCIF, gzipped |
 
@@ -65,3 +65,26 @@ converter that produces it ships with Mol* as a Node tool while the cluster cont
 PyTorch image, and authoring the category by hand against the Python `ciftools` library carries a
 validation risk not worth taking before the viewer exists. Stage 6 is a leaf, so the format can
 change without touching anything upstream. The cost of waiting is 2.1 GB.
+
+## What the site loads
+
+Stage 4 is the last thing that touches a number. Everything after it only renders.
+
+| File | Fetched | Holds |
+|---|---|---|
+| `manifest.json` | once | provenance and the headline figures |
+| `concepts.json` | once | all 408 concepts, with their paired latents inline |
+| `features.json` | once | every live latent, enough to draw the feature map |
+| `depth.bin` | once | 24 decoder norms and 24 cosines per latent |
+| `concept_proteins.bin` | once | which proteins carry each concept |
+| `protein_lookup.json` | once | accession to global index and shard, for search |
+| `feature/<id>.bin` | per view | the proteins one latent fires on, ranked |
+| `proteins/shard_<i>.json` | per view | sequence, name and annotation ranges (stage 5) |
+| `tracks/<XX>/<acc>.bin` | per view | every latent that fires on one protein (stage 2) |
+
+The "once" column comes to a few megabytes, so the site holds it in memory. Only the per-latent
+and per-protein files are fetched on demand, because the ranked protein list runs to 207,463 rows
+for the most common latent.
+
+A tree built from a subset of shards carries `"partial": true` in its manifest and must not be
+published.
