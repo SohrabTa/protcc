@@ -66,10 +66,12 @@ The first complete run over all 208 shards. Four jobs on `lrz-cpu`, then stage 4
 | 1. Feature ranking | `5776292` | 8m 11s | 1011 MB, 157,392,198 latent-protein pairs |
 | 2. Track store | `5776341` | 5m 29s | 6.2 GB, 2,068,021,126 non-zeros over 62,655,684 residues |
 | 5. Protein bundles | `5776352` | 3m 18s | 105 MB, 627,067 concept-protein pairs, 680 concepts kept |
-| 6. Structures | `5776353` | 1m 1s | failed, see below. Resubmitted as `5777472` |
+| 6. Structures | `5776353` | 1m 1s | failed, see below |
+| 6. Structures | `5777472` | 1h 32m | 202,106 structures, 3.90 GB, mean 19.3 kB |
 | 4. Indexes | local | 6.9s | 952.3 MB, 8128 feature files, `partial: false` |
 
 Stage 2's non-zero count matches the store's own count to the digit, so it read every shard.
+Stage 6 found no AlphaFold model for 5357 accessions, listed in `missing.txt`, and 202,106 plus 5357 is the full 207,463.
 Stage 4 reproduces the published headline: 0.4794 average best test F1, 187 of 408 concepts,
 1020 features paired, 8128 of 8192 latents alive.
 
