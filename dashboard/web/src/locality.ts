@@ -12,14 +12,16 @@
  * of a canvas in most browsers, so the full row cannot be one drawing.
  */
 
+import { AA_CLASSES, classOf, enrichment } from './chemistry';
 import { cssVar, el, inkOn, rampRGB } from './ui';
 
 const CELL = 9; // px per residue in the letter row
 const ANN_H = 6;
 const LET_H = 18;
+const CHEM_H = 7;
 const BAR_H = 24;
 const TICK_H = 13;
-const ZOOM_H = ANN_H + LET_H + BAR_H + TICK_H;
+const ZOOM_H = ANN_H + LET_H + CHEM_H + BAR_H + TICK_H;
 const OVER_H = 26;
 
 /** The residues a Swiss-Prot range list covers, as a lookup. */
@@ -78,12 +80,42 @@ export function localityView(seq: string, values: Uint8Array, ranges: [number, n
   scroller.append(spacer, zoomCv);
   root.append(scroller);
 
+  const legend = el('div', 'loc-legend');
+  for (const c of AA_CLASSES) {
+    const item = el('span', 'loc-key');
+    const sw = el('i');
+    sw.style.background = c.color;
+    item.append(sw, c.label);
+    item.title = c.letters.split('').join(' ');
+    legend.append(item);
+  }
+  root.append(legend);
+
+  const chem = el('p', 'small muted');
+  root.append(chem);
+
   const hint = el(
     'p',
     'small muted',
     'The top bar is the whole protein. Click it to move the letters, or scroll them directly.',
   );
   root.append(hint);
+
+  /** What the residues under the firing site are, since the stripe alone invites a guess. */
+  function describeChemistry(): void {
+    const e = enrichment(seq, vals);
+    if (!e) {
+      chem.textContent = '';
+    } else if (e.top) {
+      chem.textContent =
+        `Of the ${e.nFiring} residues this fires on, ${Math.round(e.top.inFiring * 100)}% are ` +
+        `${e.top.prose}, against ${Math.round(e.top.inProtein * 100)}% of the protein. ` +
+        'One protein, so this describes it rather than shows a rule.';
+    } else {
+      chem.textContent =
+        `The ${e.nFiring} residues this fires on are chemically ordinary for this protein.`;
+    }
+  }
 
   let hover = -1;
 
@@ -140,7 +172,8 @@ export function localityView(seq: string, values: Uint8Array, ranges: [number, n
     const line = cssVar('--line');
     const accent = cssVar('--accent');
     const muted = cssVar('--muted');
-    const barTop = ANN_H + LET_H;
+    const chemTop = ANN_H + LET_H;
+    const barTop = chemTop + CHEM_H;
 
     c.fillStyle = cssVar('--surface-2');
     c.fillRect(0, barTop, vw, BAR_H);
@@ -163,6 +196,11 @@ export function localityView(seq: string, values: Uint8Array, ranges: [number, n
       c.textBaseline = 'middle';
       c.fillText(seq[i] ?? '?', x + CELL / 2, ANN_H + LET_H / 2 + 0.5);
 
+      // The chemical class of the residue, as its own row. Tinting the letter instead would
+      // fight the cell colour, which already carries the activation and is the primary signal.
+      c.fillStyle = classOf(seq[i] ?? '').color;
+      c.fillRect(x, chemTop, CELL, CHEM_H);
+
       if (v > 0) {
         const h = Math.max(1, Math.round(v * (BAR_H - 2)));
         c.fillStyle = cssVar('--signal');
@@ -172,7 +210,7 @@ export function localityView(seq: string, values: Uint8Array, ranges: [number, n
       if (i === hover) {
         c.strokeStyle = cssVar('--ink');
         c.lineWidth = 1;
-        c.strokeRect(x + 0.5, 0.5, CELL - 1, ANN_H + LET_H + BAR_H - 1);
+        c.strokeRect(x + 0.5, 0.5, CELL - 1, ANN_H + LET_H + CHEM_H + BAR_H - 1);
       }
     }
 
@@ -220,6 +258,7 @@ export function localityView(seq: string, values: Uint8Array, ranges: [number, n
     drawAnnotation();
     drawZoom();
     drawMarker();
+    describeChemistry();
   }
 
   // ---- interaction -----------------------------------------------------
@@ -239,9 +278,9 @@ export function localityView(seq: string, values: Uint8Array, ranges: [number, n
     const i = Math.floor((e.clientX - r.left + scroller.scrollLeft) / CELL);
     if (i === hover || i < 0 || i >= n) return;
     hover = i;
-    readout.textContent = `${seq[i] ?? '?'}${i + 1}  ${(vals[i] / 255).toFixed(2)}${
-      mask[i] ? '  annotated' : ''
-    }`;
+    readout.textContent = `${seq[i] ?? '?'}${i + 1}  ${classOf(seq[i] ?? '').label}  ${(
+      vals[i] / 255
+    ).toFixed(2)}${mask[i] ? '  annotated' : ''}`;
     drawZoom();
   });
   zoomCv.addEventListener('mouseleave', () => {

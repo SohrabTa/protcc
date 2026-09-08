@@ -199,3 +199,9 @@ footer.prov code { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; 
 }
 .loc-spacer { display: block; }
 .loc-zoom-canvas { position: absolute; top: 0; display: block; }
+.loc-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 7px; }
+.loc-key {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 0.72rem; color: var(--muted);
+}
+.loc-key i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
