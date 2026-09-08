@@ -38,13 +38,31 @@ function hex2rgb(h: string): [number, number, number] {
 }
 
 /** The activation ramp. 0 is the page ground, 1 is the strongest the latent ever fires. */
-export function ramp(t: number): string {
+export function rampRGB(t: number): [number, number, number] {
   const lo = hex2rgb(cssVar('--ramp-lo'));
   const mid = hex2rgb(cssVar('--signal-bright'));
   const hi = hex2rgb(cssVar('--ramp-hi'));
   const u = Math.max(0, Math.min(1, t));
   const [a, b, k] = u < 0.55 ? [lo, mid, u / 0.55] : [mid, hi, (u - 0.55) / 0.45];
-  return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * k)).join(',')})`;
+  return a.map((v, i) => Math.round(v + (b[i] - v) * k)) as [number, number, number];
+}
+
+export function ramp(t: number): string {
+  return `rgb(${rampRGB(t).join(',')})`;
+}
+
+/**
+ * Black or white, whichever is readable on the given colour.
+ *
+ * The ramp runs light to dark in the light theme and dark to light in the dark one, so a fixed
+ * text colour is unreadable at one end of it in one theme or the other.
+ */
+export function inkOn(rgb: [number, number, number]): string {
+  const [r, g, b] = rgb.map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.36 ? '#101010' : '#f5f5f5';
 }
 
 export const fmt = (x: number, d = 3) => x.toFixed(d);

@@ -6,6 +6,7 @@
  */
 
 import { Data, type Feature } from '../data';
+import { localityView } from '../locality';
 import { activationStrip, el, link, panel, pct, row, table } from '../ui';
 
 const BANDS: [string, number, number][] = [
@@ -64,6 +65,17 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
   grid.append(listPanel);
   views.append(grid);
 
+  const locPanel = panel(
+    'Which residues',
+    'The firing site, in place',
+    'The whole protein stays on screen above the letters. A latent that fires on a handful of ' +
+      'residues only looks specific next to the ones it ignores.',
+  );
+  const locChooser = el('div', 'chips');
+  const locBody = el('div');
+  locPanel.append(locChooser, locBody);
+  views.append(locPanel);
+
   const evPanel = panel(
     'Evidence',
     'The activation along each protein',
@@ -101,6 +113,30 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
   scroll.append(root);
   listBody.append(scroll);
 
+  // The locality view reads one protein at a time, so the chooser lists the ranked proteins
+  // that have a track. Their order is the ranking, so the first is the strongest.
+  const withTrack: string[] = [];
+  for (let i = 0; i < rank.protein.length && withTrack.length < 40; i++) {
+    const acc = d.proteinIds[rank.protein[i]];
+    if (d.hasTrack(acc)) withTrack.push(acc);
+  }
+  if (withTrack.length === 0) {
+    locBody.append(el('p', 'warn', 'No protein this latent fires on has a track in this tree.'));
+  } else {
+    const sel = el('select');
+    for (const acc of withTrack) {
+      const o = el('option', undefined, acc);
+      o.value = acc;
+      sel.append(o);
+    }
+    locChooser.append(
+      el('span', 'small muted', `protein (${withTrack.length} strongest, ranked):`),
+      sel,
+    );
+    sel.addEventListener('change', () => void drawLocality(d, f, fid, sel.value, locBody));
+    await drawLocality(d, f, fid, withTrack[0], locBody);
+  }
+
   let band = 0;
   for (let i = 0; i < BANDS.length; i++) {
     const [label] = BANDS[i];
@@ -116,6 +152,39 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
     bandRow.append(b);
   }
   await drawBand(d, fid, rank, band, evBody);
+}
+
+async function drawLocality(
+  d: Data,
+  f: Feature,
+  fid: number,
+  acc: string,
+  host: HTMLElement,
+): Promise<void> {
+  host.textContent = '';
+  host.append(el('p', 'loading', 'Reading the activations…'));
+  const [info, track] = await Promise.all([d.protein(acc), d.track(acc)]);
+  host.textContent = '';
+  if (!info) {
+    host.append(el('p', 'warn', `No bundle for ${acc}.`));
+    return;
+  }
+  const head = el('p', 'small');
+  head.append(el('span', 'mono', acc), ` — ${info.n}`);
+  host.append(head);
+
+  // The teal band marks the concept this latent pairs with, so the reader can see at a glance
+  // whether the letters that fire are the annotated ones.
+  const ci = f.c ? d.columnOf(f.c) : null;
+  const ranges = ci !== null ? info.c[String(ci)] ?? [] : [];
+  const loc = localityView(info.s, Data.activationOf(track, fid), ranges);
+  host.append(loc.root);
+  loc.mount();
+  if (f.c && ranges.length === 0) {
+    host.append(
+      el('p', 'small muted', `Swiss-Prot does not annotate ${f.c.replace('_', ' · ')} on ${acc}.`),
+    );
+  }
 }
 
 async function drawBand(

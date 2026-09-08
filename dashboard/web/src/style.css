@@ -175,3 +175,27 @@ footer.prov {
 }
 footer.prov code { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--ink-2); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* The locality view: the whole protein above, the amino-acid letters below. */
+.loc { margin-top: 10px; }
+.loc-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 12px; min-height: 20px; margin-bottom: 5px;
+}
+.loc-readout { font-size: 0.76rem; color: var(--ink-2); }
+.loc-over { position: relative; width: 100%; cursor: pointer; }
+.loc-over canvas { display: block; width: 100%; border-radius: 1px; }
+.loc-over-ann { margin-top: 2px; }
+.loc-window {
+  position: absolute; top: -2px; bottom: -2px;
+  border: 1.5px solid var(--ink); border-radius: 2px;
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  pointer-events: none;
+}
+.loc-zoom {
+  position: relative; overflow-x: auto; overflow-y: hidden;
+  margin-top: 9px; border: 1px solid var(--line); border-radius: 2px;
+  background: var(--surface-2);
+}
+.loc-spacer { display: block; }
+.loc-zoom-canvas { position: absolute; top: 0; display: block; }

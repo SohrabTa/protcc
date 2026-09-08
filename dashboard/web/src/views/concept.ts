@@ -6,6 +6,7 @@
  */
 
 import { Data, type Concept } from '../data';
+import { localityView } from '../locality';
 import { activationStrip, annotationStrip, depthRibbon, el, link, panel, row, table } from '../ui';
 
 export async function renderConcept(d: Data, name: string, host: HTMLElement): Promise<void> {
@@ -126,8 +127,10 @@ async function drawEvidence(
   rows.append(el('div', 'lab strong', 'Swiss-Prot'), annotationStrip(info.l, ranges));
 
   const union = new Uint8Array(info.l);
+  const perLatent = new Map<number, Uint8Array>();
   for (const [fid] of c.feats ?? []) {
     const v = Data.activationOf(track, fid);
+    perLatent.set(fid, v);
     for (let i = 0; i < v.length; i++) if (v[i] > union[i]) union[i] = v[i];
     const lab = el('div', 'lab');
     lab.append(link(`/feature/${fid}`, `f/${fid}`, 'mono'));
@@ -156,5 +159,28 @@ async function drawEvidence(
       ),
     );
   }
-}
 
+  // The strips above compare the latents against each other. This reads one of them down to
+  // the residue, which is the question the strips cannot answer.
+  const zoomHead = el('div', 'chips');
+  const pick = el('select');
+  for (const [fid, f1] of c.feats ?? []) {
+    const o = el('option', undefined, `f/${fid}  ·  F1 ${f1.toFixed(3)}`);
+    o.value = String(fid);
+    pick.append(o);
+  }
+  const allOpt = el('option', undefined, `all ${c.feats?.length ?? 0} together`);
+  allOpt.value = 'all';
+  if ((c.feats?.length ?? 0) > 1) pick.append(allOpt);
+  zoomHead.append(el('span', 'small muted', 'read down to the residue:'), pick);
+  host.append(zoomHead);
+
+  const first = c.feats?.[0]?.[0];
+  const loc = localityView(info.s, first !== undefined ? perLatent.get(first)! : union, ranges);
+  host.append(loc.root);
+  loc.mount();
+  pick.addEventListener('change', () => {
+    const v = pick.value === 'all' ? union : perLatent.get(Number(pick.value))!;
+    loc.update(v, ranges);
+  });
+}
