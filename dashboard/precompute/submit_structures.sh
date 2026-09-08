@@ -61,7 +61,13 @@ srun --container-image="${CONTAINER}" \
      --container-workdir="/workspace/InterPLM" \
      bash -c "if ! .venv/bin/python -c 'import foldcomp' 2>/dev/null; then \
        echo 'installing foldcomp into the InterPLM venv' && \
-       .venv/bin/python -m pip install --quiet foldcomp; \
+       { if command -v uv >/dev/null 2>&1; then \
+           uv pip install --python /workspace/InterPLM/.venv/bin/python --quiet foldcomp; \
+         else \
+           .venv/bin/python -m ensurepip --upgrade >/dev/null && \
+           .venv/bin/python -m pip install --quiet foldcomp; \
+         fi; } && \
+       .venv/bin/python -c 'import foldcomp'; \
      fi && \
      mkdir -p ${FOLDCOMP_DIR} && cd ${FOLDCOMP_DIR} && \
      if [ ! -f afdb_swissprot.lookup ]; then \

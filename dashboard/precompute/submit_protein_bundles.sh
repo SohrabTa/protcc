@@ -32,12 +32,12 @@ MOUNTS="${MOUNTS},${DATA_DIR}:/workspace/data"
 EVALSET="${EVALSET:-uniprotkb_modern_score345}"
 SAE_DIR="${SAE_DIR:-/workspace/model_checkpoints/crosscoder_l8192_k32_bs512_full_uniref50/jumprelu_global_10990182}"
 ACTS_DIR="/workspace/data/crosscoder_activations/${EVALSET}"
-OUT_DIR="${OUT_DIR:-/workspace/data/protcc_dashboard/${EVALSET}/ranking}"
+ANN_DIR="/workspace/data/eval_dataset/${EVALSET}/processed_annotations"
+# Stage 5 has its own directory. Job 5776352 wrote into ranking/ instead, because this
+# line was a second ${OUT_DIR:-...} after the variable was already set, so it did nothing.
+OUT_DIR="${OUT_DIR:-/workspace/data/protcc_dashboard/${EVALSET}/proteins}"
 
 export UV_LINK_MODE=copy
-
-ANN_DIR="/workspace/data/eval_dataset/${EVALSET}/processed_annotations"
-OUT_DIR="${OUT_DIR:-/workspace/data/protcc_dashboard/${EVALSET}/proteins}"
 
 echo "Store        : ${ACTS_DIR}"
 echo "Annotations  : ${ANN_DIR}"

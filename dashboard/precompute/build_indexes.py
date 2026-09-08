@@ -14,6 +14,7 @@ site only renders.
     concept_proteins.bin   once     which proteins carry each concept
     protein_lookup.json    once     accession to global index and shard, for the search box
     feature/<id>.bin       per view the proteins one latent fires on, ranked
+    proteins/shard_<n>.json per view the sequence, name and annotation ranges of 1000 proteins
 
 Everything in the "once" column together is a few megabytes, so the site can hold it all in
 memory. The per-latent files are the only thing fetched on demand, because the ranked protein
@@ -199,13 +200,21 @@ def main():
         concepts.append(row)
     (a.out / "concepts.json").write_text(json.dumps(concepts, separators=(",", ":")))
 
-    # ---- protein_lookup.json --------------------------------------------
+    # ---- protein_lookup.json and the bundles ----------------------------
+    # The site fetches proteins/shard_<n>.json directly, so the bundles are copied in
+    # rather than left in the stage 5 directory. That keeps the web tree self-contained:
+    # one directory holds everything the browser asks for, and nothing else.
     shard_of = {}
+    n_bundles = 0
     if a.stage5 and (a.stage5 / "proteins").exists():
+        (a.out / "proteins").mkdir(exist_ok=True)
         for p in (a.stage5 / "proteins").glob("shard_*.json"):
             s = int(p.stem.split("_")[1])
-            for pid in json.loads(p.read_text())["proteins"]:
+            text = p.read_text()
+            for pid in json.loads(text)["proteins"]:
                 shard_of[pid] = s
+            (a.out / "proteins" / p.name).write_text(text)
+            n_bundles += 1
     lookup = {pid: [i, shard_of.get(pid, -1)] for i, pid in enumerate(protein_ids)}
     (a.out / "protein_lookup.json").write_text(json.dumps(lookup, separators=(",", ":")))
 
@@ -246,7 +255,8 @@ def main():
           f"{h['concepts_identified']} of {h['concepts_total']} concepts, "
           f"{h['features_paired']} features paired, "
           f"{h['latents_alive']} of {h['latents_total']} latents alive")
-    print(f"  {len(concepts)} concepts, {len(feats)} live latents, {n_files} feature files")
+    print(f"  {len(concepts)} concepts, {len(feats)} live latents, {n_files} feature files, "
+          f"{n_bundles} protein bundles")
     print(f"  {total / 1e6:.1f} MB on disk")
 
 

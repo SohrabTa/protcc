@@ -48,7 +48,14 @@ export function ramp(t: number): string {
 }
 
 export const fmt = (x: number, d = 3) => x.toFixed(d);
-export const pct = (x: number, d = 1) => `${x.toFixed(d)}%`;
+/**
+ * A percentage, with enough digits to stay informative.
+ *
+ * A motif latent fires on one residue of 500, so it covers 0.2% of the protein. Rounded to
+ * whole percent that reads as 0%, which says the latent does nothing. Small values keep two
+ * digits instead.
+ */
+export const pct = (x: number, d = 1) => `${x.toFixed(x > 0 && x < 1 ? 2 : d)}%`;
 export const num = (x: number) => x.toLocaleString('en-US');
 
 /** A horizontal bar showing a part of a whole, with the numbers beside it. */

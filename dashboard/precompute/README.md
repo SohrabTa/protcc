@@ -57,6 +57,41 @@ evaluation set and the Slurm job that produced its inputs into the manifest, so 
 site can be traced back. The site's headline figures must reproduce the published result: 0.479
 average best test F1, 187 of 408 concepts, 1020 features paired, 8128 live latents.
 
+## The full build of 2026-09-08
+
+The first complete run over all 208 shards. Four jobs on `lrz-cpu`, then stage 4 on the laptop.
+
+| Stage | Job | Elapsed | Result |
+|---|---|---:|---|
+| 1. Feature ranking | `5776292` | 8m 11s | 1011 MB, 157,392,198 latent-protein pairs |
+| 2. Track store | `5776341` | 5m 29s | 6.2 GB, 2,068,021,126 non-zeros over 62,655,684 residues |
+| 5. Protein bundles | `5776352` | 3m 18s | 105 MB, 627,067 concept-protein pairs, 680 concepts kept |
+| 6. Structures | `5776353` | 1m 1s | failed, see below. Resubmitted as `5777472` |
+| 4. Indexes | local | 6.9s | 952.3 MB, 8128 feature files, `partial: false` |
+
+Stage 2's non-zero count matches the store's own count to the digit, so it read every shard.
+Stage 4 reproduces the published headline: 0.4794 average best test F1, 187 of 408 concepts,
+1020 features paired, 8128 of 8192 latents alive.
+
+Two bugs surfaced in this run, both in the submit scripts and both now fixed.
+
+**Stage 6 could not install foldcomp.** The InterPLM venv is a `uv` venv and carries no `pip`, so
+`python -m pip install foldcomp` failed at once. The script now tries `uv pip install` first, falls
+back to `ensurepip`, and then imports the module to make sure that the install worked.
+
+**Stage 5 wrote into the wrong directory.** `submit_protein_bundles.sh` set `OUT_DIR` twice, and
+the second line used `${OUT_DIR:-...}` after the variable already held a value, so it did nothing.
+Stage 5 wrote into `ranking/` and overwrote stage 1's `manifest.json`. No array was lost, and the
+stage 5 manifest carries the same `partial: false`, so stage 4 read the right flag. But the
+provenance of stage 1 is gone from that run. **The 2026-09-08 outputs of stages 1 and 5 both live
+in `ranking/`.** Give `build_indexes.py` the same path for `--stage1` and `--stage5`.
+
+## Unpacking the tracks
+
+Stage 2 writes one tar for each shard, because 207,463 small files move over the network far
+slower than 208 large ones. The tars already carry the `tracks/<XX>/<acc>.bin` layout that the
+site fetches, so `unpack_tracks.sh <store-dir> <web-data-dir>` only extracts them.
+
 ## Stage 6 ships mmCIF, not BinaryCIF, for now
 
 Gzipped backbone mmCIF is 59.6 bytes per residue, about 3.73 GB for the evaluation set.
