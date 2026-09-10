@@ -88,11 +88,12 @@ stage 5 manifest carries the same `partial: false`, so stage 4 read the right fl
 provenance of stage 1 is gone from that run. **The 2026-09-08 outputs of stages 1 and 5 both live
 in `ranking/`.** Give `build_indexes.py` the same path for `--stage1` and `--stage5`.
 
-## Unpacking the tracks
+## Unpacking the tracks and the structures
 
-Stage 2 writes one tar for each shard, because 207,463 small files move over the network far
-slower than 208 large ones. The tars already carry the `tracks/<XX>/<acc>.bin` layout that the
-site fetches, so `unpack_tracks.sh <store-dir> <web-data-dir>` only extracts them.
+Stages 2 and 6 each write one tar for each shard, because 200,000 small files move over the
+network far slower than 208 large ones. The tars already carry the layout the site fetches,
+`tracks/<XX>/<acc>.bin` and `structures/<XX>/<acc>.cif.gz`, so
+`unpack_tars.sh <store-dir> <web-data-dir>` only extracts them.
 
 ## Stage 6 ships mmCIF, not BinaryCIF, for now
 

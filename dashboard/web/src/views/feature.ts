@@ -7,6 +7,7 @@
 
 import { Data, type Feature } from '../data';
 import { localityView } from '../locality';
+import { loadBackbone, spatialStat, structureView, type StructureHandle } from '../structure';
 import { activationStrip, el, link, panel, pct, row, table } from '../ui';
 
 const BANDS: [string, number, number][] = [
@@ -177,13 +178,63 @@ async function drawLocality(
   // whether the letters that fire are the annotated ones.
   const ci = f.c ? d.columnOf(f.c) : null;
   const ranges = ci !== null ? info.c[String(ci)] ?? [] : [];
-  const loc = localityView(info.s, Data.activationOf(track, fid), ranges);
+  const acts = Data.activationOf(track, fid);
+  const loc = localityView(info.s, acts, ranges);
   host.append(loc.root);
   loc.mount();
   if (f.c && ranges.length === 0) {
     host.append(
       el('p', 'small muted', `Swiss-Prot does not annotate ${f.c.replace('_', ' · ')} on ${acc}.`),
     );
+  }
+  await draw3D(d, acc, acts, host);
+}
+
+// One WebGL context at a time. A page gets a small number of them, and every protein the
+// reader steps through would take another one and eventually lose the earliest.
+let live: StructureHandle | null = null;
+
+async function draw3D(
+  d: Data,
+  acc: string,
+  acts: Uint8Array,
+  host: HTMLElement,
+): Promise<void> {
+  live?.destroy();
+  live = null;
+
+  const box = el('div', 'struct');
+  const note = el('p', 'small muted', 'Reading the AlphaFold model…');
+  host.append(el('h3', 'sub', 'In three dimensions'), note, box);
+
+  let bb;
+  try {
+    bb = await loadBackbone(d.base, acc);
+  } catch (err) {
+    note.textContent = `The model could not be read. ${String(err)}`;
+    box.remove();
+    return;
+  }
+  if (!bb) {
+    note.textContent =
+      `AlphaFold has no model for ${acc}. 5357 of the 207,463 proteins in the evaluation ` +
+      'set are in that position.';
+    box.remove();
+    return;
+  }
+
+  const sp = spatialStat(bb, acts);
+  note.textContent = sp
+    ? `Firing residues more than 20 apart in sequence sit a median ${sp.firing.toFixed(0)} Å ` +
+      `apart, against ${sp.protein.toFixed(0)} Å for the protein as a whole ` +
+      `(${sp.nPairs} pairs). One protein, so this describes it rather than shows a rule.`
+    : 'The colour is the same activation ramp the sequence views use.';
+
+  try {
+    live = await structureView(bb, acts, box);
+  } catch (err) {
+    note.textContent = `The viewer failed to start. ${String(err)}`;
+    box.remove();
   }
 }
 

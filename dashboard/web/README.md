@@ -50,12 +50,38 @@ The count covers one protein, so it describes that protein and does not show a r
 InterPLM colours its letters from matplotlib's `tab20` in alphabetical order
 (`interplm/dashboard/feature_activation_vis.py:13`), so its colours carry no chemistry.
 
+## The structure view
+
+The feature page draws the AlphaFold backbone, coloured by the same activation ramp the strips
+and the letters use, so the three views speak one language.
+
+It exists for one question the sequence views cannot answer. A latent can fire on residues that
+are far apart along the chain and still read a single site, because the chain folds and brings
+them together. On the letter row that looks like scatter. In space it is a pocket.
+
+A rotating protein is persuasive whether or not the residues are really close, so the panel also
+counts it: the median distance between alpha carbons of firing residues at least 20 apart in
+sequence, against the same median over pairs drawn from the whole protein. Distant pairs only,
+because neighbours along the chain are always close and would drown the signal. A median in
+angstroms rather than a share above a cutoff, because a cutoff is arbitrary and two shares near
+one percent differ mostly by rounding. It measures one protein and says so.
+
+The measure separates cases. Latent 3652 on CN hydrolase gives 17 Å against 24 Å, so it reads a
+compact region. Latent 6187 on globin gives 21 Å against 21 Å, because it covers most of a small
+protein and concentrates nowhere.
+
+3Dmol arrives through a dynamic import, so it is a separate 545 kB chunk that only a feature
+page fetches. The rest of the site stays at 34 kB.
+
+Whether the page decompresses a model depends on the server, so it checks the first two bytes
+rather than assuming. Vite sends a `.gz` file with `Content-Encoding: gzip` and the browser
+unwraps it; a bare static server sends the bytes as stored.
+
 ## What is not done yet
 
 - **Fonts come from Google.** `index.html` links them, which is fine for development and wrong
   for an offline bundle. They have to be vendored as WOFF2 before the site can claim to run with
   no network. Measured at 299 kB for every subset, far less for Latin alone.
-- **No structure viewer.** Stage 6 writes the models; Mol* has still to be wired in.
 - **No per-residue counts over the whole evaluation set.** The chemistry count runs on one
   protein in the browser. A claim that a latent reads a chemical class needs the same count over
   every protein it fires on, which belongs in the precompute.
