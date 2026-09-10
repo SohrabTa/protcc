@@ -216,3 +216,32 @@ h3.sub {
   font-size: 0.78rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
   color: var(--muted); margin: 18px 0 4px;
 }
+
+/* The latent map. */
+.dmap { margin-top: 6px; }
+.dmap-box { position: relative; width: 100%; }
+.dmap-box canvas { display: block; width: 100%; border-radius: 1px; }
+
+/* The search in the header, present on every page. */
+.navrow { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.jump-box { position: relative; }
+.jump-box input {
+  width: 230px; padding: 5px 9px; font-size: 0.82rem;
+  color: var(--ink); background: var(--surface); border: 1px solid var(--line-strong);
+  border-radius: 3px; font-family: inherit;
+}
+.jump-box input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.jump-list {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 20;
+  width: 330px; max-width: 76vw; padding: 3px;
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: 3px;
+  box-shadow: var(--shadow);
+}
+.jump-hit {
+  display: flex; flex-direction: column; gap: 1px; width: 100%;
+  padding: 5px 8px; text-align: left; border: 0; border-radius: 2px;
+  background: transparent; color: var(--ink); cursor: pointer; font-family: inherit;
+}
+.jump-hit:hover, .jump-hit[aria-selected='true'] { background: var(--surface-2); }
+.jump-label { font-size: 0.84rem; }
+.jump-note { font-size: 0.72rem; color: var(--muted); }

@@ -24,6 +24,32 @@ into `dist/`. A real deployment drops the `data/` folder next to `index.html`.
 
 The build is about 30 kB of JavaScript and 7 kB of CSS, with no runtime dependencies.
 
+## Navigation
+
+The reader arrives with a question about the model, not about a lookup. Nobody comes here
+knowing a latent number, and almost nobody comes with an accession. So the front page answers
+"what did the crosscoder find about ProtT5" in three panels, each one a measured finding rather
+than a section heading:
+
+- **What it names.** 187 of 408 Swiss-Prot concepts, grouped by biological family, with the
+  coverage of each family beside it.
+- **How it names them.** 149 of the 187 are found by more than one latent, a median of 4 and as
+  many as 62. The scatter is the evidence: every dot is one latent paired with one concept,
+  placed by how much of the region it covers against how often it is right. A model that learned
+  whole concepts would fill the top right. This one fills the top left.
+- **Where in the network.** Every live latent as a dot, across by the layer it writes hardest
+  into and up by how many proteins it fires on, amber where a concept names it. The last three
+  layers hold 937 live latents and 26 that anything names.
+
+The depth map is also the only way into a latent nobody has a number for, so its dots open the
+latent page. It replaced a plain histogram of peak layers, which showed the same distribution
+and none of the rest.
+
+A search sits in the header on every page, focused with `/`. It searches concepts, ranked so
+that the concept the crosscoder found most strongly comes first: typing `kinase` reaches Protein
+kinase at 54 latents before Histidine kinase at 37. It also accepts `f/1819` and an accession,
+unadvertised, because those are for returning to a page you have already seen.
+
 ## The locality view
 
 The panel that answers where along a protein a latent fires. Both scales stay on screen at once,

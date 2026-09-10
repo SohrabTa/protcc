@@ -12,6 +12,7 @@ import { renderOverview } from './views/overview';
 import { renderConcept } from './views/concept';
 import { renderFeature } from './views/feature';
 import { renderProtein } from './views/protein';
+import { mountJump } from './jump';
 
 const data = new Data('./data');
 const app = document.getElementById('app')!;
@@ -94,6 +95,7 @@ async function start(): Promise<void> {
     return;
   }
   header();
+  mountJump(data, document.getElementById('jump')!);
   document.getElementById('prov')!.textContent =
     `${data.manifest.crosscoder} on ${data.manifest.eval_set}, built ${data.manifest.built}. ` +
     `${num(data.manifest.counts.proteins)} proteins, ` +

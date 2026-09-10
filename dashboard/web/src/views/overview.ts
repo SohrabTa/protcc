@@ -8,7 +8,8 @@
  */
 
 import type { Concept, Data } from '../data';
-import { coverageBar, el, link, panel, pct, row, table } from '../ui';
+import { depthMap } from '../depthmap';
+import { coverageBar, el, link, panel, row, table } from '../ui';
 
 const ROLES = ['catalytic', 'binding', 'structural', 'PTM', 'targeting', 'disorder'];
 
@@ -31,18 +32,11 @@ export function renderOverview(d: Data, host: HTMLElement): void {
   const controls = el('div', 'chips');
   const search = el('input');
   search.type = 'search';
-  search.placeholder = 'Filter concepts, latents (f/1819) or proteins (Q03217)';
+  search.placeholder = 'Filter this list';
   search.addEventListener('input', () => {
     query = search.value.trim();
     if (/^f\/?\d+$/i.test(query)) return; // handled on Enter
     draw();
-  });
-  search.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter') return;
-    const q = search.value.trim();
-    const m = /^f\/?(\d+)$/i.exec(q);
-    if (m) location.hash = `/feature/${m[1]}`;
-    else if (d.proteinShard.has(q.toUpperCase())) location.hash = `/protein/${q.toUpperCase()}`;
   });
   controls.append(search);
   for (const r of ['', ...ROLES]) {
@@ -129,99 +123,143 @@ export function renderOverview(d: Data, host: HTMLElement): void {
 
   draw();
 
-  // Where the latents live in the encoder.
+  views.append(splitPanel(d));
+
+  // Where the latents live in the encoder, and which of them anything named.
   const depthPanel = panel(
     'Depth',
-    'Where each concept lives in the encoder',
-    'Each latent writes into all 24 encoder layers. The layer where it writes hardest is its ' +
+    'What it names lives in the middle of the encoder',
+    'Each latent writes into all 24 encoder layers, and the layer it writes hardest into is its ' +
       'peak. A per-layer sparse autoencoder cannot state this, because its features are separate ' +
       'models with no correspondence between layers.',
   );
-  depthPanel.append(peakHistogram(d));
+  const map = depthMap(d);
+  depthPanel.append(map.root);
   views.append(depthPanel);
+  map.mount();
 }
 
-function peakHistogram(d: Data): HTMLElement {
-  const counts = new Array(d.nLayers).fill(0);
-  for (const f of d.features) counts[f.pk - 1]++;
-  const max = Math.max(...counts);
-  const W = 1000;
-  const H = 170;
-  const PL = 40;
-  const PB = 30;
-  const PT = 10;
-  const iw = W - PL - 10;
-  const ih = H - PT - PB;
+/**
+ * The second finding: the crosscoder almost never learns one concept as one feature.
+ *
+ * The scatter is the evidence rather than a decoration. Every dot is one latent paired with one
+ * concept, placed by how much of the annotated region it covers against how often it is right
+ * when it fires. A model that learned whole concepts would fill the top right. This one fills
+ * the top left, which is many precise latents each reading part of a region.
+ */
+function splitPanel(d: Data): HTMLElement {
+  const pairs: { fid: number; concept: string; prec: number; rec: number }[] = [];
+  const multi: Concept[] = [];
+  for (const c of d.concepts) {
+    if (!c.feats?.length) continue;
+    if (c.nf >= 2) multi.push(c);
+    for (const [fid, , prec, rec] of c.feats) {
+      pairs.push({ fid, concept: c.c, prec, rec });
+    }
+  }
+  const found = d.concepts.filter((c) => c.nf > 0);
+  const med = (xs: number[]) => {
+    const a = [...xs].sort((x, y) => x - y);
+    const m = a.length >> 1;
+    return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+  };
+  const nf = med(found.map((c) => c.nf));
+  const mostSplit = [...multi].sort((a, b) => b.nf - a.nf).slice(0, 6);
+
+  const p = panel(
+    'Splitting',
+    'One concept, several latents',
+    'A concept is rarely one feature. Most are detected by a group of latents, and each one ' +
+      'fires where the concept is but covers only part of it.',
+  );
+  p.append(
+    el(
+      'p',
+      'lede',
+      `${multi.length} of the ${found.length} named concepts are found by more than one latent, ` +
+        `a median of ${nf} and as many as ${Math.max(...found.map((c) => c.nf))}. Over all ` +
+        `${pairs.length.toLocaleString('en-US')} latent-concept pairs the median precision is ` +
+        `${med(pairs.map((x) => x.prec)).toFixed(2)} and the median per-residue recall is ` +
+        `${med(pairs.map((x) => x.rec)).toFixed(3)}.`,
+    ),
+  );
+  p.append(splitScatter(pairs));
+  const links = el('p', 'small muted');
+  links.append('The most split: ');
+  mostSplit.forEach((c, i) => {
+    if (i) links.append(' · ');
+    links.append(
+      link(`/concept/${encodeURIComponent(c.c)}`, `${c.c.split('_').slice(1).join('_')} (${c.nf})`),
+    );
+  });
+  p.append(links);
+  return p;
+}
+
+function splitScatter(
+  pairs: { fid: number; concept: string; prec: number; rec: number }[],
+): HTMLElement {
   const ns = 'http://www.w3.org/2000/svg';
+  const W = 640;
+  const H = 260;
+  const PL = 44;
+  const PB = 36;
+  const PT = 12;
+  const PR = 12;
+  const iw = W - PL - PR;
+  const ih = H - PT - PB;
   const svg = document.createElementNS(ns, 'svg');
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   svg.setAttribute('width', '100%');
   svg.style.display = 'block';
-  svg.style.marginTop = '10px';
-
-  const add = (t: string, attrs: Record<string, string | number>, text?: string) => {
+  svg.style.marginTop = '8px';
+  const add = (t: string, a: Record<string, string | number>, text?: string) => {
     const n = document.createElementNS(ns, t);
-    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, String(v));
+    for (const [k, v] of Object.entries(a)) n.setAttribute(k, String(v));
     if (text !== undefined) n.textContent = text;
     svg.append(n);
     return n;
   };
-  for (const f of [0, 0.5, 1]) {
-    const y = PT + ih - ih * f;
-    add('line', { x1: PL, y1: y, x2: W - 10, y2: y, stroke: 'var(--line)' });
+  const X = (r: number) => PL + iw * r;
+  const Y = (p: number) => PT + ih - ih * p;
+  for (const g of [0, 0.5, 1]) {
+    add('line', { x1: PL, y1: Y(g), x2: W - PR, y2: Y(g), stroke: 'var(--line)' });
     add(
       'text',
-      { x: PL - 6, y: y + 3, 'text-anchor': 'end', fill: 'var(--muted)', 'font-size': 9 },
-      String(Math.round(max * f)),
+      { x: PL - 6, y: Y(g) + 3, 'text-anchor': 'end', fill: 'var(--muted)', 'font-size': 9 },
+      g.toFixed(1),
+    );
+    add('line', { x1: X(g), y1: PT, x2: X(g), y2: PT + ih, stroke: 'var(--line)' });
+    add(
+      'text',
+      { x: X(g), y: H - PB + 13, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 9 },
+      g.toFixed(1),
     );
   }
-  const bw = iw / d.nLayers;
-  counts.forEach((c, i) => {
-    const h = ih * (c / max);
-    add('rect', {
-      x: PL + i * bw + 1.5,
-      y: PT + ih - h,
-      width: bw - 3,
-      height: h,
-      fill: 'var(--accent)',
+  for (const q of pairs) {
+    const dot = add('circle', {
+      cx: X(q.rec).toFixed(1),
+      cy: Y(q.prec).toFixed(1),
+      r: 2,
+      fill: 'var(--signal)',
+      'fill-opacity': 0.4,
     });
-    if (i % 2 === 0 || i === d.nLayers - 1) {
-      add(
-        'text',
-        {
-          x: PL + i * bw + bw / 2,
-          y: H - 14,
-          'text-anchor': 'middle',
-          fill: 'var(--muted)',
-          'font-size': 9,
-        },
-        String(i + 1),
-      );
-    }
-  });
+    const t = document.createElementNS(ns, 'title');
+    t.textContent = `f/${q.fid}  ${q.concept.replace('_', ' · ')}`;
+    dot.append(t);
+  }
   add(
     'text',
-    { x: PL + iw / 2, y: H - 2, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 9 },
-    'ProtT5 encoder layer',
+    { x: PL + iw / 2, y: H - 4, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 9 },
+    'per-residue recall: how much of the annotated region it covers',
   );
+  const rot = add(
+    'text',
+    { x: 11, y: PT + ih / 2, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 9 },
+    'precision',
+  );
+  rot.setAttribute('transform', `rotate(-90 11 ${PT + ih / 2})`);
   const wrap = el('div');
   wrap.append(svg);
-  const median = [...d.features].sort((a, b) => a.pk - b.pk)[Math.floor(d.features.length / 2)];
-  wrap.append(
-    el(
-      'p',
-      'small muted',
-      `${d.features.length.toLocaleString('en-US')} live latents, median peak layer ` +
-        `${median.pk}. A latent holds at least half its peak strength across ` +
-        `${medianSpread(d)} layers, so it is not confined to one.`,
-    ),
-  );
   return wrap;
 }
-
-function medianSpread(d: Data): number {
-  const sp = d.features.map((f) => f.sp).sort((a, b) => a - b);
-  return sp[Math.floor(sp.length / 2)];
-}
-
-export { pct };
