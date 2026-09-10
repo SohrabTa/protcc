@@ -245,3 +245,13 @@ h3.sub {
 .jump-hit:hover, .jump-hit[aria-selected='true'] { background: var(--surface-2); }
 .jump-label { font-size: 0.84rem; }
 .jump-note { font-size: 0.72rem; color: var(--muted); }
+
+.stepper button { min-width: 30px; }
+.step-name { min-width: 72px; text-align: center; font-size: 0.8rem; color: var(--ink-2); }
+/* One Swiss-Prot annotation and the latents that read it, kept together. */
+.anngroup { border-left: 2px solid var(--accent-soft); padding-left: 9px; margin-top: 12px; }
+.anngroup:first-child { margin-top: 2px; }
+.anngroup > .annname {
+  font-size: 0.78rem; color: var(--ink-2); margin-bottom: 3px; display: block;
+}
+.anngroup .rows { grid-template-columns: 78px 1fr; }

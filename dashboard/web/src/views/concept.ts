@@ -7,7 +7,9 @@
 
 import { Data, type Concept } from '../data';
 import { localityView } from '../locality';
-import { activationStrip, annotationStrip, depthRibbon, el, link, panel, row, table } from '../ui';
+import {
+  activationStrip, annotationStrip, depthRibbon, el, link, panel, redrawStrips, row, stepper, table,
+} from '../ui';
 
 export async function renderConcept(d: Data, name: string, host: HTMLElement): Promise<void> {
   host.textContent = '';
@@ -84,21 +86,15 @@ export async function renderConcept(d: Data, name: string, host: HTMLElement): P
     return;
   }
 
-  const chooser = el('div', 'chips');
-  const sel = el('select');
-  for (const acc of carriers) {
-    const o = el('option', undefined, acc);
-    o.value = acc;
-    sel.append(o);
-  }
-  chooser.append(el('span', 'small muted', `protein (${carriers.length} carry this concept):`), sel);
-  ev.append(chooser);
+  // A stepper, not a list of 132 accessions. The reader wants another carrier of the concept,
+  // not a particular protein, and cannot recognise one accession from another anyway.
+  const chooser = el('div');
   const evBody = el('div');
-  ev.append(evBody);
-  views.append(ev);
+  ev.append(chooser, evBody);
+  views.append(ev); // in the document before the stepper draws, so the strips can measure
 
-  sel.addEventListener('change', () => void drawEvidence(d, c, sel.value, evBody));
-  await drawEvidence(d, c, carriers[0], evBody);
+  const step = stepper(carriers, 'carrier', (acc) => void drawEvidence(d, c, acc, evBody));
+  chooser.append(step);
 }
 
 async function drawEvidence(
@@ -140,6 +136,7 @@ async function drawEvidence(
     rows.append(el('div', 'lab strong', `all ${c.feats!.length}`), activationStrip(union));
   }
   host.append(rows);
+  redrawStrips(rows);
 
   if (ranges.length) {
     let covered = 0;

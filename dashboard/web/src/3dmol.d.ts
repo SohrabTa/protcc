@@ -8,6 +8,7 @@ declare module '3dmol/build/3Dmol.es6-min.js' {
     addModel(data: string, format: string): unknown;
     getModel(): { selectedAtoms(sel: object): { atom: string; resi: number | string }[] };
     setStyle(selector: object, style: object): void;
+    addStyle(selector: object, style: object): void;
     render(): void;
     zoomTo(): void;
     clear(): void;

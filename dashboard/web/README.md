@@ -103,6 +103,22 @@ Whether the page decompresses a model depends on the server, so it checks the fi
 rather than assuming. Vite sends a `.gz` file with `Content-Encoding: gzip` and the browser
 unwraps it; a bare static server sends the bytes as stored.
 
+## Two drawing rules the code has to obey
+
+Both came out of bugs that reached a screenshot, and both are the same mistake.
+
+**A canvas cannot be sized before it is in the document.** `activationStrip` deferred its first
+drawing to a frame callback, and the callers build a row of strips inside a loop that awaits a
+fetch per protein, so a frame passed while the row was still detached. The canvas was sized from
+a width of zero and stretched by CSS into one smear of colour, which corrected itself only when
+switching activation bands rebuilt the row. Strips now redraw on a resize and, because a resize
+observation is delivered by the rendering loop and never arrives in a page that is not being
+painted, the caller also calls `redrawStrips` once the rows are in the document.
+
+**So the container has to be attached first.** Filling a detached panel and appending it at the
+end puts every measurement back at zero. The protein and concept views now append their panel
+before they fill it.
+
 ## What is not done yet
 
 - **Fonts come from Google.** `index.html` links them, which is fine for development and wrong

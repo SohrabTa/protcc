@@ -6,7 +6,8 @@
  */
 
 import { Data } from '../data';
-import { activationStrip, annotationStrip, el, link, panel, pct, row, table } from '../ui';
+import { drawStructure } from '../structpanel';
+import { activationStrip, annotationStrip, el, link, panel, pct, redrawStrips, row, table } from '../ui';
 
 export async function renderProtein(d: Data, acc: string, host: HTMLElement): Promise<void> {
   host.textContent = '';
@@ -95,32 +96,65 @@ export async function renderProtein(d: Data, acc: string, host: HTMLElement): Pr
     'The teal rows are Swiss-Prot annotations. The amber rows are the latents that pair with ' +
       'them, so a row pair that lines up is a latent doing its job.',
   );
-  const rows = el('div', 'rows');
+  // One block per annotation, each holding its own latents. A single flat grid left the reader
+  // guessing which amber rows belonged to which teal one, because an annotation that no latent
+  // pairs with is followed straight away by the next annotation's latents.
+  views.append(ev); // in the document first, so the strips inside it can measure themselves
   const shown = new Set<number>();
+  let nAnnotations = 0;
+  let nUnread = 0;
   for (const [col, ranges] of Object.entries(info.c)) {
     const name = d.conceptColumns[Number(col)];
+    // `<field>_any` is a roll-up over every concept of that Swiss-Prot field, so it repeats
+    // ranges that the named columns already carry.
     if (!name || name.endsWith('_any')) continue;
+    nAnnotations++;
     const concept = d.conceptByName.get(name);
-    const lab = el('div', 'lab strong');
-    lab.append(
+    const group = el('div', 'anngroup');
+    const head = el('span', 'annname');
+    head.append(
       concept
-        ? link(`/concept/${encodeURIComponent(name)}`, name.split('_').slice(1).join('_') || name)
-        : (name as unknown as Node),
+        ? link(`/concept/${encodeURIComponent(name)}`, name.replace('_', ' · '))
+        : (name.replace('_', ' · ') as unknown as Node),
     );
-    lab.title = name;
-    rows.append(lab, annotationStrip(info.l, ranges));
-    for (const [fid] of (concept?.feats ?? []).slice(0, 3)) {
-      if (shown.has(fid)) continue;
+    group.append(head);
+
+    const rows = el('div', 'rows');
+    rows.append(el('div', 'lab strong', 'Swiss-Prot'), annotationStrip(info.l, ranges));
+    let drawn = 0;
+    for (const [fid] of concept?.feats ?? []) {
+      if (shown.has(fid) || drawn >= 3) continue;
       shown.add(fid);
+      drawn++;
       const l2 = el('div', 'lab');
       l2.append(link(`/feature/${fid}`, `f/${fid}`, 'mono'));
       rows.append(l2, activationStrip(Data.activationOf(track, fid)));
     }
+    group.append(rows);
+    if (drawn === 0) {
+      nUnread++;
+      group.append(el('p', 'small muted', 'No latent pairs with this annotation.'));
+    }
+    ev.append(group);
+    redrawStrips(group);
   }
-  if (rows.childElementCount === 0) {
+  if (nAnnotations === 0) {
     ev.append(el('p', 'small muted', 'Swiss-Prot annotates no region of this protein.'));
   } else {
-    ev.append(rows);
+    ev.append(
+      el(
+        'p',
+        'small muted',
+        `Swiss-Prot annotates ${nAnnotations} region type${nAnnotations === 1 ? '' : 's'} of ` +
+          `${acc}` +
+          (nUnread ? `, and ${nUnread} of them no latent reads.` : '.'),
+      ),
+    );
   }
-  views.append(ev);
+
+  // The strongest latent on this protein is the one worth colouring the model by.
+  const best = withConcept[0]?.[0] ?? ranked[0]?.[0];
+  if (best !== undefined) {
+    await drawStructure(d, acc, Data.activationOf(track, best), views, `f/${best}`);
+  }
 }

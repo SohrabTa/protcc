@@ -126,9 +126,26 @@ export function activationStrip(values: Uint8Array, height = 15): HTMLElement {
     c.strokeStyle = cssVar('--line');
     c.strokeRect(0.5, 0.5, w - 1, height - 1);
   };
-  requestAnimationFrame(draw);
+  // ResizeObserver rather than one frame callback. The callers build a row of strips inside a
+  // loop that awaits a fetch per protein, so a frame passes while the row is still detached from
+  // the document. The canvas was then sized from a width of zero and stretched by CSS into a
+  // single smear of colour, which only corrected itself when something rebuilt the row.
+  new ResizeObserver(() => {
+    if (box.clientWidth > 0) draw();
+  }).observe(box);
   (box as HTMLElement & { redraw?: () => void }).redraw = draw;
   return box;
+}
+
+/**
+ * Redraw every strip under a container. Call it after the strips are in the document.
+ *
+ * The observer above covers a resize, but it is delivered by the rendering loop and so does not
+ * arrive at all in a page that is not being painted. The first drawing is the one that matters
+ * and the caller knows when the rows are in the document, so the caller asks for it.
+ */
+export function redrawStrips(root: HTMLElement): void {
+  root.querySelectorAll<HTMLElement & { redraw?: () => void }>('.strip').forEach((s) => s.redraw?.());
 }
 
 /** A binary strip: where Swiss-Prot annotates a concept. */
@@ -181,4 +198,43 @@ export function panel(eyebrow: string, title: string, lede?: string): HTMLElemen
   p.append(h);
   if (lede) p.append(el('p', 'lede', lede));
   return p;
+}
+
+/**
+ * A stepper for a long list of proteins.
+ *
+ * It replaces a `<select>` of up to several hundred accessions. Nobody knows the accessions, so
+ * a list of them is not a choice anybody can make: the reader wants another example, not a
+ * particular protein. So the control offers the next one, the previous one, and a random one,
+ * and says where in the list they are.
+ */
+export function stepper(
+  items: string[],
+  label: string,
+  onPick: (item: string, index: number) => void,
+): HTMLElement {
+  const box = el('div', 'chips stepper');
+  let i = 0;
+  const pos = el('span', 'small muted');
+  const name = el('span', 'mono step-name');
+
+  const go = (next: number) => {
+    i = (next + items.length) % items.length;
+    pos.textContent = `${label} ${i + 1} of ${items.length}`;
+    name.textContent = items[i];
+    onPick(items[i], i);
+  };
+
+  const prev = el('button', undefined, '‹');
+  prev.title = 'previous';
+  prev.addEventListener('click', () => go(i - 1));
+  const next = el('button', undefined, '›');
+  next.title = 'next';
+  next.addEventListener('click', () => go(i + 1));
+  const rand = el('button', undefined, 'random');
+  rand.addEventListener('click', () => go(Math.floor(Math.random() * items.length)));
+
+  box.append(pos, prev, name, next, rand);
+  go(0);
+  return box;
 }

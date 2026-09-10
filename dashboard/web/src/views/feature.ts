@@ -7,8 +7,8 @@
 
 import { Data, type Feature } from '../data';
 import { localityView } from '../locality';
-import { loadBackbone, spatialStat, structureView, type StructureHandle } from '../structure';
-import { activationStrip, el, link, panel, pct, row, table } from '../ui';
+import { currentStructure, drawStructure } from '../structpanel';
+import { activationStrip, el, link, panel, pct, redrawStrips, row, stepper, table } from '../ui';
 
 const BANDS: [string, number, number][] = [
   ['strongest', 0.8, 1.0],
@@ -124,18 +124,17 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
   if (withTrack.length === 0) {
     locBody.append(el('p', 'warn', 'No protein this latent fires on has a track in this tree.'));
   } else {
-    const sel = el('select');
-    for (const acc of withTrack) {
-      const o = el('option', undefined, acc);
-      o.value = acc;
-      sel.append(o);
-    }
+    let pending = 0;
     locChooser.append(
-      el('span', 'small muted', `protein (${withTrack.length} strongest, ranked):`),
-      sel,
+      stepper(withTrack, 'protein', (acc) => {
+        // Stepping is faster than a fetch, so a later pick must not be overwritten by an
+        // earlier one that finished after it.
+        const mine = ++pending;
+        void drawLocality(d, f, fid, acc, locBody).then(() => {
+          if (mine !== pending) return;
+        });
+      }),
     );
-    sel.addEventListener('change', () => void drawLocality(d, f, fid, sel.value, locBody));
-    await drawLocality(d, f, fid, withTrack[0], locBody);
   }
 
   let band = 0;
@@ -187,55 +186,10 @@ async function drawLocality(
       el('p', 'small muted', `Swiss-Prot does not annotate ${f.c.replace('_', ' · ')} on ${acc}.`),
     );
   }
-  await draw3D(d, acc, acts, host);
-}
-
-// One WebGL context at a time. A page gets a small number of them, and every protein the
-// reader steps through would take another one and eventually lose the earliest.
-let live: StructureHandle | null = null;
-
-async function draw3D(
-  d: Data,
-  acc: string,
-  acts: Uint8Array,
-  host: HTMLElement,
-): Promise<void> {
-  live?.destroy();
-  live = null;
-
-  const box = el('div', 'struct');
-  const note = el('p', 'small muted', 'Reading the AlphaFold model…');
-  host.append(el('h3', 'sub', 'In three dimensions'), note, box);
-
-  let bb;
-  try {
-    bb = await loadBackbone(d.base, acc);
-  } catch (err) {
-    note.textContent = `The model could not be read. ${String(err)}`;
-    box.remove();
-    return;
-  }
-  if (!bb) {
-    note.textContent =
-      `AlphaFold has no model for ${acc}. 5357 of the 207,463 proteins in the evaluation ` +
-      'set are in that position.';
-    box.remove();
-    return;
-  }
-
-  const sp = spatialStat(bb, acts);
-  note.textContent = sp
-    ? `Firing residues more than 20 apart in sequence sit a median ${sp.firing.toFixed(0)} Å ` +
-      `apart, against ${sp.protein.toFixed(0)} Å for the protein as a whole ` +
-      `(${sp.nPairs} pairs). One protein, so this describes it rather than shows a rule.`
-    : 'The colour is the same activation ramp the sequence views use.';
-
-  try {
-    live = await structureView(bb, acts, box);
-  } catch (err) {
-    note.textContent = `The viewer failed to start. ${String(err)}`;
-    box.remove();
-  }
+  // Pointing at a letter marks the same residue on the model, which is the reason both views
+  // are on one page rather than two.
+  loc.onHover((i) => currentStructure()?.highlight(i === null ? null : i + 1));
+  await drawStructure(d, acc, acts, host, `f/${fid}`);
 }
 
 async function drawBand(
@@ -278,6 +232,7 @@ async function drawBand(
   }
   host.textContent = '';
   host.append(rows);
+  redrawStrips(rows);
 }
 
 function depthChart(d: Data, fid: number, f: Feature): HTMLElement {

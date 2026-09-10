@@ -13,7 +13,7 @@
  * be shown rather than hidden.
  */
 
-import { rampRGB } from './ui';
+import { cssVar, rampRGB } from './ui';
 
 export interface Backbone {
   /** The raw mmCIF, which the viewer parses itself. */
@@ -171,6 +171,13 @@ export function spatialStat(
 export interface StructureHandle {
   /** Point the viewer at a different latent on the same model. */
   update(values: Uint8Array): void;
+  /**
+   * Mark one residue, or clear the mark with null.
+   *
+   * This is what ties the letter row to the model: pointing at a letter shows where that residue
+   * sits in the fold, which is the whole reason both views are on the page.
+   */
+  highlight(resi: number | null): void;
   /** Release the WebGL context, which a page does not get many of. */
   destroy(): void;
 }
@@ -194,6 +201,7 @@ export async function structureView(
   viewer.addModel(bb.cif, 'cif');
 
   let vals = values;
+  let marked: number | null = null;
   const paint = (): void => {
     viewer.setStyle(
       {},
@@ -210,6 +218,12 @@ export async function structureView(
         },
       },
     );
+    if (marked !== null) {
+      viewer.addStyle(
+        { resi: String(marked) },
+        { sphere: { color: cssVar('--ink'), radius: 1.9 } },
+      );
+    }
     viewer.render();
   };
 
@@ -220,6 +234,11 @@ export async function structureView(
   return {
     update(next) {
       vals = next;
+      paint();
+    },
+    highlight(resi) {
+      if (resi === marked) return; // a mousemove fires far more often than the residue changes
+      marked = resi;
       paint();
     },
     destroy() {

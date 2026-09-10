@@ -47,6 +47,8 @@ export interface LocalityHandle {
   mount(): void;
   /** Point the view at a different latent on the same protein. */
   update(values: Uint8Array, ranges: [number, number][]): void;
+  /** Called with the 0-based residue under the pointer, or null when it leaves. */
+  onHover(fn: (index: number | null) => void): void;
 }
 
 export function localityView(seq: string, values: Uint8Array, ranges: [number, number][]): LocalityHandle {
@@ -118,6 +120,7 @@ export function localityView(seq: string, values: Uint8Array, ranges: [number, n
   }
 
   let hover = -1;
+  let hovered: (i: number | null) => void = () => {};
 
   function drawOverview(): void {
     const w = Math.max(1, Math.round(over.clientWidth));
@@ -278,6 +281,7 @@ export function localityView(seq: string, values: Uint8Array, ranges: [number, n
     const i = Math.floor((e.clientX - r.left + scroller.scrollLeft) / CELL);
     if (i === hover || i < 0 || i >= n) return;
     hover = i;
+    hovered(i);
     readout.textContent = `${seq[i] ?? '?'}${i + 1}  ${classOf(seq[i] ?? '').label}  ${(
       vals[i] / 255
     ).toFixed(2)}${mask[i] ? '  annotated' : ''}`;
@@ -285,6 +289,7 @@ export function localityView(seq: string, values: Uint8Array, ranges: [number, n
   });
   zoomCv.addEventListener('mouseleave', () => {
     hover = -1;
+    hovered(null);
     readout.textContent = '';
     drawZoom();
   });
@@ -307,6 +312,9 @@ export function localityView(seq: string, values: Uint8Array, ranges: [number, n
       centerOnPeak();
       redraw();
       ro.observe(over);
+    },
+    onHover(fn) {
+      hovered = fn;
     },
     update(nextValues, nextRanges) {
       vals = nextValues;
