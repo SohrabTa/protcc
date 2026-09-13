@@ -133,6 +133,8 @@ export class Data {
    * tree built before stage 7 ran.
    */
   conceptCoverage!: Uint8Array;
+  /** How many of a concept's latents fire on that protein, same pair order. */
+  conceptFiring!: Uint8Array;
   proteinIds!: string[];
   proteinShard = new Map<string, number>();
   /** Column order of the annotation ranges inside a protein bundle. */
@@ -186,9 +188,16 @@ export class Data {
     if (covBuf) {
       const vv = new DataView(covBuf);
       check(vv, MAGIC.coverage, 'concept_coverage.bin');
-      this.conceptCoverage = new Uint8Array(covBuf, 16, vv.getUint32(4, true));
+      const nPairs = vv.getUint32(4, true);
+      const nArrays = vv.getUint32(12, true);
+      this.conceptCoverage = new Uint8Array(covBuf, 16, nPairs);
+      // A file written before the second array exists reports 1, and the filter is then absent
+      // rather than wrong.
+      this.conceptFiring =
+        nArrays >= 2 ? new Uint8Array(covBuf, 16 + nPairs, nPairs) : new Uint8Array(0);
     } else {
       this.conceptCoverage = new Uint8Array(0);
+      this.conceptFiring = new Uint8Array(0);
     }
 
     this.proteinIds = new Array(Object.keys(lookup).length);
@@ -238,6 +247,18 @@ export class Data {
     const out = new Float32Array(hi - lo);
     for (let i = lo; i < hi; i++) out[i - lo] = this.conceptCoverage[i] / 255;
     return out;
+  }
+
+  /**
+   * How many of the concept's latents fire on each carrier, in `carriersOf` order.
+   *
+   * Returns null when stage 7 has not run, or when the file predates this array.
+   */
+  latentsFiringOn(c: Concept): Uint8Array | null {
+    if (!c.po || !this.conceptFiring.length || !c.feats?.length) return null;
+    const [lo, hi] = c.po;
+    if (hi > this.conceptFiring.length) return null;
+    return this.conceptFiring.subarray(lo, hi);
   }
 
   /** How many proteins have an AlphaFold model in this tree, or null in an older tree. */

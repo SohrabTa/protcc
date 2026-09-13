@@ -71,7 +71,9 @@ export async function renderProtein(d: Data, acc: string, host: HTMLElement): Pr
       'p',
       'small muted',
       `The table holds the ${shownRows} paired latents that cover the most of this protein. ` +
-        'A column sorts these rows.',
+        'It answers what else the crosscoder reads here, beside the annotation you came for. ' +
+        'The rows are in the default order, which is how much of the protein the latent covers. ' +
+        'Click a column header to sort by it.',
     ),
   );
 
@@ -84,7 +86,7 @@ export async function renderProtein(d: Data, acc: string, host: HTMLElement): Pr
     body.append(
       row(
         [
-          link(`/feature/${fid}`, `f/${fid}`, 'mono'),
+          link(`/latent/${fid}`, `f/${fid}`, 'mono'),
           link(`/concept/${encodeURIComponent(f.c!)}`, f.c!.replace('_', ' · ')),
           pct((n / info.l) * 100, 0),
           ((peaks.get(fid) ?? 0) / 255).toFixed(2),
@@ -132,16 +134,38 @@ export async function renderProtein(d: Data, acc: string, host: HTMLElement): Pr
 
     const rows = el('div', 'rows');
     rows.append(el('div', 'lab strong', 'Swiss-Prot'), annotationStrip(info.l, ranges));
-    let drawn = 0;
-    for (const [fid] of concept?.feats ?? []) {
-      if (shown.has(fid) || drawn >= 3) continue;
-      shown.add(fid);
-      drawn++;
+    // Every latent that pairs with this annotation, not the first three. The cap was there to
+    // keep the page short, and it hid most of the evidence: a concept can have 62 latents and
+    // the reader was shown 3 with nothing to say so. The rest start folded instead.
+    const mine = (concept?.feats ?? []).map(([fid]) => fid).filter((fid) => !shown.has(fid));
+    for (const fid of mine) shown.add(fid);
+    const FIRST = 4;
+    const extra: HTMLElement[] = [];
+    mine.forEach((fid, k) => {
       const l2 = el('div', 'lab');
-      l2.append(link(`/feature/${fid}`, `f/${fid}`, 'mono'));
-      rows.append(l2, activationStrip(Data.activationOf(track, fid)));
-    }
+      l2.append(link(`/latent/${fid}`, `f/${fid}`, 'mono'));
+      const strip = activationStrip(Data.activationOf(track, fid));
+      if (k >= FIRST) {
+        l2.hidden = true;
+        strip.hidden = true;
+        extra.push(l2, strip);
+      }
+      rows.append(l2, strip);
+    });
+    const drawn = mine.length;
     group.append(rows);
+    if (extra.length) {
+      const more = el('button', 'linkish', `show the other ${extra.length / 2} latents`);
+      more.addEventListener('click', () => {
+        const nowHidden = extra[0].hidden;
+        for (const e of extra) e.hidden = !nowHidden;
+        more.textContent = nowHidden
+          ? 'show fewer latents'
+          : `show the other ${extra.length / 2} latents`;
+        if (nowHidden) redrawStrips(rows);
+      });
+      group.append(more);
+    }
     if (drawn === 0) {
       nUnread++;
       group.append(el('p', 'small muted', 'No latent pairs with this annotation.'));

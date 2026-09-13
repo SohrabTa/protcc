@@ -101,11 +101,16 @@ export function localityView(seq: string, values: Uint8Array, ranges: [number, n
     el(
       'p',
       'small muted',
-      'The top bar is the whole protein. Click it to move the letters, or scroll them directly.',
+      'The top bar is the whole protein, at one pixel for each group of residues. The row below ' +
+      'shows the amino-acid letters, one cell for each residue. Click the top bar to move the ' +
+      'letters, or scroll them directly.',
     ),
   );
   const chem = el('div', 'loc-chem');
-  foot.append(legendSide, chem);
+  const chemHead = el('h3', 'sub', 'What the firing residues are made of');
+  const chemSide = el('div');
+  chemSide.append(chemHead, chem);
+  foot.append(legendSide, chemSide);
   root.append(foot);
 
   /** What the residues under the firing site are, since the stripe alone invites a guess. */
@@ -119,8 +124,9 @@ export function localityView(seq: string, values: Uint8Array, ranges: [number, n
         el(
           'p',
           'small muted',
-          'Fewer than 20 residues of this protein fire above the cut, so any chemical share ' +
-            'would move by more than 5 points for each one. There is no count worth printing.',
+          'This latent fires on fewer than 20 residues of this protein. A chemical share over ' +
+            'so few residues moves by more than 5 points for each one, so there is no count ' +
+            'worth printing.',
         ),
       );
       return;
@@ -133,14 +139,15 @@ export function localityView(seq: string, values: Uint8Array, ranges: [number, n
             [`${Math.round(e.top.inProtein * 100)}%`, 'of the whole protein is'],
             [String(e.nFiring), 'residues fire'],
           ],
-          'One protein, so this describes it rather than shows a rule.',
+          'One protein, so this describes this protein. It does not show a rule.',
         ),
       );
     } else {
       chem.append(
         figures(
           [[String(e.nFiring), 'residues fire']],
-          'No chemical class stands out under the firing site of this protein.',
+          'No chemical class stands out here. That is the common case, and a domain ' +
+            'detector is not expected to prefer one.',
         ),
       );
     }

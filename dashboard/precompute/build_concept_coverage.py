@@ -45,8 +45,14 @@ Writes
 
 The layout, little-endian, matching the other four formats:
 
-    concept_coverage.bin  "PCV1"  uint32 magic, uint32 n_pairs, uint32 threshold, uint32 reserved,
-                                  uint8 coverage[n_pairs]
+    concept_coverage.bin  "PCV1"  uint32 magic, uint32 n_pairs, uint32 threshold, uint32 n_arrays,
+                                  uint8 coverage[n_pairs], uint8 n_firing[n_pairs]
+
+`coverage` is the share of the annotated residues the concept's latents read, 0 to 255.
+`n_firing` is how many of the concept's latents fire on that protein at all, capped at 255. A
+reader filters the carriers with it: a protein that only one of nine latents touches is a
+different case from one that all nine touch. `n_arrays` says how many arrays follow, so a reader
+of an older file sees 1 and stops after `coverage`.
 
 `n_pairs` and the order are those of `concept_proteins.bin`, so a concept's slice is the same
 `po` range. A pair belonging to a concept that no latent pairs with stays 0 and must not be read:
@@ -143,6 +149,7 @@ def main() -> None:
             by_protein.setdefault(int(pair_protein[pos]), []).append((ci, pos))
 
     out = np.zeros(n_pairs, dtype=np.uint8)
+    firing = np.zeros(n_pairs, dtype=np.uint8)
     done = np.zeros(n_pairs, dtype=bool)
 
     # A membership table rather than `np.isin`. The latent ids are small and dense, so one fancy
@@ -197,12 +204,21 @@ def main() -> None:
             if total == 0:
                 n_empty += 1
                 done[pos] = True
+                ids = latents_of[ci]
+                lut[ids] = True
+                firing[pos] = min(255, int(np.unique(latent[lut[latent] & strong]).size))
+                lut[ids] = False
                 continue
 
             ids = latents_of[ci]
             lut[ids] = True
             sel = lut[latent] & strong
             lut[ids] = False
+
+            # How many of the concept's own latents fire anywhere on this protein, above the
+            # same cut. It is the filter the concept page needs: a carrier that one of nine
+            # latents touches is a different case from one that all nine touch.
+            firing[pos] = min(255, int(np.unique(latent[sel]).size))
 
             hit = np.zeros(length, dtype=bool)
             hit[resid[sel]] = True
@@ -220,8 +236,8 @@ def main() -> None:
             rate = (n_done + 1) / (time.time() - started)
             print(f"  {n_done + 1:,} of {len(order):,} proteins, {rate:.0f}/s", flush=True)
 
-    header = struct.pack("<IIII", MAGIC_COVER, n_pairs, THRESHOLD, 0)
-    (web / "concept_coverage.bin").write_bytes(header + out.tobytes())
+    header = struct.pack("<IIII", MAGIC_COVER, n_pairs, THRESHOLD, 2)
+    (web / "concept_coverage.bin").write_bytes(header + out.tobytes() + firing.tobytes())
 
     filled = int(done.sum())
     manifest = {
@@ -234,6 +250,8 @@ def main() -> None:
         "pairs_no_bundle": int(n_missing_bundle),
         "concepts_without_column": int(skipped_no_column),
         "threshold": THRESHOLD,
+        "arrays": ["coverage", "n_firing"],
+        "max_latents_firing": int(firing.max()),
         "seconds": round(time.time() - started, 1),
         "script": "dashboard/precompute/build_concept_coverage.py",
     }

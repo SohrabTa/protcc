@@ -2,7 +2,8 @@
  * Entry point and router.
  *
  * Routing is hash-based on purpose: `#/feature/1819` resolves without a web server, so the site
- * works from a folder or a USB drive. Five routes, over one set of data.
+ * works from a folder or a USB drive. Five routes, over one set of data. `#/feature/<id>` is
+ * kept as an alias of `#/latent/<id>` so that links sent before the rename still resolve.
  */
 
 import './style.css';
@@ -60,7 +61,10 @@ async function route(): Promise<void> {
       const name = decodeURIComponent(rest);
       setCrumbs([el('span', undefined, name.replace('_', ' · '))]);
       await renderConcept(data, name, app);
-    } else if (kind === 'feature') {
+    } else if (kind === 'latent' || kind === 'feature') {
+      // `#/feature/<id>` is the old spelling. It is kept so that links already sent still work.
+      // Everything the site writes says latent, because UniProt calls its own annotations
+      // features and those annotations are the concepts on this site.
       setCrumbs([el('span', 'mono', `f/${rest}`)]);
       await renderFeature(data, Number(rest), app);
     } else if (kind === 'protein') {

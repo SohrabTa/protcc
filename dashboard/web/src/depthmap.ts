@@ -18,7 +18,8 @@ import { cssVar, el } from './ui';
 
 const PL = 46;
 const PR = 14;
-const PT = 26;
+const BAND = 40; // the top strip that carries the paired share
+const PT = 26 + BAND;
 const PB = 34;
 const H = 300;
 const DOT = 2.1;
@@ -60,7 +61,7 @@ export function depthMap(d: Data): DepthMapHandle {
   const shareKey = el('span', 'loc-key');
   const shareSw = el('i');
   shareSw.style.background = cssVar('--accent');
-  shareKey.append(shareSw, 'share that pairs, by layer');
+  shareKey.append(shareSw, 'share of that layer’s latents that pair with a concept');
   legend.append(shareKey);
   root.append(legend);
 
@@ -136,27 +137,33 @@ export function depthMap(d: Data): DepthMapHandle {
       placed.push({ x: X(f.pk + jitter(f)), y: Y(f.np), f });
     }
 
-    // The share that pairs, layer by layer, on its own scale across the top band.
-    const top = PT - 18;
-    const band = 22;
+    // The share that pairs, layer by layer, as bars across the top band.
+    //
+    // This was a line inside 22 px, and at that height a range of 0% to 21.7% looked flat. Bars
+    // on a taller band, with the largest one labelled, show the arch: the share climbs to 21.7%
+    // at layer 10, dips through the crowded middle, rises again to 18.7% at layer 19, and
+    // collapses to 1.7% at layer 23.
+    const top = PT - BAND - 4;
     const maxShare = Math.max(...liveByLayer.map((n, i) => (n ? shareByLayer[i] / n : 0)), 0.01);
-    c.strokeStyle = cssVar('--accent');
-    c.lineWidth = 1.6;
-    c.beginPath();
-    let started = false;
+    const bw = Math.max(2, (iw / nLayers) * 0.62);
+    let peakLayer = 1;
     for (let l = 0; l < nLayers; l++) {
-      if (!liveByLayer[l]) continue;
-      const s = shareByLayer[l] / liveByLayer[l];
-      const x = X(l + 1);
-      const y = top + band - band * (s / maxShare);
-      if (started) c.lineTo(x, y);
-      else {
-        c.moveTo(x, y);
-        started = true;
-      }
+      const s = liveByLayer[l] ? shareByLayer[l] / liveByLayer[l] : 0;
+      if (s > (liveByLayer[peakLayer - 1] ? shareByLayer[peakLayer - 1] / liveByLayer[peakLayer - 1] : 0))
+        peakLayer = l + 1;
+      const h = BAND * (s / maxShare);
+      c.fillStyle = cssVar('--accent');
+      c.globalAlpha = s > 0 ? 0.85 : 0.2;
+      c.fillRect(X(l + 1) - bw / 2, top + BAND - h, bw, Math.max(0.8, h));
     }
-    c.stroke();
-    c.lineWidth = 1;
+    c.globalAlpha = 1;
+    const peakShare = shareByLayer[peakLayer - 1] / liveByLayer[peakLayer - 1];
+    c.fillStyle = cssVar('--muted');
+    c.font = "9px 'IBM Plex Mono', ui-monospace, monospace";
+    c.textAlign = 'left';
+    c.textBaseline = 'middle';
+    c.fillText(`${(peakShare * 100).toFixed(0)}%`, PL - 40, top + 4);
+    c.fillText('0%', PL - 40, top + BAND);
 
     c.fillStyle = cssVar('--muted');
     c.textAlign = 'center';

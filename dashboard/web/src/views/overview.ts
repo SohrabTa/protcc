@@ -41,8 +41,9 @@ export function renderOverview(d: Data, host: HTMLElement): void {
     'Concepts',
     'What the crosscoder found',
     'Every Swiss-Prot concept in the evaluation set, grouped by what the annotation is ' +
-      'biologically. A concept counts as found when at least one latent pairs with it on the ' +
-      'held-out set. Open a concept to see which latents detect it and where.',
+      'biologically. A concept counts as found when at least one latent pairs with it. A latent ' +
+      'pairs with a concept when its F1 per domain is more than 0.5 on a held-out set of ' +
+      'proteins. Open a concept to see which latents detect it, and where.',
   );
 
   const tabs = el('div', 'famtabs');
@@ -79,16 +80,19 @@ export function renderOverview(d: Data, host: HTMLElement): void {
     draw();
   });
   controls.append(search);
+  // Each role button carries its own count for the family on screen, and a role with no concept
+  // in that family is disabled rather than silently empty. A button that does nothing when
+  // clicked is worse than a button that says why it does nothing.
+  const roleButtons = new Map<string, HTMLButtonElement>();
   for (const r of ['', ...ROLES]) {
-    const b = el('button', undefined, r || 'all roles');
-    b.setAttribute('aria-pressed', String(roleFilter === r));
+    const b = el('button', 'rolechip');
+    b.append(el('span', undefined, r || 'all roles'), el('span', 'rolecount', ''));
     b.addEventListener('click', () => {
+      if (b.disabled) return;
       roleFilter = r;
-      controls.querySelectorAll('button').forEach((x) =>
-        x.setAttribute('aria-pressed', String((x.textContent || '') === (r || 'all roles'))),
-      );
       draw();
     });
+    roleButtons.set(r, b);
     controls.append(b);
   }
   p.append(controls);
@@ -101,6 +105,23 @@ export function renderOverview(d: Data, host: HTMLElement): void {
     body.textContent = '';
     for (const [key, b] of tabButtons) b.setAttribute('aria-pressed', String(key === family));
     const q = query.toLowerCase();
+
+    // The role counts follow the family and the search box, so they always describe what a
+    // click would actually give.
+    const pool = d.concepts.filter(
+      (x) =>
+        x.nf > 0 &&
+        (family === '' || (x.fam || 'unassigned') === family) &&
+        (!q || x.c.toLowerCase().includes(q)),
+    );
+    for (const [r, b] of roleButtons) {
+      const n = r === '' ? pool.length : pool.filter((x) => x.role === r).length;
+      b.querySelector('.rolecount')!.textContent = String(n);
+      b.disabled = n === 0;
+      b.title = n === 0 ? `No found concept in this family has the role ${r}.` : '';
+      if (n === 0 && roleFilter === r) roleFilter = '';
+    }
+    for (const [r, b] of roleButtons) b.setAttribute('aria-pressed', String(roleFilter === r));
     // A search runs over every family, because a reader who types a name does not know which
     // family it is in. That is the one case the tabs step aside for.
     const searching = q.length > 0;
@@ -138,7 +159,7 @@ export function renderOverview(d: Data, host: HTMLElement): void {
               c.f1.toFixed(3),
               String(c.nf),
               c.npr === undefined ? '—' : num(c.npr),
-              c.bf === undefined ? '—' : link(`/feature/${c.bf}`, `f/${c.bf}`, 'mono'),
+              c.bf === undefined ? '—' : link(`/latent/${c.bf}`, `f/${c.bf}`, 'mono'),
             ],
             [0],
             [c.c.replace('_', ' · ').toLowerCase(), c.f1, c.nf, c.npr, c.bf],
@@ -146,7 +167,7 @@ export function renderOverview(d: Data, host: HTMLElement): void {
         );
       }
       const missed = inFamily.length - match.length;
-      const scroll = el('div', 'tbl-scroll');
+      const scroll = el('div', 'tbl-scroll tbl-capped');
       scroll.append(root);
       g.append(scroll);
       if (missed > 0) {
@@ -159,6 +180,14 @@ export function renderOverview(d: Data, host: HTMLElement): void {
           ),
         );
       }
+      g.append(
+        el(
+          'p',
+          'small muted',
+          'The rows are in the default order, which is best F1, highest first. Click a column ' +
+            'header to sort by it.',
+        ),
+      );
       body.append(g);
     }
     if (!any) body.append(el('p', 'loading', 'Nothing matches that filter.'));
@@ -172,9 +201,10 @@ export function renderOverview(d: Data, host: HTMLElement): void {
   const depthPanel = panel(
     'Depth',
     'What it names lives in the middle of the encoder',
-    'Each latent writes into all 24 encoder layers, and the layer it writes hardest into is its ' +
-      'peak. A per-layer sparse autoencoder cannot state this, because its features are separate ' +
-      'models with no correspondence between layers.',
+    'Each latent adds a vector to all 24 encoder layers. The length of that vector is how much ' +
+      'the latent changes that layer. The peak layer is the layer where the vector is longest. ' +
+      'A per-layer sparse autoencoder has no peak layer, because it trains one model for each ' +
+      'layer and a unit in one model has no counterpart in the next.',
   );
   const map = depthMap(d);
   depthPanel.append(map.root);
@@ -215,8 +245,8 @@ function splitPanel(d: Data): HTMLElement {
   const p = panel(
     'Splitting',
     'One concept, several latents',
-    'A concept is rarely one feature. Most are detected by a group of latents, and each one ' +
-      'fires where the concept is but covers only part of it.',
+    'A concept is rarely one latent. A group of latents detects most concepts, and each latent ' +
+      'in the group fires where the concept is and covers only a part of it.',
   );
   p.append(
     figures([
@@ -371,23 +401,6 @@ function splitScatter(
     t.textContent = `f/${q.fid}  ${q.concept.replace('_', ' · ')}`;
     dot.append(t);
   }
-  // The two corners the reader has to be told about. An empty corner is the finding.
-  add(
-    'text',
-    { x: PL + 8, y: PT + 12, fill: 'var(--ink-2)', 'font-size': 10 },
-    'right when it fires, reads a sliver',
-  );
-  const tr = add(
-    'text',
-    { x: W - PR - 8, y: PT + 12, 'text-anchor': 'end', fill: 'var(--muted)', 'font-size': 10 },
-    'right when it fires, reads all of it',
-  );
-  tr.setAttribute('font-style', 'italic');
-  add(
-    'text',
-    { x: PL + 8, y: PT + ih - 6, fill: 'var(--muted)', 'font-size': 10 },
-    'wrong more often than right',
-  );
   add(
     'text',
     { x: PL + iw / 2, y: H - 4, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 9 },
@@ -399,7 +412,18 @@ function splitScatter(
     'precision: how often it is right when it fires',
   );
   rot.setAttribute('transform', `rotate(-90 11 ${PT + ih / 2})`);
+  // The corners are named under the plot and not inside it. Text inside a scatter sits on top
+  // of the dots it is describing, and at 10 px over 1080 overlapping marks it cannot be read.
   const wrap = el('div');
   wrap.append(svg);
+  const corners = el('dl', 'cornerkey');
+  const put = (k: string, v: string) => {
+    corners.append(el('dt', undefined, k));
+    corners.append(el('dd', undefined, v));
+  };
+  put('top left', 'right when it fires, and reads a sliver of the region. This corner is full.');
+  put('top right', 'right when it fires, and reads all of the region. This corner is empty.');
+  put('bottom', 'wrong more often than right. Few latents pair from here.');
+  wrap.append(corners);
   return wrap;
 }

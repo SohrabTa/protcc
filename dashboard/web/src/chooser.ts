@@ -2,104 +2,139 @@
  * How to pick one protein out of tens of thousands.
  *
  * `Region_Disordered` is carried by 38,966 proteins. A stepper alone cannot choose among them,
- * because it offers only "the next one" and no reader will press it 38,966 times. A list cannot
- * choose among them either: nobody recognises an accession, so a dropdown of 38,966 names is a
- * choice that cannot be made.
+ * because it offers only the next one. A list cannot choose among them either, because nobody
+ * recognises an accession.
  *
- * What makes the choice possible is a number per protein. Then the reader picks a part of the
- * range rather than a name: the proteins the latents read best, the middle of the distribution,
- * the ones they read worst. Two numbers are offered, because they rank the carriers differently
- * and each answers a different question. The stepper still exists, and now it steps inside the
- * part of the range the reader chose.
+ * What makes a choice possible is one number per protein. The reader then picks a part of the
+ * range rather than a name, and the stepper walks inside that part.
+ *
+ * The number is how hard one named latent fires on that protein. It is one latent and not a
+ * blend, because a blend cannot be checked against the rows on screen. The control says which
+ * latent it uses, and the reader can change it. An earlier version offered two blended rankings
+ * and never said what they ranked against, which is not a control a reader can trust.
  */
 
 import { el } from './ui';
 
-export interface ChooserMetric {
-  key: string;
+/** A band of the ranked list, as a fraction from the top. */
+const BANDS: [string, number, number][] = [
+  ['top', 0.0, 0.1],
+  ['upper', 0.1, 0.35],
+  ['middle', 0.35, 0.65],
+  ['lower', 0.65, 0.9],
+  ['bottom', 0.9, 1.0],
+];
+
+export interface ChooserSource {
+  /** Shown on the control, for example "f/831 · F1 0.857". The first word names the latent. */
   label: string;
-  /** The glossary entry this metric is defined in. */
-  slug: string;
-  /** One value per item, in the item order. Higher is "more". */
-  values: Float32Array;
+  /** How to print one value. */
   format(v: number): string;
-  /** What the number means, one line, shown under the controls. */
-  note: string;
+  /** One value per item, higher first. Absent until `load` has run. */
+  values?: Float32Array;
+  /**
+   * Fetch the values. A concept can have 62 latents and each ranking is its own file, so only
+   * the one the reader is looking at is fetched.
+   */
+  load?(): Promise<Float32Array>;
 }
 
 export interface ChooserHandle {
   root: HTMLElement;
   /** Make the first pick. Call after the root and the body are in the document. */
   mount(): void;
-  /** The item on screen. */
   current(): string;
 }
-
-const BANDS: [string, number, number][] = [
-  ['top', 0.9, 1.0],
-  ['upper', 0.65, 0.9],
-  ['middle', 0.35, 0.65],
-  ['lower', 0.1, 0.35],
-  ['bottom', 0.0, 0.1],
-];
 
 export function proteinChooser(opts: {
   items: string[];
   label: string;
-  metrics: ChooserMetric[];
+  /** One entry per latent the reader can rank by. The first is the default. */
+  sources: ChooserSource[];
+  /**
+   * How many of the concept's latents fire on each protein, or null when unknown. It becomes a
+   * filter: a carrier that one of nine latents touches is a different case from one that all
+   * nine touch.
+   */
+  firing: Uint8Array | null;
+  nLatents: number;
   onPick(item: string): void;
 }): ChooserHandle {
-  const { items, label, metrics } = opts;
+  const { items, label, sources, firing, nLatents } = opts;
   const root = el('div', 'chooser');
 
-  let metric = 0;
-  let band = -1; // -1 is the whole list, in the order the data defines
-  let order: number[] = items.map((_, i) => i);
-  let slice: number[] = order;
+  let source = 0;
+  let band = -1; // -1 is the whole ranked list
+  let minFiring = 1;
+  let order: number[] = [];
+  let slice: number[] = [];
   let at = 0;
 
-  const controls = el('div', 'chips chooser-row');
+  const rankRow = el('div', 'chips chooser-row');
+  const filterRow = el('div', 'chips chooser-row');
   const bandRow = el('div', 'chips chooser-row');
   const stepRow = el('div', 'chips chooser-row');
   const note = el('p', 'small muted chooser-note');
-  root.append(controls, bandRow, stepRow, note);
+  root.append(rankRow, filterRow, bandRow, stepRow, note);
 
-  // ---- the controls ----------------------------------------------------
-  const metricButtons: HTMLButtonElement[] = [];
-  if (metrics.length > 0) {
-    controls.append(el('span', 'small muted', 'rank by'));
-    metrics.forEach((m, i) => {
-      const b = el('button', undefined, m.label);
+  // ---- which latent the ranking uses -----------------------------------
+  const sourceSelect = el('select');
+  sources.forEach((s, i) => {
+    const o = el('option', undefined, s.label);
+    o.value = String(i);
+    sourceSelect.append(o);
+  });
+  sourceSelect.addEventListener('change', () => {
+    void useSource(Number(sourceSelect.value));
+  });
+
+  /** Switch the ranking, and fetch its values if this is the first time. */
+  async function useSource(i: number): Promise<void> {
+    const s = sources[i];
+    if (!s.values && s.load) {
+      sourceSelect.disabled = true;
+      note.textContent = `Reading where ${s.label.split(' ')[0]} fires…`;
+      try {
+        s.values = await s.load();
+      } catch {
+        note.textContent = `The ranking for ${s.label.split(' ')[0]} could not be read.`;
+        sourceSelect.disabled = false;
+        sourceSelect.value = String(source);
+        return;
+      }
+      sourceSelect.disabled = false;
+    }
+    if (!s.values) return;
+    source = i;
+    rebuild();
+    pick(0);
+  }
+  rankRow.append(
+    el('span', 'small muted', 'order the proteins by how hard this latent fires:'),
+    sourceSelect,
+  );
+
+  // ---- how many of the concept's latents have to fire -------------------
+  const firingButtons: HTMLButtonElement[] = [];
+  if (firing && nLatents > 1) {
+    filterRow.append(el('span', 'small muted', 'and keep only proteins that at least'));
+    const steps = [1, 2, Math.max(3, Math.ceil(nLatents / 2)), nLatents].filter(
+      (v, i, a) => v <= nLatents && a.indexOf(v) === i,
+    );
+    for (const k of steps) {
+      const b = el('button', undefined, k === 1 ? '1 latent' : `${k} latents`);
       b.addEventListener('click', () => {
-        metric = i;
+        minFiring = k;
         rebuild();
         pick(0);
       });
-      metricButtons.push(b);
-      controls.append(b);
-    });
+      firingButtons.push(b);
+      filterRow.append(b);
+    }
+    filterRow.append(el('span', 'small muted', 'fire on'));
   }
 
-  const jump = el('input');
-  jump.type = 'search';
-  jump.placeholder = 'accession';
-  jump.className = 'chooser-jump';
-  jump.setAttribute('aria-label', `Go to a ${label} by accession`);
-  jump.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter') return;
-    const want = jump.value.trim().toUpperCase();
-    const i = items.indexOf(want);
-    if (i < 0) {
-      note.textContent = `${want} does not carry this concept, or is not in the evaluation set.`;
-      return;
-    }
-    band = -1;
-    rebuild();
-    pick(slice.indexOf(i));
-    jump.value = '';
-  });
-  controls.append(jump);
-
+  // ---- which part of the ranking ---------------------------------------
   const bandButtons: HTMLButtonElement[] = [];
   bandRow.append(el('span', 'small muted', 'from the'));
   const allBtn = el('button', undefined, 'whole range');
@@ -134,56 +169,71 @@ export function proteinChooser(opts: {
   rand.addEventListener('click', () => pick(Math.floor(Math.random() * slice.length)));
   stepRow.append(pos, prev, name, next, rand, value);
 
-  // ---- the ordering ----------------------------------------------------
   function rebuild(): void {
-    const m = metrics[metric];
-    if (!m) {
-      order = items.map((_, i) => i);
-    } else {
-      order = items.map((_, i) => i).sort((a, b) => m.values[b] - m.values[a]);
+    const s = sources[source];
+    if (!s.values) return;
+    const values = s.values;
+    const keep: number[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (firing && firing.length === items.length && firing[i] < minFiring) continue;
+      keep.push(i);
     }
+    order = keep.sort((a, b) => values[b] - values[a]);
+
     if (band < 0) {
       slice = order;
     } else {
+      // The band is a slice of the ranked order, so every band holds a fixed share of whatever
+      // survives the filter. A fixed cut on the value would leave a band empty for a latent that
+      // fires hard everywhere.
       const [, lo, hi] = BANDS[band];
-      // The band is a slice of the ranked order, so every band holds about a tenth or a quarter
-      // of the carriers whatever the values look like. A fixed cut on the value itself would
-      // leave a band empty for a concept whose latents read everything well.
-      const a = Math.floor((1 - hi) * order.length);
-      const b = Math.max(a + 1, Math.ceil((1 - lo) * order.length));
+      const a = Math.floor(lo * order.length);
+      const b = Math.max(a + 1, Math.ceil(hi * order.length));
       slice = order.slice(a, Math.min(order.length, b));
     }
-    metricButtons.forEach((b, i) => b.setAttribute('aria-pressed', String(i === metric)));
     bandButtons.forEach((b, i) => b.setAttribute('aria-pressed', String(i - 1 === band)));
-    bandRow.hidden = metrics.length === 0;
-    controls.hidden = metrics.length === 0 && true;
+    firingButtons.forEach((b) =>
+      b.setAttribute('aria-pressed', String(b.textContent!.startsWith(String(minFiring)))),
+    );
   }
 
   function pick(i: number): void {
-    if (slice.length === 0) return;
+    if (slice.length === 0) {
+      pos.textContent = 'no protein passes this filter';
+      name.textContent = '';
+      value.textContent = '';
+      note.textContent = '';
+      return;
+    }
     at = (i + slice.length) % slice.length;
     const idx = slice[at];
-    const m = metrics[metric];
+    const s = sources[source];
     pos.textContent = `${label} ${at + 1} of ${slice.length.toLocaleString('en-US')}`;
     name.textContent = items[idx];
-    value.textContent = m ? `${m.label.toLowerCase()} ${m.format(m.values[idx])}` : '';
-    note.textContent = m
-      ? band < 0
-        ? `${m.note} All ${items.length.toLocaleString('en-US')} carriers, strongest first.`
-        : `${m.note} The ${BANDS[band][0]} of the range, by ${m.label.toLowerCase()}.`
+    value.textContent = s.values
+      ? `${s.label.split(' ')[0]} fires at ${s.format(s.values[idx])} here`
       : '';
-    // The caller owns the height lock, because only the caller knows when its fetch is done.
+    const filtered = order.length < items.length;
+    note.textContent =
+      `Ordered by how hard ${s.label.split(' ')[0]} fires, strongest first. ` +
+      (band < 0 ? 'The whole range. ' : `The ${BANDS[band][0]} of the range. `) +
+      (filtered
+        ? `${order.length.toLocaleString('en-US')} of the ` +
+          `${items.length.toLocaleString('en-US')} carriers pass the filter.`
+        : `All ${items.length.toLocaleString('en-US')} carriers.`) +
+      (firing && firing.length === items.length
+        ? ` ${firing[idx]} of the ${nLatents} latents fire on this one.`
+        : '');
     opts.onPick(items[idx]);
   }
 
   return {
     root,
     mount() {
-      rebuild();
-      pick(0);
+      void useSource(0);
     },
     current() {
-      return items[slice[at]];
+      return items[slice[at]] ?? items[0];
     },
   };
 }

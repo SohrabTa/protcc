@@ -191,205 +191,264 @@ function formula(text: string): HTMLElement {
 
 /** The drawn entry for each slug in `metrics.ts`. A slug with no body gets its short line only. */
 const BODIES: Record<string, () => Node[]> = {
+  pairing: () => [
+    para(
+      'A latent pairs with a concept when it scores more than 0.5 on F1 per domain, measured on ' +
+      'a held-out set of proteins that the pairing search never saw. InterPLM sets that cut, and ' +
+      'this site keeps it.',
+    ),
+    formula('pairs with the concept  =  F1 per domain > 0.5 on the held-out set'),
+    para(
+      'The search runs over every concept against every live latent, at five activation ' +
+      'thresholds, and keeps the best. 1020 of the 8128 live latents pair with something, and ' +
+      '187 of the 408 concepts get at least one latent. A concept with no latent is not ' +
+      'evidence that ProtT5 ignores it.',
+    ),
+    para(
+      'Read the cut with care. The score is per domain, so one firing inside a region counts ' +
+      'that whole region as read. A latent can pair at 0.99 and still touch 1% of the annotated ' +
+      'residues.',
+    ),
+  ],
   precision: () => [
     para(
       'Precision asks whether the latent is right when it fires. Count the residues it fires ' +
-        'on. Count how many of those the Swiss-Prot annotation covers. Divide.',
+      'on. Count how many of those the Swiss-Prot annotation covers. Divide.',
     ),
     residuePicture(true),
     formula('precision = 5 right / (5 right + 3 wrong) = 0.63'),
     para(
       'A latent that fires on one residue of one protein, inside an annotation, has a precision ' +
-        'of 1.00. Precision on its own does not say that a latent is useful.',
+      'of 1.00. Precision on its own does not say that a latent is useful.',
     ),
   ],
   'recall-per-residue': () => [
     para(
       'Recall per residue asks how much of the annotation the latent reads. Count the residues ' +
-        'the annotation covers. Count how many of those the latent fires on. Divide.',
+      'the annotation covers. Count how many of those the latent fires on. Divide.',
     ),
     residuePicture(true),
     formula('recall per residue = 5 right / (5 right + 11 missed) = 0.31'),
     para(
-      'This is the number that shows concept splitting. Most paired latents on this site have a ' +
-        'high precision and a low recall per residue, because each one reads a part of the ' +
-        'region and no single latent reads all of it.',
+      'This is the number that shows concept splitting. Most paired latents have a high ' +
+      'precision and a low recall per residue, because each one reads a part of the region and ' +
+      'no single latent reads all of it. Over the 1080 pairings the median is 0.032.',
+    ),
+  ],
+  'recall-per-domain': () => [
+    para(
+      'Recall per domain counts whole annotated regions instead of residues. A region counts as ' +
+      'read when the latent fires anywhere inside it, even on one residue.',
+    ),
+    domainPicture(),
+    formula('recall per domain = 1 region read / 2 regions = 0.50'),
+    para(
+      'This is the metric InterPLM reports, and it is the one that decides a pairing here. It ' +
+      'answers a detection question: does this latent tell you that the region is present?',
+    ),
+    para(
+      'It is generous by design, and the gap it leaves is large. Over the 1080 pairings on this ' +
+      'site the median recall per domain is 0.981 and the median recall per residue is 0.032. ' +
+      'The same latent that finds almost every region touches 3% of the residues in them.',
     ),
   ],
   'f1-per-domain': () => [
     para('F1 is the harmonic mean of precision and recall. It falls if either of the two falls.'),
-    formula('F1 = 2 · precision · recall / (precision + recall)'),
+    formula('F1 per domain = 2 · precision · recall per domain / (precision + recall per domain)'),
     para(
-      'Per domain means the recall is counted over whole annotated regions and not over ' +
-        'residues. A latent that fires on one residue inside a region has recalled that region.',
+      'Per domain means the recall half counts whole regions and not residues, so one firing ' +
+      'inside a region is enough to recall it.',
     ),
     domainPicture(),
     para(
-      'The two recall columns disagree on purpose, and the gap carries information. A motif ' +
-        'detector that fires on one conserved residue scores near 1.00 per domain and near 0.02 ' +
-        'per residue. Read the two together.',
+      'A worked case from this site. On Domain · ABC transporter, latent 4587 scores 0.994 and ' +
+      'reads 0.86% of the annotated residues. Latent 831 scores 0.857 and reads 53%. The metric ' +
+      'ranks 4587 first, and 831 is the one that reads the domain.',
     ),
     para(
-      'The per-domain column is the one InterPLM reports, so it is the column that compares ' +
-        'with the published work.',
+      'So read F1 per domain as a detection score, not as a fidelity score, and keep recall per ' +
+      'residue in view beside it.',
+    ),
+  ],
+  'f1-per-residue': () => [
+    para(
+      'The same harmonic mean, with the recall counted over residues. It asks whether the latent ' +
+      'covers the region rather than whether it notices the region.',
+    ),
+    formula('F1 per residue = 2 · precision · recall per residue / (precision + recall per residue)'),
+    para(
+      'The two scores disagree, and the size of the disagreement is measured. Over the 209 ' +
+      'concepts that the per-domain metric identifies, the two metrics name the same latent for ' +
+      'only 117. The per-domain winner scores a median 0.262 per residue. The per-residue ' +
+      'winner scores 0.606 on the same concepts.',
+    ),
+    para(
+      'The site pairs on F1 per domain, because that is what InterPLM does and what the ' +
+      'published comparison needs. This entry exists so that the reader knows what the choice ' +
+      'costs.',
     ),
   ],
   'peak-layer': () => [
     para(
-      'A crosscoder latent writes into all 24 encoder layers at once. Each layer has its own ' +
-        'decoder direction, and the length of that direction is how hard the latent writes ' +
-        'there. The peak layer is the longest one.',
+      'A crosscoder latent writes into all 24 encoder layers at once. To write into a layer ' +
+      'means to add a vector to that layer’s residual stream, which is the running sum of ' +
+      'everything the model has computed about a residue so far.',
+    ),
+    para(
+      'Each layer gets its own vector for the same latent. The length of that vector is how much ' +
+      'the latent changes that layer. The peak layer is the layer with the longest vector.',
     ),
     depthPicture(),
     para(
-      'The lengths are corrected first. The residual stream of ProtT5 grows about 600-fold from ' +
-        'layer 1 to layer 24, and without the correction every latent appears to peak at layer ' +
-        '24.',
+      'The lengths are corrected before they are compared. The residual stream of ProtT5 grows ' +
+      'about 600-fold from layer 1 to layer 24, so without the correction every latent appears ' +
+      'to peak at layer 24.',
     ),
     para(
-      'This number has no counterpart in a per-layer sparse autoencoder. There each layer has ' +
-        'its own model, and its features carry no correspondence across layers.',
+      'A per-layer sparse autoencoder has no peak layer. It trains one model for each layer, and ' +
+      'a unit in one model has no counterpart in the next, so there is nothing to compare.',
     ),
   ],
   depth: () => [
     para(
-      'The depth ribbon is the profile the peak layer summarises, drawn in full. Each bar is one ' +
-        'encoder layer, from 1 on the left to 24 on the right, scaled so the peak layer reaches ' +
-        'full height.',
+      'The depth ribbon draws the full profile that the peak layer summarises. Each bar is one ' +
+      'encoder layer, from 1 on the left to 24 on the right. The bars are scaled so the peak ' +
+      'layer reaches full height.',
     ),
     depthPicture(),
     para(
       'A narrow ribbon is a latent that writes into a few layers. A broad ribbon is a latent ' +
-        'that holds its strength across the encoder.',
+      'that holds its strength across the encoder. The median latent keeps at least half its ' +
+      'peak across 12 of the 24 layers.',
     ),
   ],
   'cosine-similarity': () => [
     para(
-      'Each layer has its own decoder direction for the same latent. The cosine similarity ' +
-        'compares each of those directions against the direction at the peak layer. The latent ' +
-        'page draws it as the dashed line.',
+      'Each layer has its own direction for the same latent. The cosine similarity compares each ' +
+      'of those directions against the direction at the peak layer. The latent page draws it as ' +
+      'the dashed line.',
     ),
     formula('1 = the same direction   ·   0 = unrelated   ·   -1 = the opposite direction'),
     para(
       'A latent whose cosine stays near 1 across many layers writes one thing all the way ' +
-        'through the encoder. A latent whose cosine falls away from its peak writes something ' +
-        'that changes with depth, and its strength at a distant layer then means something ' +
-        'different from its strength at the peak.',
+      'through the encoder. A latent whose cosine falls away from its peak writes something that ' +
+      'changes with depth. Its strength at a distant layer then means something different from ' +
+      'its strength at the peak.',
     ),
   ],
   covers: () => [
     para(
-      'Covers is a property of one latent on one protein: of that protein’s residues, the share ' +
-        'where the latent is active at all.',
+      'Covers is a property of one latent on one protein. Of that protein’s residues, it is the ' +
+      'share where the latent is active at all.',
     ),
     para(
       'It is small for almost every latent, because the crosscoder keeps 32 of 8192 latents ' +
-        'active at each residue. 2.9% of a 300-residue protein is about 9 residues.',
+      'active at each residue. 2.9% of a 300-residue protein is about 9 residues.',
     ),
     para(
-      'Small values are printed with two digits. Rounded to whole percent, a motif latent reads ' +
-        'as 0% and appears to do nothing.',
+      'Small values keep two digits. Rounded to whole percent, a motif latent reads as 0% and ' +
+      'appears to do nothing.',
     ),
   ],
   'peak-activation': () => [
     para(
       'Every activation on this site is divided by that latent’s largest activation over the ' +
-        'whole evaluation set. 1.00 marks the one protein and residue where the latent fires ' +
-        'hardest.',
+      'whole evaluation set. 1.00 marks the one protein and residue where the latent fires ' +
+      'hardest.',
     ),
     para(
-      'The scale is per latent and is not shared. A peak of 0.50 for one latent and 0.50 for ' +
-        'another say the same thing about each latent against itself, and nothing about which of ' +
-        'the two fires harder in the raw activations.',
+      'The scale is per latent and it is not shared. A peak of 0.50 for one latent and 0.50 for ' +
+      'another say the same thing about each latent against itself. They say nothing about which ' +
+      'of the two fires harder in the raw activations.',
     ),
     para(
-      'The colour ramp on every strip, letter row and structure uses this same scale, so a ' +
-        'colour carries from one view to the next.',
-    ),
-  ],
-  reads: () => [
-    para(
-      'Reads is a property of one concept on one protein. Take the residues the annotation ' +
-        'covers. Count how many of them at least one paired latent fires on, at more than 0.3 of ' +
-        'that latent’s own maximum. Divide.',
-    ),
-    residuePicture(true),
-    formula('reads = 5 of 16 annotated residues = 31%'),
-    para(
-      'It is the arithmetic of the per-residue recall, over one protein rather than over the ' +
-        'evaluation set, and over all the concept’s latents together rather than one at a time.',
-    ),
-    para(
-      'It answers which protein to open. A protein the latents read well shows what the concept ' +
-        'looks like when the crosscoder gets it right. One they read badly shows what they miss. ' +
-        'Over the 173,378 pairs where a concept has a paired latent, the median is 73%, the ' +
-        'lower quarter is under 22%, and the upper quarter is 100%.',
-    ),
-  ],
-  strength: () => [
-    para(
-      'Strength ranks the proteins that carry a concept by the peak activation of that ' +
-        'concept’s best latent. 1.00 is the protein where that latent fires hardest.',
-    ),
-    para(
-      'It is not the same as Reads. A latent can fire very hard on one residue of a long ' +
-        'annotated region, which is a high strength and a low read. The two columns sort the ' +
-        'carriers differently on purpose.',
+      'A strong activation carries more than a weak one, and that is measured. Over the 1080 ' +
+      'pairings the median precision rises from 0.656 at any activation to 0.953 above 0.8 of ' +
+      'the maximum. The random-init null stays flat over the same cuts, at 0.817 to 0.795.',
     ),
   ],
   latents: () => [
     para(
-      'The crosscoder has 8192 latents. 8128 of them fire at least once on the evaluation set ' +
-        'and are called live. The other 64 are dead and have no page.',
+      'A latent is one of the 8192 units the crosscoder learned. 8128 of them fire at least once ' +
+      'on the evaluation set and are called live. The other 64 are dead and have no page.',
     ),
     para(
-      'A latent is paired with a concept when it scores best for that concept on a held-out set. ' +
-        '1020 of the live latents are paired. The remaining 7108 fire on something the ' +
-        'Swiss-Prot annotations in this evaluation set cannot name, which is not evidence that ' +
-        'they carry nothing.',
+      'In a concept table the Latents column counts how many latents pair with that concept. A ' +
+      'concept with 11 in that column has 11 separate latents that each clear the pairing cut ' +
+      'for it, and each of them reads a part of the region.',
+    ),
+    para(
+      '1020 of the live latents pair with a concept, and 58 of those pair with more than one. ' +
+      'The remaining 7108 fire on something the Swiss-Prot annotations in this evaluation set ' +
+      'cannot name, which is not evidence that they carry nothing.',
+    ),
+    para(
+      'This site says latent and never feature. UniProt calls its own sequence annotations the ' +
+      'feature table, and those annotations are the concepts on this site, so the word is taken.',
+    ),
+  ],
+  'best-latent': () => [
+    para(
+      'Of all the latents that pair with a concept, the best latent is the one with the highest ' +
+      'F1 per domain. Nothing else enters the choice.',
+    ),
+    para(
+      'Best by that score is not the same as best at reading the region. On Domain · ABC ' +
+      'transporter the best latent is 4587, at F1 0.994, and it fires on 0.86% of the annotated ' +
+      'residues. Latent 831 scores 0.857 and reads 53% of them.',
+    ),
+    para(
+      'So treat the best latent as the concept’s most reliable detector, and open the table to ' +
+      'find the one that covers the most.',
     ),
   ],
   concept: () => [
     para(
       'A concept is one annotation type from Swiss-Prot, written as the field and the value. ' +
-        'Domain_CN hydrolase is the Domain field with the value CN hydrolase, and the site ' +
-        'prints it as Domain · CN hydrolase.',
+      'Domain_CN hydrolase is the Domain field with the value CN hydrolase, and the site prints ' +
+      'it as Domain · CN hydrolase.',
     ),
     para(
-      'There are 408 concepts in this evaluation set, and a latent pairs with 187 of them. A ' +
-        'concept counts as found when at least one latent pairs with it on the held-out set.',
+      'There are 408 concepts in this evaluation set, and at least one latent pairs with 187 of ' +
+      'them.',
     ),
     para(
-      'The landing page groups the concepts by what they are biologically rather than by the ' +
-        'Swiss-Prot field. The field name puts 82.6% of the paired latents into one bucket and ' +
-        'tells a reader nothing.',
+      'The landing page groups the concepts by what they are biologically and not by the ' +
+      'Swiss-Prot field. The field name puts 82.6% of the paired latents into one bucket and ' +
+      'tells a reader nothing.',
     ),
   ],
   proteins: () => [
     para(
       'The evaluation set is 207,463 proteins from UniProtKB with an annotation score of 3, 4 ' +
-        'or 5. Every latent was measured on every one of them, so a protein count on this site ' +
-        'is a full count and not a sample.',
+      'or 5, each of at most 512 residues. Every latent was measured on every one of them, so a ' +
+      'protein count on this site is a full count and not a sample.',
     ),
     para(
-      'A latent that fires on 206,415 of them is telling you something about the crosscoder ' +
-        'rather than about biology. Read a large protein count as a warning.',
+      'In a concept table the Proteins column counts the proteins that Swiss-Prot annotates with ' +
+      'that concept. Those are the proteins the evidence panel steps through.',
+    ),
+    para(
+      'On a latent page the count is different. There it is the proteins the latent fires on, ' +
+      'whether or not Swiss-Prot annotates anything there. A latent that fires on 206,415 of ' +
+      'them tells you about the crosscoder and not about biology, so read a large count as a ' +
+      'warning.',
     ),
   ],
   null: () => [
     para(
       'A matched crosscoder trained on a randomly initialized ProtT5 reaches 0.175 average test ' +
-        'F1 on this same evaluation set, against 0.479 for the real one. That average hides the ' +
-        'per-concept picture.',
+      'F1 on this same evaluation set, against 0.479 for the real one. That average hides the ' +
+      'per-concept picture.',
     ),
     para(
       'On 43 concepts the null clears 0.5 per domain, and on 13 of the 403 shared concepts it ' +
-        'beats the real crosscoder. The per-domain metric is the reason: one firing recalls a ' +
-        'whole region, so a detector of any conserved motif scores well.',
+      'beats the real crosscoder. The per-domain metric is the reason: one firing recalls a ' +
+      'whole region, so a detector of any conserved motif scores well.',
     ),
     para(
       'Read the per-residue column beside the per-domain column. There the null’s median is ' +
-        '0.0079 against 0.1012, and none of its 43 high concepts clears 0.5.',
+      '0.0079 against 0.1012, and none of its 43 high concepts clears 0.5.',
     ),
   ],
 };

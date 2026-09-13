@@ -385,3 +385,30 @@ h3.sub {
 /* The header link to the glossary. */
 .navtools { display: flex; align-items: center; gap: 14px; }
 .glosslink { font-size: 0.82rem; white-space: nowrap; }
+
+/* The role chips carry their own count, and a role with no concept is disabled. */
+.rolechip { display: inline-flex; align-items: baseline; gap: 6px; }
+.rolechip .rolecount {
+  font-size: 0.68rem; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.chips button:disabled { opacity: 0.4; cursor: not-allowed; }
+.chips button:disabled:hover { background: var(--surface-2); }
+
+/* A long concept table scrolls inside the panel, so the panels below stay reachable. */
+.tbl-capped { max-height: 460px; overflow-y: auto; }
+
+/* The corners of the splitting scatter, named under it rather than drawn on top of the dots. */
+.cornerkey {
+  display: grid; grid-template-columns: 78px 1fr; gap: 3px 14px; margin: 10px 0 0;
+  font-size: 0.8rem;
+}
+.cornerkey dt { color: var(--muted); }
+.cornerkey dd { margin: 0; color: var(--ink-2); }
+
+/* A button that reads as a link, for "show the other latents". */
+.linkish {
+  background: none; border: 0; padding: 2px 0; margin-top: 6px; cursor: pointer;
+  color: var(--accent); font-family: inherit; font-size: 0.8rem; text-decoration: underline;
+  text-decoration-color: var(--accent-soft); text-underline-offset: 2px;
+}
+.linkish:hover { text-decoration-color: var(--accent); }
