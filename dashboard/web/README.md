@@ -1,12 +1,13 @@
 # The site
 
-Plain TypeScript, no UI framework, built by Vite into one bundle. Three routes over one set of
-data, and a fourth for a single protein.
+Plain TypeScript, no UI framework, built by Vite into one bundle. Five routes over one set of
+data.
 
     #/                        every concept, grouped by biological family
     #/concept/<name>          the latents that detect it, and the evidence
     #/feature/<id>            what one latent responds to and where it lives
     #/protein/<accession>     which latents fire along one protein
+    #/glossary[/<entry>]      what every number on the site means
 
 Routing is hash-based so the site works from a folder with no web server, which is what makes it
 air-gappable.
@@ -22,7 +23,8 @@ The data tree is never copied into the bundle: the full one is several gigabytes
 symlink to `../data/web`, which the precompute writes, and `npm run serve` links the same tree
 into `dist/`. A real deployment drops the `data/` folder next to `index.html`.
 
-The build is about 30 kB of JavaScript and 7 kB of CSS, with no runtime dependencies.
+The build is about 70 kB of JavaScript and 13 kB of CSS, with no runtime dependencies. 3Dmol is
+a separate 545 kB chunk that only a page with a structure fetches.
 
 ## Navigation
 
@@ -32,18 +34,89 @@ knowing a latent number, and almost nobody comes with an accession. So the front
 than a section heading:
 
 - **What it names.** 187 of 408 Swiss-Prot concepts, grouped by biological family, with the
-  coverage of each family beside it.
+  coverage of each family beside it. One family is shown at a time. All eleven at once is 187
+  rows of table, and the two panels below carry the findings, so nobody reached them. The tab row
+  is also the summary: each tab shows its family's found count and a coverage bar, so the
+  overview is visible before any table is opened. A search runs across every family, because a
+  reader who types a name does not know which family it is in.
 - **How it names them.** 149 of the 187 are found by more than one latent, a median of 4 and as
   many as 62. The scatter is the evidence: every dot is one latent paired with one concept,
   placed by how much of the region it covers against how often it is right. A model that learned
-  whole concepts would fill the top right. This one fills the top left.
+  whole concepts would fill the top right. This one fills the top left. Both corners are labelled
+  in the plot, and a sketch beside it draws what a top-left dot looks like on a real region:
+  three latents, each right when it fires, each reading a quarter.
 - **Where in the network.** Every live latent as a dot, across by the layer it writes hardest
   into and up by how many proteins it fires on, amber where a concept names it. The last three
-  layers hold 937 live latents and 26 that anything names.
+  layers hold 937 live latents and 26 that anything names. 4867 of the 8128, which is 59.9%, peak
+  at layers 15 to 19 against 20.8% for an even spread. That concentration is real and not an
+  artifact of the layer-norm correction: see `PP-06` in the roadmap.
 
 The depth map is also the only way into a latent nobody has a number for, so its dots open the
 latent page. It replaced a plain histogram of peak layers, which showed the same distribution
 and none of the rest.
+
+## Tables, and what a column means
+
+Every table comes from one helper, `table()` in `ui.ts`, so a change there reaches all five
+routes at once. Two behaviours arrive that way.
+
+**Columns sort, and sorting can be undone.** A header cycles through three states: the first
+click sorts, the second reverses, and the third puts the rows back into the order the page built
+them in. The third state matters because the built order is itself a ranking, and a reader who
+sorts by something else has no way back to it otherwise. Numbers sort largest first, because the
+reader wants the best row; names sort A to Z, because there is no best name. A cell whose text is
+not its value carries a `data-sort` key: the depth ribbon has no text at all, and `f/1819` sorts
+by 1819.
+
+**A header explains itself.** The small `i` next to a header opens one sentence and a link into
+the glossary entry for that metric. The sentences live in `metrics.ts`, which holds no DOM and
+imports nothing, so the tooltip and the glossary page cannot drift apart. A header with no entry
+gets no button, which is the right failure: a missing definition is invisible rather than wrong.
+
+## The glossary
+
+One page that defines every number, at `#/glossary`, reached from the header and from every
+column tooltip. The entries are drawn rather than described: precision, recall per residue, F1
+per domain and Reads are all counts over one picture of an annotated region and a latent track,
+so a reader who sees that picture once does not re-read the sentence on each page.
+
+It also carries the provenance, which used to sit in a footer under every page. It is one line
+that nobody reads four hundred times and everybody needs once, so it belongs where a reader goes
+when they ask what the numbers were measured on.
+
+A tooltip link routes to `#/glossary/<entry>` rather than to a second `#`, which a hash router
+cannot carry. The entry scrolls itself into view twice and once more after a pause, because on a
+first load the fonts arrive after the first layout and every panel above the target changes
+height.
+
+## Choosing a protein
+
+`Region_Disordered` is carried by 38,966 proteins. A stepper cannot choose among them and a
+dropdown cannot either, because nobody recognises an accession. What makes the choice possible is
+a number per protein, and the concept page offers two of them:
+
+- **Reads**, from stage 7: the share of the annotated residues that the concept's latents fire
+  on. This is the number the page prints for the protein on screen, precomputed for every carrier.
+- **Strength**: how hard the concept's best latent fires on that protein. One fetch of the
+  latent's ranked protein list, no precompute.
+
+They rank the carriers differently on purpose. A latent can fire very hard on one residue of a
+long region, which is a high strength and a low read. The reader picks a metric, then a part of
+its range (top, upper, middle, lower, bottom), and the stepper walks inside that part. An
+accession box is there for returning to a protein already seen.
+
+## What changes as the activation gets weaker
+
+The latent page used to draw five example proteins per activation band and say nothing else.
+Five proteins chosen by rank order tell no story, and the question a reader has about a weak
+activation is whether the latent is still right when it fires weakly.
+
+That is countable with no extra fetch. The ranking file already holds every protein and its peak,
+and the carriers of the paired concept are already in memory, so the panel now counts, for each
+band, the share of proteins in it that Swiss-Prot annotates with the concept. Three example
+strips stay below as illustration. On f/4079 the share runs 95%, 93%, 83%, 52%, 30% from the
+strongest band to the weakest. On f/275, a latent that fires on 206,415 of the 207,463 proteins,
+it runs 38% to 0.0%, which is what a spurious pairing looks like.
 
 A search sits in the header on every page, focused with `/`. It searches concepts, ranked so
 that the concept the crosscoder found most strongly comes first: typing `kinase` reaches Protein
@@ -103,9 +176,16 @@ Whether the page decompresses a model depends on the server, so it checks the fi
 rather than assuming. Vite sends a `.gz` file with `Content-Encoding: gzip` and the browser
 unwraps it; a bare static server sends the bytes as stored.
 
-## Two drawing rules the code has to obey
+A missing model is not always a 404 either. A server with a single-page fallback answers 200 and
+sends the application's own HTML, which is what `vite preview` does, so the page also treats a
+body that starts with `<` as a missing model. Without that check the reader was told the file was
+corrupt. 5357 of the 207,463 proteins have no model in this tree. Every one of them carries an
+AlphaFoldDB cross-reference, so the model exists; the Foldcomp database the tree was extracted
+from does not hold it, and the message says exactly that.
 
-Both came out of bugs that reached a screenshot, and both are the same mistake.
+## Three drawing rules the code has to obey
+
+The first two came out of bugs that reached a screenshot, and they are the same mistake.
 
 **A canvas cannot be sized before it is in the document.** `activationStrip` deferred its first
 drawing to a frame callback, and the callers build a row of strips inside a loop that awaits a
@@ -119,6 +199,13 @@ painted, the caller also calls `redrawStrips` once the rows are in the document.
 end puts every measurement back at zero. The protein and concept views now append their panel
 before they fill it.
 
+**A host that is being refilled must keep its height.** A view that empties its host and then
+awaits a fetch loses its whole height for the length of that fetch. Measured on the concept page:
+the panel fell from 759 px to 274 px, the document from 1684 px to 1199 px, and the browser
+clamped the scroll position up by 485 px and back again 200 ms later. At the top of the page
+there is nothing to clamp, which is why the same click looked calm there and violent lower down.
+`holdHeight` in `ui.ts` pins the height and dims the host until the new content is in.
+
 ## What is not done yet
 
 - **Fonts come from Google.** `index.html` links them, which is fine for development and wrong
@@ -127,3 +214,6 @@ before they fill it.
 - **No per-residue counts over the whole evaluation set.** The chemistry count runs on one
   protein in the browser. A claim that a latent reads a chemical class needs the same count over
   every protein it fires on, which belongs in the precompute.
+- **The latent page table sorts 25 rows, not the whole ranking.** The caption says so. Sorting
+  45,822 rows in the browser is possible; fetching and rendering them is not the same question,
+  and it has not been asked yet.

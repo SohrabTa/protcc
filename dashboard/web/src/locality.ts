@@ -13,7 +13,7 @@
  */
 
 import { AA_CLASSES, classOf, enrichment } from './chemistry';
-import { cssVar, el, inkOn, rampRGB } from './ui';
+import { cssVar, el, figures, inkOn, rampRGB } from './ui';
 
 const CELL = 9; // px per residue in the letter row
 const ANN_H = 6;
@@ -82,6 +82,10 @@ export function localityView(seq: string, values: Uint8Array, ranges: [number, n
   scroller.append(spacer, zoomCv);
   root.append(scroller);
 
+  // The legend on the left, the chemistry count on the right. The coloured row invites the eye
+  // to judge which class the firing site prefers, and the eye judges it badly, so the count sits
+  // beside the picture rather than in a sentence under it.
+  const foot = el('div', 'loc-foot');
   const legend = el('div', 'loc-legend');
   for (const c of AA_CLASSES) {
     const item = el('span', 'loc-key');
@@ -91,31 +95,54 @@ export function localityView(seq: string, values: Uint8Array, ranges: [number, n
     item.title = c.letters.split('').join(' ');
     legend.append(item);
   }
-  root.append(legend);
-
-  const chem = el('p', 'small muted');
-  root.append(chem);
-
-  const hint = el(
-    'p',
-    'small muted',
-    'The top bar is the whole protein. Click it to move the letters, or scroll them directly.',
+  const legendSide = el('div');
+  legendSide.append(legend);
+  legendSide.append(
+    el(
+      'p',
+      'small muted',
+      'The top bar is the whole protein. Click it to move the letters, or scroll them directly.',
+    ),
   );
-  root.append(hint);
+  const chem = el('div', 'loc-chem');
+  foot.append(legendSide, chem);
+  root.append(foot);
 
   /** What the residues under the firing site are, since the stripe alone invites a guess. */
   function describeChemistry(): void {
+    chem.textContent = '';
     const e = enrichment(seq, vals);
     if (!e) {
-      chem.textContent = '';
-    } else if (e.top) {
-      chem.textContent =
-        `Of the ${e.nFiring} residues this fires on, ${Math.round(e.top.inFiring * 100)}% are ` +
-        `${e.top.prose}, against ${Math.round(e.top.inProtein * 100)}% of the protein. ` +
-        'One protein, so this describes it rather than shows a rule.';
+      // Under 20 firing residues a share moves by more than 5 points per residue, so there is no
+      // share worth printing. An empty column reads as a broken panel, so it says why instead.
+      chem.append(
+        el(
+          'p',
+          'small muted',
+          'Fewer than 20 residues of this protein fire above the cut, so any chemical share ' +
+            'would move by more than 5 points for each one. There is no count worth printing.',
+        ),
+      );
+      return;
+    }
+    if (e.top) {
+      chem.append(
+        figures(
+          [
+            [`${Math.round(e.top.inFiring * 100)}%`, `of the firing site is ${e.top.prose}`],
+            [`${Math.round(e.top.inProtein * 100)}%`, 'of the whole protein is'],
+            [String(e.nFiring), 'residues fire'],
+          ],
+          'One protein, so this describes it rather than shows a rule.',
+        ),
+      );
     } else {
-      chem.textContent =
-        `The ${e.nFiring} residues this fires on are chemically ordinary for this protein.`;
+      chem.append(
+        figures(
+          [[String(e.nFiring), 'residues fire']],
+          'No chemical class stands out under the firing site of this protein.',
+        ),
+      );
     }
   }
 

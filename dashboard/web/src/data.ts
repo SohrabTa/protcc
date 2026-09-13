@@ -14,6 +14,7 @@ const MAGIC = {
   depth: 0x50434431, // PCD1  depth.bin
   concept: 0x50434331, // PCC1  concept_proteins.bin
   track: 0x50435431, // PCT1  tracks/<XX>/<acc>.bin
+  coverage: 0x50435631, // PCV1  concept_coverage.bin
 } as const;
 
 export interface Manifest {
@@ -31,7 +32,14 @@ export interface Manifest {
     latents_alive: number;
     layers: number;
   };
-  counts: { proteins: number; feature_files: number; latent_protein_pairs: number };
+  counts: {
+    proteins: number;
+    feature_files: number;
+    latent_protein_pairs: number;
+    /** Written from stage 6. Absent in a tree built before that count existed. */
+    structures?: number;
+    no_structure?: number;
+  };
 }
 
 /** One row of concepts.json. Short keys: the file holds 408 of these. */
@@ -117,6 +125,14 @@ export class Data {
   nLayers = 24;
   /** concept_proteins.bin, read through the `po` range on a concept. */
   conceptProtein!: Uint32Array;
+  /**
+   * concept_coverage.bin, in the same pair order as `conceptProtein`.
+   *
+   * One byte per concept-protein pair: the share of that protein's annotated residues that the
+   * concept's paired latents fire on. Empty when the file is absent, which is the state of any
+   * tree built before stage 7 ran.
+   */
+  conceptCoverage!: Uint8Array;
   proteinIds!: string[];
   proteinShard = new Map<string, number>();
   /** Column order of the annotation ranges inside a protein bundle. */
@@ -131,15 +147,17 @@ export class Data {
   }
 
   async load(): Promise<void> {
-    const [manifest, concepts, features, lookup, depthBuf, cpBuf, columns] = await Promise.all([
-      getJSON<Manifest>(`${this.base}/manifest.json`),
-      getJSON<Concept[]>(`${this.base}/concepts.json`),
-      getJSON<Feature[]>(`${this.base}/features.json`),
-      getJSON<Record<string, [number, number]>>(`${this.base}/protein_lookup.json`),
-      getBuffer(`${this.base}/depth.bin`),
-      getBuffer(`${this.base}/concept_proteins.bin`).catch(() => null),
-      getJSON<string[]>(`${this.base}/concept_columns.json`).catch(() => [] as string[]),
-    ]);
+    const [manifest, concepts, features, lookup, depthBuf, cpBuf, columns, covBuf] =
+      await Promise.all([
+        getJSON<Manifest>(`${this.base}/manifest.json`),
+        getJSON<Concept[]>(`${this.base}/concepts.json`),
+        getJSON<Feature[]>(`${this.base}/features.json`),
+        getJSON<Record<string, [number, number]>>(`${this.base}/protein_lookup.json`),
+        getBuffer(`${this.base}/depth.bin`),
+        getBuffer(`${this.base}/concept_proteins.bin`).catch(() => null),
+        getJSON<string[]>(`${this.base}/concept_columns.json`).catch(() => [] as string[]),
+        getBuffer(`${this.base}/concept_coverage.bin`).catch(() => null),
+      ]);
     this.manifest = manifest;
     this.conceptColumns = columns;
     this.concepts = concepts;
@@ -163,6 +181,14 @@ export class Data {
       this.conceptProtein = new Uint32Array(cpBuf, 16 + 4 * (nCon + 1), nPair);
     } else {
       this.conceptProtein = new Uint32Array(0);
+    }
+
+    if (covBuf) {
+      const vv = new DataView(covBuf);
+      check(vv, MAGIC.coverage, 'concept_coverage.bin');
+      this.conceptCoverage = new Uint8Array(covBuf, 16, vv.getUint32(4, true));
+    } else {
+      this.conceptCoverage = new Uint8Array(0);
     }
 
     this.proteinIds = new Array(Object.keys(lookup).length);
@@ -197,6 +223,26 @@ export class Data {
     const out: string[] = [];
     for (let i = lo; i < hi; i++) out.push(this.proteinIds[this.conceptProtein[i]]);
     return out;
+  }
+
+  /**
+   * How much of the annotation the concept's latents read, per carrier, 0 to 1.
+   *
+   * The order matches `carriersOf`. Returns null when stage 7 has not run, or when no latent
+   * pairs with the concept, in which case there is nothing to have read.
+   */
+  coverageOf(c: Concept): Float32Array | null {
+    if (!c.po || !this.conceptCoverage.length || !c.feats?.length) return null;
+    const [lo, hi] = c.po;
+    if (hi > this.conceptCoverage.length) return null;
+    const out = new Float32Array(hi - lo);
+    for (let i = lo; i < hi; i++) out[i - lo] = this.conceptCoverage[i] / 255;
+    return out;
+  }
+
+  /** How many proteins have an AlphaFold model in this tree, or null in an older tree. */
+  get nStructures(): number | null {
+    return this.manifest.counts.structures ?? null;
   }
 
   async ranking(fid: number): Promise<Ranking> {
@@ -261,7 +307,13 @@ export class Data {
     return bundle[acc] ?? null;
   }
 
-  /** Which proteins the smoke tree actually holds tracks for. */
+  /**
+   * Whether this data tree holds the per-residue track of a protein.
+   *
+   * A shard of -1 marks a protein that stage 1 knows about and stage 2 did not write a track
+   * for. It is false for every protein in a full tree, and it is how a tree built from a subset
+   * of the 208 shards reports what it does not have.
+   */
   hasTrack(acc: string): boolean {
     const s = this.proteinShard.get(acc);
     return s !== undefined && s >= 0;

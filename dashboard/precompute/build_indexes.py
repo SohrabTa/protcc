@@ -82,6 +82,8 @@ def main():
     ap.add_argument("--stage1", type=Path, required=True, help="the ranking directory")
     ap.add_argument("--stage3", type=Path, required=True, help="the depth directory")
     ap.add_argument("--stage5", type=Path, default=None, help="the protein bundle directory")
+    ap.add_argument("--stage6", type=Path, default=None,
+                    help="the structure directory, read only for its missing.txt count")
     ap.add_argument("--pairings", type=Path, required=True, help="the test_counts directory")
     ap.add_argument("--out", type=Path, required=True)
     a = ap.parse_args()
@@ -218,6 +220,13 @@ def main():
     lookup = {pid: [i, shard_of.get(pid, -1)] for i, pid in enumerate(protein_ids)}
     (a.out / "protein_lookup.json").write_text(json.dumps(lookup, separators=(",", ":")))
 
+    # ---- how many proteins have a structure -------------------------------
+    n_no_structure = 0
+    if a.stage6 and (a.stage6 / "missing.txt").exists():
+        n_no_structure = sum(
+            1 for line in (a.stage6 / "missing.txt").read_text().splitlines() if line.strip()
+        )
+
     # ---- manifest --------------------------------------------------------
     identified = int(allp.concept.nunique())
     manifest = {
@@ -240,9 +249,15 @@ def main():
             "feature_files": n_files,
             "latent_protein_pairs": int(len(r_prot)),
             "concept_protein_pairs": int(len(carriers) and sum(h - l for l, h in carriers.values())),
+            # Stage 6 lists the accessions it could not extract. Every protein in this evaluation
+            # set carries an AlphaFoldDB cross-reference, so a miss means the Foldcomp database
+            # we extract from does not hold that model, not that no model exists.
+            "structures": len(protein_ids) - n_no_structure,
+            "no_structure": n_no_structure,
         },
         "sources": {"stage1": str(a.stage1), "stage3": str(a.stage3),
-                    "stage5": str(a.stage5) if a.stage5 else None},
+                    "stage5": str(a.stage5) if a.stage5 else None,
+                    "stage6": str(a.stage6) if a.stage6 else None},
     }
     (a.out / "manifest.json").write_text(json.dumps(manifest, indent=2))
 

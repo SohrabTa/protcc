@@ -2,13 +2,18 @@
  * One latent: what it responds to, where in the encoder it lives, and the proteins it fires on.
  *
  * The protein list is the complete ranking, not a sample of it, so the activation bands are
- * percentile slices of the real distribution rather than a reservoir sample.
+ * percentile slices of the real distribution rather than a reservoir sample. That is also what
+ * makes the band panel a measurement rather than five examples: every protein in a band is
+ * counted, and only three of them are drawn.
  */
 
-import { Data, type Feature } from '../data';
+import { Data, type Feature, type Ranking } from '../data';
 import { localityView } from '../locality';
 import { currentStructure, drawStructure } from '../structpanel';
-import { activationStrip, el, link, panel, pct, redrawStrips, row, stepper, table } from '../ui';
+import {
+  activationStrip, cssVar, el, figures, holdHeight, link, num, panel, pct, redrawStrips, row,
+  stepper, table,
+} from '../ui';
 
 const BANDS: [string, number, number][] = [
   ['strongest', 0.8, 1.0],
@@ -17,6 +22,8 @@ const BANDS: [string, number, number][] = [
   ['0.2 to 0.4', 0.2, 0.4],
   ['weakest', 0.0, 0.2],
 ];
+
+const EXAMPLES = 3; // strips drawn per band. The numbers above them count every protein.
 
 export async function renderFeature(d: Data, fid: number, host: HTMLElement): Promise<void> {
   host.textContent = '';
@@ -32,15 +39,25 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
 
   const p = panel('Latent', `f/${fid}`);
   const lede = el('p', 'lede');
-  lede.append(
-    f.c
-      ? `Best paired with ${f.c.replace('_', ' · ')} at F1 ${f.f1!.toFixed(3)} per domain. `
-      : 'No Swiss-Prot concept pairs with this latent. ',
-    `It writes hardest at layer ${f.pk} of ${d.nLayers}, and holds at least half that strength ` +
-      `across ${f.sp} layers. It fires on ${pct(f.pp, 2)} of the proteins in the evaluation set, ` +
-      `covering ${pct(f.pw)} of a protein when it does.`,
-  );
+  if (f.c) {
+    lede.append(
+      'Best paired with ',
+      link(`/concept/${encodeURIComponent(f.c)}`, f.c.replace('_', ' · ')),
+      '.',
+    );
+  } else {
+    lede.append('No Swiss-Prot concept in this evaluation set pairs with this latent.');
+  }
   p.append(lede);
+  p.append(
+    figures([
+      ...(f.c ? ([[f.f1!.toFixed(3), 'F1 per domain']] as [string, string][]) : []),
+      [`${f.pk} of ${d.nLayers}`, 'peak encoder layer'],
+      [String(f.sp), 'layers at half that strength'],
+      [pct(f.pp, 2), 'of proteins it fires on'],
+      [pct(f.pw), 'of a protein it covers'],
+    ]),
+  );
   if (f.c) {
     const c = d.conceptByName.get(f.c);
     if (c && c.nf > 1) {
@@ -57,7 +74,7 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
 
   const grid = el('div', 'grid2');
   const depthPanel = panel('Depth', 'Where it lives in the encoder');
-  depthPanel.append(depthChart(d, fid, f));
+  depthPanel.append(depthChart(d, f));
   grid.append(depthPanel);
 
   const listPanel = panel('Proteins', 'Where it fires');
@@ -69,8 +86,8 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
   const locPanel = panel(
     'Which residues',
     'The firing site, in place',
-    'The whole protein stays on screen above the letters. A latent that fires on a handful of ' +
-      'residues only looks specific next to the ones it ignores.',
+    'The whole protein stays on screen above the letters, so a latent that fires on a few ' +
+      'residues can be told apart from one that fires everywhere.',
   );
   const locChooser = el('div', 'chips');
   const locBody = el('div');
@@ -79,25 +96,29 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
 
   const evPanel = panel(
     'Evidence',
-    'The activation along each protein',
-    'Pick a band to see what a weaker activation looks like. A latent that only makes sense at ' +
-      'its strongest is worth doubting.',
+    'What changes as the activation gets weaker',
+    'Every protein this latent fires on, cut into five bands by how hard it fires. The bars ' +
+      'count all of them. The strips below draw three.',
   );
+  const evHead = el('div');
   const bandRow = el('div', 'chips');
   const evBody = el('div');
-  evPanel.append(bandRow, evBody);
+  evPanel.append(evHead, bandRow, evBody);
   views.append(evPanel);
 
   const rank = await d.ranking(fid);
+
+  const shownRows = Math.min(25, rank.protein.length);
   listBody.append(
     el(
       'p',
       'small muted',
-      `${rank.protein.length.toLocaleString('en-US')} proteins, strongest first.`,
+      `The ${shownRows} strongest of ${num(rank.protein.length)} proteins. ` +
+        'A column sorts these rows, not the whole ranking.',
     ),
   );
   const { root, body } = table(['Protein', 'Peak', 'Covers'], [0]);
-  for (let i = 0; i < Math.min(12, rank.protein.length); i++) {
+  for (let i = 0; i < shownRows; i++) {
     const acc = d.proteinIds[rank.protein[i]];
     body.append(
       row(
@@ -107,6 +128,7 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
           pct((rank.cover[i] / 255) * 100, 0),
         ],
         [0],
+        [acc, rank.value[i], rank.cover[i]],
       ),
     );
   }
@@ -122,7 +144,9 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
     if (d.hasTrack(acc)) withTrack.push(acc);
   }
   if (withTrack.length === 0) {
-    locBody.append(el('p', 'warn', 'No protein this latent fires on has a track in this tree.'));
+    locBody.append(
+      el('p', 'warn', 'No protein this latent fires on has a per-residue track in this tree.'),
+    );
   } else {
     let pending = 0;
     locChooser.append(
@@ -130,28 +154,187 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
         // Stepping is faster than a fetch, so a later pick must not be overwritten by an
         // earlier one that finished after it.
         const mine = ++pending;
-        void drawLocality(d, f, fid, acc, locBody).then(() => {
-          if (mine !== pending) return;
-        });
+        const release = holdHeight(locBody);
+        void drawLocality(d, f, fid, acc, locBody, () => mine === pending).finally(release);
       }),
     );
   }
 
+  // ---- the bands -------------------------------------------------------
+  const stats = bandStats(d, f, rank);
+  evHead.append(bandChart(stats, f));
+
   let band = 0;
   for (let i = 0; i < BANDS.length; i++) {
-    const [label] = BANDS[i];
-    const b = el('button', undefined, label);
+    const b = el('button', undefined, `${BANDS[i][0]} (${num(stats[i].n)})`);
     b.setAttribute('aria-pressed', String(i === band));
     b.addEventListener('click', () => {
       band = i;
       bandRow.querySelectorAll('button').forEach((x, j) =>
         x.setAttribute('aria-pressed', String(j === band)),
       );
-      void drawBand(d, fid, rank, band, evBody);
+      const release = holdHeight(evBody);
+      void drawBand(d, fid, rank, band, evBody).finally(release);
     });
     bandRow.append(b);
   }
   await drawBand(d, fid, rank, band, evBody);
+}
+
+interface BandStat {
+  n: number;
+  /** How many of them Swiss-Prot annotates with the latent's paired concept. */
+  carriers: number;
+  /** Median share of the protein the latent covers, over the band. */
+  medianCover: number;
+}
+
+/**
+ * What each band holds, counted over every protein in it.
+ *
+ * The panel used to draw five example strips per band and say nothing else, and five proteins
+ * chosen by rank order tell no story. The question a reader actually has about a weak activation
+ * is whether the latent is still right when it fires weakly. That is countable here without a
+ * single extra fetch: the ranking file already holds every protein and its peak, and the list of
+ * proteins carrying the paired concept is already in memory.
+ */
+function bandStats(d: Data, f: Feature, rank: Ranking): BandStat[] {
+  const concept = f.c ? d.conceptByName.get(f.c) : undefined;
+  const carrierSet = new Set<number>();
+  if (concept?.po) {
+    for (let i = concept.po[0]; i < concept.po[1]; i++) carrierSet.add(d.conceptProtein[i]);
+  }
+  const out: BandStat[] = BANDS.map(() => ({ n: 0, carriers: 0, medianCover: 0 }));
+  const covers: number[][] = BANDS.map(() => []);
+  for (let i = 0; i < rank.protein.length; i++) {
+    const v = rank.value[i] / 255;
+    const b = BANDS.findIndex(([, lo, hi]) => v > lo && v <= hi);
+    if (b < 0) continue;
+    out[b].n++;
+    if (carrierSet.has(rank.protein[i])) out[b].carriers++;
+    covers[b].push(rank.cover[i]);
+  }
+  for (let b = 0; b < BANDS.length; b++) {
+    const xs = covers[b];
+    if (!xs.length) continue;
+    xs.sort((x, y) => x - y);
+    const m = xs.length >> 1;
+    out[b].medianCover = ((xs.length % 2 ? xs[m] : (xs[m - 1] + xs[m]) / 2) / 255) * 100;
+  }
+  return out;
+}
+
+/** The bands as bars: how many proteins, and how often the annotation is really there. */
+function bandChart(stats: BandStat[], f: Feature): HTMLElement {
+  const ns = 'http://www.w3.org/2000/svg';
+  const W = 620;
+  const H = 168;
+  const PL = 40;
+  const PR = 150;
+  const PT = 14;
+  const PB = 34;
+  const iw = W - PL - PR;
+  const ih = H - PT - PB;
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('width', '100%');
+  svg.style.display = 'block';
+  svg.style.marginTop = '6px';
+  const add = (t: string, a: Record<string, string | number>, text?: string) => {
+    const n = document.createElementNS(ns, t);
+    for (const [k, v] of Object.entries(a)) n.setAttribute(k, String(v));
+    if (text !== undefined) n.textContent = text;
+    svg.append(n);
+    return n;
+  };
+
+  const hasConcept = Boolean(f.c);
+  const shares = stats.map((s) => (s.n ? (s.carriers / s.n) * 100 : 0));
+  const maxShare = Math.max(10, ...shares);
+  const bw = iw / BANDS.length;
+
+  for (const g of [0, 0.5, 1]) {
+    const y = PT + ih - ih * g;
+    add('line', { x1: PL, y1: y, x2: PL + iw, y2: y, stroke: 'var(--line)' });
+    add(
+      'text',
+      { x: PL - 6, y: y + 3, 'text-anchor': 'end', fill: 'var(--muted)', 'font-size': 9 },
+      `${Math.round(maxShare * g)}%`,
+    );
+  }
+
+  BANDS.forEach(([label], i) => {
+    const x = PL + i * bw;
+    const s = stats[i];
+    if (hasConcept && s.n) {
+      const h = (ih * shares[i]) / maxShare;
+      add('rect', {
+        x: x + bw * 0.18, y: PT + ih - h, width: bw * 0.64, height: Math.max(1, h),
+        fill: 'var(--accent)', rx: 1,
+      });
+      add(
+        'text',
+        {
+          x: x + bw / 2, y: PT + ih - h - 4, 'text-anchor': 'middle', 'font-size': 9,
+          fill: 'var(--ink-2)',
+        },
+        `${shares[i].toFixed(shares[i] < 10 ? 1 : 0)}%`,
+      );
+    }
+    add(
+      'text',
+      { x: x + bw / 2, y: H - PB + 12, 'text-anchor': 'middle', 'font-size': 9, fill: 'var(--muted)' },
+      label,
+    );
+    add(
+      'text',
+      { x: x + bw / 2, y: H - PB + 24, 'text-anchor': 'middle', 'font-size': 9, fill: 'var(--muted)' },
+      num(s.n),
+    );
+  });
+
+  add(
+    'text',
+    { x: PL + iw + 12, y: PT + 10, 'font-size': 10, fill: 'var(--ink-2)' },
+    hasConcept ? 'Share of the proteins in' : 'No paired concept, so there',
+  );
+  add(
+    'text',
+    { x: PL + iw + 12, y: PT + 23, 'font-size': 10, fill: 'var(--ink-2)' },
+    hasConcept ? 'each band that Swiss-Prot' : 'is nothing to be right about.',
+  );
+  add(
+    'text',
+    { x: PL + iw + 12, y: PT + 36, 'font-size': 10, fill: 'var(--ink-2)' },
+    hasConcept ? 'annotates with the concept.' : 'The counts still hold.',
+  );
+
+  const wrap = el('div');
+  wrap.append(svg);
+  if (hasConcept) {
+    const first = shares[0];
+    const last = shares[shares.length - 1];
+    wrap.append(
+      el(
+        'p',
+        'small muted',
+        first > last * 1.5
+          ? `The latent is right ${first.toFixed(0)}% of the time where it fires hardest and ` +
+            `${last.toFixed(1)}% where it fires weakest. A weak activation from this latent ` +
+            'carries much less.'
+          : `The share barely changes across the bands, from ${first.toFixed(0)}% at the ` +
+            `strongest to ${last.toFixed(1)}% at the weakest. How hard this latent fires does ` +
+            'not say how likely the annotation is.',
+      ),
+    );
+  }
+  // A colour reference, so the bar is read against the same accent the annotation strips use.
+  const key = el('p', 'small muted');
+  const sw = el('span', 'inlinekey');
+  sw.style.background = cssVar('--accent');
+  key.append(sw, ' the same teal the Swiss-Prot rows use');
+  wrap.append(key);
+  return wrap;
 }
 
 async function drawLocality(
@@ -160,10 +343,10 @@ async function drawLocality(
   fid: number,
   acc: string,
   host: HTMLElement,
+  stillWanted: () => boolean,
 ): Promise<void> {
-  host.textContent = '';
-  host.append(el('p', 'loading', 'Reading the activations…'));
   const [info, track] = await Promise.all([d.protein(acc), d.track(acc)]);
+  if (!stillWanted()) return;
   host.textContent = '';
   if (!info) {
     host.append(el('p', 'warn', `No bundle for ${acc}.`));
@@ -195,14 +378,14 @@ async function drawLocality(
 async function drawBand(
   d: Data,
   fid: number,
-  rank: { protein: Uint32Array; value: Uint8Array },
+  rank: Ranking,
   band: number,
   host: HTMLElement,
 ): Promise<void> {
   host.textContent = '';
   const [, lo, hi] = BANDS[band];
   const picked: string[] = [];
-  for (let i = 0; i < rank.protein.length && picked.length < 5; i++) {
+  for (let i = 0; i < rank.protein.length && picked.length < EXAMPLES; i++) {
     const v = rank.value[i] / 255;
     if (v > lo && v <= hi) {
       const acc = d.proteinIds[rank.protein[i]];
@@ -211,12 +394,7 @@ async function drawBand(
   }
   if (picked.length === 0) {
     host.append(
-      el(
-        'p',
-        'warn',
-        'No protein in this band has a track in this data tree. The smoke build covers one ' +
-          'shard of 208.',
-      ),
+      el('p', 'small muted', 'No protein falls in this band, so there is nothing to draw.'),
     );
     return;
   }
@@ -233,10 +411,18 @@ async function drawBand(
   host.textContent = '';
   host.append(rows);
   redrawStrips(rows);
+  host.append(
+    el(
+      'p',
+      'small muted',
+      `${picked.length} of the proteins in this band, in rank order. They are examples of what a ` +
+        'track at this strength looks like. The bars above are the measurement.',
+    ),
+  );
 }
 
-function depthChart(d: Data, fid: number, f: Feature): HTMLElement {
-  const { norm, cos } = d.depthOf(fid);
+function depthChart(d: Data, f: Feature): HTMLElement {
+  const { norm, cos } = d.depthOf(f.f);
   const ns = 'http://www.w3.org/2000/svg';
   const W = 460;
   const H = 190;
@@ -298,13 +484,19 @@ function depthChart(d: Data, fid: number, f: Feature): HTMLElement {
   );
   const wrap = el('div');
   wrap.append(svg);
-  const legend = el('p', 'small muted');
-  legend.append(
-    'The solid line is how hard the latent writes into each layer, scaled to its own peak. ' +
-      'The dashed line is how closely each layer’s direction matches the peak layer’s: 1 is the ' +
-      'same direction, 0 is unrelated. Layer norms are corrected for the residual stream growing ' +
-      'about 600-fold across depth, without which every latent appears to peak at layer 24.',
+
+  const solid = el('p', 'small muted');
+  const sk = el('span', 'inlinekey');
+  sk.style.background = cssVar('--accent');
+  solid.append(sk, ' Solid: the strength the latent writes into each layer, as a share of its ' +
+    'strongest layer.');
+  const dashed = el('p', 'small muted');
+  const dk = el('span', 'inlinekey dashed');
+  dashed.append(
+    dk,
+    ' Dashed: the cosine similarity between each layer’s direction and the peak layer’s. ' +
+      '1 is the same direction, 0 is unrelated.',
   );
-  wrap.append(legend);
+  wrap.append(solid, dashed);
   return wrap;
 }

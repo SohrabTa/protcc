@@ -2,13 +2,17 @@
  * One concept: which latents detect it, and the evidence on a protein that carries it.
  *
  * The protein chooser covers every protein in the evaluation set carrying the annotation, not a
- * sample. That is what stage 1 keeping all 156 million latent-protein pairs buys.
+ * sample. That is what stage 1 keeping all 156 million latent-protein pairs buys, and stage 7
+ * turns it into a choice by giving every carrier a number.
  */
 
 import { Data, type Concept } from '../data';
 import { localityView } from '../locality';
+import { proteinChooser, type ChooserMetric } from '../chooser';
+import { drawStructure } from '../structpanel';
 import {
-  activationStrip, annotationStrip, depthRibbon, el, link, panel, redrawStrips, row, stepper, table,
+  activationStrip, annotationStrip, depthRibbon, el, figures, holdHeight, link, panel,
+  redrawStrips, row, table,
 } from '../ui';
 
 export async function renderConcept(d: Data, name: string, host: HTMLElement): Promise<void> {
@@ -22,13 +26,20 @@ export async function renderConcept(d: Data, name: string, host: HTMLElement): P
   host.append(views);
 
   const p = panel('Concept', c.c.replace('_', ' · '));
-  const meta = el('p', 'lede');
-  meta.append(
-    `${c.fam} · ${c.role}. Swiss-Prot records it as a ${c.fld.toLowerCase()}. ` +
-      `${c.nf} latent${c.nf === 1 ? '' : 's'} pair with it, the best reaching F1 ${c.f1.toFixed(3)} ` +
-      `per domain` + (c.npr ? `, and ${c.npr} proteins in the evaluation set carry it.` : '.'),
+  p.append(
+    el(
+      'p',
+      'lede',
+      `${c.fam} · ${c.role}. Swiss-Prot records it as a ${c.fld.toLowerCase()}.`,
+    ),
   );
-  p.append(meta);
+  p.append(
+    figures([
+      [String(c.nf), c.nf === 1 ? 'latent pairs with it' : 'latents pair with it'],
+      [c.f1.toFixed(3), 'best F1 per domain'],
+      [c.npr === undefined ? '—' : c.npr.toLocaleString('en-US'), 'proteins carry it'],
+    ]),
+  );
 
   const { root, body } = table(
     ['Latent', 'F1 per domain', 'Precision', 'Recall per residue', 'Peak layer', 'Depth'],
@@ -47,19 +58,32 @@ export async function renderConcept(d: Data, name: string, host: HTMLElement): P
           f ? depthRibbon(d.depthOf(fid).norm) : '—',
         ],
         [0, 5],
+        // The ribbon holds no text, so it sorts by the layer it peaks at.
+        [fid, f1, prec, rec, f?.pk, f?.pk],
       ),
     );
   }
   const scroll = el('div', 'tbl-scroll');
   scroll.append(root);
   p.append(scroll);
-  if ((c.feats?.length ?? 0) > 1) {
+
+  // The page used to state, for every concept with more than one latent, that precision is high
+  // and per-residue recall is low. That claim is true of this crosscoder in general and false of
+  // 43 of the 149 multi-latent concepts, so it is counted here rather than asserted.
+  const feats = c.feats ?? [];
+  if (feats.length > 1) {
+    const split = feats.filter(([, , prec, rec]) => prec >= 0.5 && rec < 0.5).length;
     p.append(
       el(
         'p',
         'small muted',
-        'Precision is high and per-residue recall is low for most of these. That is the ' +
-          'signature of a concept split across latents: each one reads part of the region.',
+        split > feats.length / 2
+          ? `${split} of these ${feats.length} latents are right more than half the time they ` +
+            'fire and still read less than half the region. That is a concept split across ' +
+            'latents: each one reads a part of it.'
+          : `${split} of these ${feats.length} latents fit the usual pattern of a high ` +
+            'precision and a low per-residue recall. The rest do not, so read the two columns ' +
+            'for each latent rather than the concept as a whole.',
       ),
     );
   }
@@ -72,29 +96,79 @@ export async function renderConcept(d: Data, name: string, host: HTMLElement): P
     'One row per latent, on a protein that carries the annotation. Amber is the latent’s ' +
       'activation at that residue. The teal row is where Swiss-Prot annotates the concept.',
   );
-  const carriers = d.carriersOf(c).filter((a) => d.hasTrack(a));
+  const all = c.po ? d.carriersOf(c) : [];
+  const coverage = d.coverageOf(c);
+  // The filter has to carry the coverage with it, because that array is in carrier order.
+  const keep: number[] = [];
+  for (let i = 0; i < all.length; i++) if (d.hasTrack(all[i])) keep.push(i);
+  const carriers = keep.map((i) => all[i]);
+
   if (carriers.length === 0) {
     ev.append(
       el(
         'p',
         'warn',
-        'No protein carrying this concept has a track in this data tree. The smoke build ' +
-          'covers one shard of 208; the full build covers every protein.',
+        'No protein carrying this concept has a per-residue track in this data tree.',
       ),
     );
     views.append(ev);
     return;
   }
 
-  // A stepper, not a list of 132 accessions. The reader wants another carrier of the concept,
-  // not a particular protein, and cannot recognise one accession from another anyway.
-  const chooser = el('div');
+  const chooserHost = el('div');
   const evBody = el('div');
-  ev.append(chooser, evBody);
-  views.append(ev); // in the document before the stepper draws, so the strips can measure
+  ev.append(chooserHost, evBody);
+  views.append(ev); // in the document before the chooser draws, so the strips can measure
 
-  const step = stepper(carriers, 'carrier', (acc) => void drawEvidence(d, c, acc, evBody));
-  chooser.append(step);
+  const metrics: ChooserMetric[] = [];
+  if (coverage) {
+    const reads = new Float32Array(keep.length);
+    for (let i = 0; i < keep.length; i++) reads[i] = coverage[keep[i]];
+    metrics.push({
+      key: 'reads',
+      label: 'Reads',
+      slug: 'reads',
+      values: reads,
+      format: (v) => `${Math.round(v * 100)}%`,
+      note: 'Reads is the share of the annotated residues that these latents fire on.',
+    });
+  }
+  // The second ranking costs one fetch of the best latent's ranked protein list.
+  if (c.bf !== undefined) {
+    try {
+      const rank = await d.ranking(c.bf);
+      const byIndex = new Map<number, number>();
+      for (let i = 0; i < rank.protein.length; i++) byIndex.set(rank.protein[i], rank.value[i]);
+      const strength = new Float32Array(keep.length);
+      for (let i = 0; i < keep.length; i++) {
+        strength[i] = (byIndex.get(d.conceptProtein[c.po![0] + keep[i]]) ?? 0) / 255;
+      }
+      metrics.push({
+        key: 'strength',
+        label: 'Strength',
+        slug: 'strength',
+        values: strength,
+        format: (v) => v.toFixed(2),
+        note: `Strength is how hard f/${c.bf} fires here, against its hardest anywhere.`,
+      });
+    } catch {
+      // A missing ranking file costs the second ordering and nothing else.
+    }
+  }
+
+  let pending = 0;
+  const chooser = proteinChooser({
+    items: carriers,
+    label: 'carrier',
+    metrics,
+    onPick: (acc) => {
+      const mine = ++pending;
+      const release = holdHeight(evBody);
+      void drawEvidence(d, c, acc, evBody, () => mine === pending).finally(release);
+    },
+  });
+  chooserHost.append(chooser.root);
+  chooser.mount();
 }
 
 async function drawEvidence(
@@ -102,10 +176,10 @@ async function drawEvidence(
   c: Concept,
   acc: string,
   host: HTMLElement,
+  stillWanted: () => boolean,
 ): Promise<void> {
-  host.textContent = '';
-  host.append(el('p', 'loading', 'Reading the activations…'));
   const [info, track] = await Promise.all([d.protein(acc), d.track(acc)]);
+  if (!stillWanted()) return;
   host.textContent = '';
   if (!info) {
     host.append(el('p', 'warn', `No bundle for ${acc}.`));
@@ -148,12 +222,11 @@ async function drawEvidence(
       }
     }
     host.append(
-      el(
-        'p',
-        'small muted',
-        `Together these latents cover ${Math.round((covered / total) * 100)}% of the ` +
-          `${total} annotated residues of ${acc}.`,
-      ),
+      figures([
+        [`${Math.round((covered / total) * 100)}%`, 'of the region these latents read'],
+        [String(total), 'annotated residues'],
+        [String(ranges.length), ranges.length === 1 ? 'annotated region' : 'annotated regions'],
+      ]),
     );
   }
 
@@ -173,11 +246,24 @@ async function drawEvidence(
   host.append(zoomHead);
 
   const first = c.feats?.[0]?.[0];
-  const loc = localityView(info.s, first !== undefined ? perLatent.get(first)! : union, ranges);
+  const shown = first !== undefined ? perLatent.get(first)! : union;
+  const loc = localityView(info.s, shown, ranges);
   host.append(loc.root);
   loc.mount();
+
+  // The model, coloured by the same latent the letter row shows, and marked where the pointer is.
+  const structure = await drawStructure(
+    d,
+    acc,
+    shown,
+    host,
+    first !== undefined ? `f/${first}` : 'all the latents together',
+  );
+  loc.onHover((i) => structure?.highlight(i === null ? null : i + 1));
+
   pick.addEventListener('change', () => {
     const v = pick.value === 'all' ? union : perLatent.get(Number(pick.value))!;
     loc.update(v, ranges);
+    structure?.update(v);
   });
 }

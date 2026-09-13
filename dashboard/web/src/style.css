@@ -51,8 +51,11 @@ body {
 h1, h2, h3 {
   font-family: Archivo, ui-sans-serif, system-ui, sans-serif;
   margin: 0;
-  text-wrap: balance;
 }
+/* `balance` splits a two-line heading into two even lines, which reads as an arbitrary break
+   when the heading had room to fill the first line. It stays on the page title only. */
+h1 { text-wrap: balance; }
+h2, h3 { text-wrap: pretty; }
 h1 { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.015em; }
 h2 { font-size: 1.02rem; font-weight: 600; }
 h3 { font-size: 0.86rem; font-weight: 600; }
@@ -97,7 +100,10 @@ nav.crumbs span { color: var(--muted); }
   display: flex; justify-content: space-between; align-items: baseline;
   gap: 16px; flex-wrap: wrap; margin-bottom: 2px;
 }
-.panel p.lede { margin: 0.3rem 0 0; color: var(--ink-2); max-width: 70ch; font-size: 0.91rem; }
+/* 70ch left a 507 px column of text in a 1100 px panel, so more than half of every panel was
+   empty and the line breaks read as arbitrary. A panel is not a book page. */
+.panel p.lede { margin: 0.3rem 0 0; color: var(--ink-2); max-width: 105ch; font-size: 0.91rem; }
+.panel p.small, .panel p.loading { max-width: 105ch; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
 @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
 
@@ -108,6 +114,35 @@ th {
   text-transform: uppercase; color: var(--muted); text-align: right; padding: 0 8px 6px 0;
   border-bottom: 1px solid var(--line); white-space: nowrap;
 }
+/* Sorting and the definition button. Every table on the site comes from one helper, so both
+   arrive on every page at once. */
+th .th-sort {
+  font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit;
+  background: none; border: 0; padding: 0; cursor: pointer; display: inline-flex;
+  align-items: center; gap: 3px;
+}
+th .th-sort:hover { color: var(--ink); }
+th .th-sort:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+th .th-arrow { width: 7px; height: 9px; opacity: 0.25; background: currentColor;
+  clip-path: polygon(50% 0, 100% 42%, 62% 42%, 62% 100%, 38% 100%, 38% 42%, 0 42%); }
+th .th-sort[data-state='1'] .th-arrow { opacity: 1; transform: rotate(180deg); }
+th .th-sort[data-state='2'] .th-arrow { opacity: 1; }
+th[aria-sort='descending'], th[aria-sort='ascending'] { color: var(--ink); }
+th .th-info {
+  font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem; font-weight: 600;
+  width: 13px; height: 13px; margin-left: 5px; padding: 0; vertical-align: 1px;
+  border: 1px solid var(--line-strong); border-radius: 50%; background: transparent;
+  color: var(--muted); cursor: pointer; text-transform: none; line-height: 1;
+}
+th .th-info:hover { border-color: var(--accent); color: var(--accent); }
+th .th-info:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.metricpop {
+  position: absolute; z-index: 40; width: 270px; padding: 9px 11px 10px;
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: 3px;
+  box-shadow: var(--shadow); font-size: 0.82rem; color: var(--ink-2);
+}
+.metricpop strong { display: block; color: var(--ink); font-size: 0.84rem; margin-bottom: 3px; }
+.metricpop p { margin: 0 0 6px; }
 td {
   padding: 5px 8px 5px 0; border-bottom: 1px solid var(--line); text-align: right;
   font-variant-numeric: tabular-nums;
@@ -169,11 +204,6 @@ input[type='search'] { width: 260px; }
   padding: 10px 14px; border-radius: 0 3px 3px 0; font-size: 0.88rem;
 }
 .loading { color: var(--muted); padding: 26px 0; }
-footer.prov {
-  margin-top: 30px; padding-top: 14px; border-top: 1px solid var(--line);
-  color: var(--muted); font-size: 0.78rem; max-width: 80ch;
-}
-footer.prov code { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--ink-2); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 
 /* The locality view: the whole protein above, the amino-acid letters below. */
@@ -255,3 +285,103 @@ h3.sub {
   font-size: 0.78rem; color: var(--ink-2); margin-bottom: 3px; display: block;
 }
 .anngroup .rows { grid-template-columns: 78px 1fr; }
+
+/* Figures, for the numbers that used to sit inside a sentence. */
+.statbox { margin-top: 10px; }
+.statrow { display: flex; flex-wrap: wrap; gap: 4px 26px; }
+.stat { min-width: 74px; }
+.stat .v {
+  font-family: Archivo, sans-serif; font-size: 1.12rem; font-weight: 700; display: block;
+  letter-spacing: -0.015em; font-variant-numeric: tabular-nums; line-height: 1.25; color: var(--ink);
+}
+.stat .k { font-size: 0.73rem; color: var(--muted); display: block; max-width: 24ch; }
+.statnote { margin: 8px 0 0; max-width: 70ch; }
+
+/* A colour reference inside a line of text. */
+.inlinekey {
+  display: inline-block; width: 15px; height: 3px; vertical-align: 3px; border-radius: 1px;
+  background: var(--accent);
+}
+.inlinekey.dashed {
+  background: repeating-linear-gradient(
+    to right, var(--muted) 0 4px, transparent 4px 7px
+  );
+}
+
+/* A host whose contents are being replaced keeps its height, so the page cannot jump. */
+.busy { opacity: 0.55; transition: opacity 120ms linear; }
+
+/* The family tabs on the landing page. */
+.famtabs {
+  display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 4px;
+  border-bottom: 1px solid var(--line); padding-bottom: 10px;
+}
+.famtab {
+  display: flex; flex-direction: column; gap: 2px; align-items: flex-start;
+  min-width: 116px; padding: 6px 9px 7px; cursor: pointer; text-align: left;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 3px;
+  color: var(--ink-2); font-family: inherit;
+}
+.famtab:hover { border-color: var(--line-strong); }
+.famtab[aria-pressed='true'] {
+  background: var(--accent-soft); border-color: var(--accent); color: var(--ink);
+}
+.famtab:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.famtab-name { font-size: 0.79rem; font-weight: 600; }
+.famtab-count {
+  font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: var(--muted);
+}
+.famtab-bar { display: block; width: 100%; height: 3px; background: var(--line); border-radius: 2px; }
+.famtab-bar i { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
+
+/* The splitting panel: the scatter and the sketch that says how to read it. */
+.splitwrap { display: grid; grid-template-columns: 1fr 250px; gap: 20px; align-items: start;
+  margin-top: 10px; }
+@media (max-width: 820px) { .splitwrap { grid-template-columns: 1fr; } }
+
+/* The model and the numbers beside it. */
+.structwrap { display: grid; grid-template-columns: 1fr 230px; gap: 16px; align-items: start; }
+.structwrap .struct { margin-top: 0; }
+.structside .statbox { margin-top: 0; }
+@media (max-width: 820px) { .structwrap { grid-template-columns: 1fr; } }
+
+/* The letter row: the legend on the left, the chemistry count on the right. */
+.loc-foot { display: grid; grid-template-columns: 1fr 260px; gap: 18px; align-items: start;
+  margin-top: 7px; }
+.loc-foot .loc-legend { margin-top: 0; }
+.loc-chem .statbox { margin-top: 0; }
+@media (max-width: 820px) { .loc-foot { grid-template-columns: 1fr; } }
+
+/* Picking one protein out of tens of thousands. */
+.chooser { margin: 4px 0 2px; }
+.chooser-row { margin: 6px 0 0; align-items: center; }
+.chooser-jump {
+  font-family: 'IBM Plex Mono', monospace; font-size: 0.76rem; width: 122px; padding: 3px 8px;
+  border: 1px solid var(--line); border-radius: 3px; background: var(--surface); color: var(--ink);
+}
+.chooser-value {
+  font-family: 'IBM Plex Mono', monospace; color: var(--ink-2); margin-left: 4px;
+}
+.chooser-note { margin: 7px 0 0; max-width: 80ch; }
+
+/* The glossary. */
+.gl-toc { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 12px; font-size: 0.84rem; }
+.gl-body { margin-top: 4px; max-width: 88ch; }
+.gl-body p { margin: 0.55rem 0; color: var(--ink-2); font-size: 0.89rem; }
+.gl-pic {
+  margin: 12px 0; padding: 12px; background: var(--surface-2); border-radius: 3px;
+  overflow-x: auto;
+}
+.gl-formula {
+  background: var(--surface-2); border-left: 2px solid var(--accent); padding: 7px 11px;
+  border-radius: 0 2px 2px 0; font-size: 0.82rem !important; color: var(--ink) !important;
+}
+.gl-dl { display: grid; grid-template-columns: 190px 1fr; gap: 5px 16px; margin: 12px 0 0;
+  font-size: 0.85rem; }
+.gl-dl dt { color: var(--muted); }
+.gl-dl dd { margin: 0; color: var(--ink-2); }
+@media (max-width: 640px) { .gl-dl { grid-template-columns: 1fr; gap: 1px 0; } }
+
+/* The header link to the glossary. */
+.navtools { display: flex; align-items: center; gap: 14px; }
+.glosslink { font-size: 0.82rem; white-space: nowrap; }

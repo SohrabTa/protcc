@@ -7,7 +7,9 @@
 
 import { Data } from '../data';
 import { drawStructure } from '../structpanel';
-import { activationStrip, annotationStrip, el, link, panel, pct, redrawStrips, row, table } from '../ui';
+import {
+  activationStrip, annotationStrip, el, figures, link, num, panel, pct, redrawStrips, row, table,
+} from '../ui';
 
 export async function renderProtein(d: Data, acc: string, host: HTMLElement): Promise<void> {
   host.textContent = '';
@@ -16,7 +18,7 @@ export async function renderProtein(d: Data, acc: string, host: HTMLElement): Pr
       el(
         'p',
         'warn',
-        `${acc} has no track in this data tree. The smoke build covers one shard of 208.`,
+        `${acc} has no per-residue track in this data tree, so there is nothing to draw for it.`,
       ),
     );
     return;
@@ -34,12 +36,12 @@ export async function renderProtein(d: Data, acc: string, host: HTMLElement): Pr
 
   const p = panel('Protein', acc);
   const lede = el('p', 'lede');
-  lede.append(`${info.n}. ${info.l} residues.`);
-  const uni = el('a', undefined, 'UniProt');
+  lede.append(`${info.n}.`);
+  const uni = el('a', undefined, 'Open the UniProt entry');
   uni.href = `https://www.uniprot.org/uniprotkb/${acc}`;
   uni.target = '_blank';
   uni.rel = 'noopener';
-  lede.append(' ', uni, info.af ? ', with an AlphaFold model.' : ', no AlphaFold model.');
+  lede.append(' ', uni, '.');
   p.append(lede);
 
   // Which latents fire here, ranked by how much of the protein they cover.
@@ -55,16 +57,24 @@ export async function renderProtein(d: Data, acc: string, host: HTMLElement): Pr
     .filter(([f]) => d.featureById.has(f))
     .sort((a, b) => b[1] - a[1]);
 
+  const withConcept = ranked.filter(([f]) => d.featureById.get(f)!.c);
+  p.append(
+    figures([
+      [num(ranked.length), 'latents fire here'],
+      [num(withConcept.length), 'of them pair with a concept'],
+      [String(info.l), 'residues'],
+    ]),
+  );
+  const shownRows = Math.min(25, withConcept.length);
   p.append(
     el(
       'p',
       'small muted',
-      `${ranked.length.toLocaleString('en-US')} latents fire somewhere on this protein. ` +
-        'The ones that pair with a Swiss-Prot concept are listed first.',
+      `The table holds the ${shownRows} paired latents that cover the most of this protein. ` +
+        'A column sorts these rows.',
     ),
   );
 
-  const withConcept = ranked.filter(([f]) => d.featureById.get(f)!.c);
   const { root, body } = table(
     ['Latent', 'Concept', 'Covers', 'Peak here', 'Peak layer'],
     [0, 1],
@@ -81,6 +91,7 @@ export async function renderProtein(d: Data, acc: string, host: HTMLElement): Pr
           String(f.pk),
         ],
         [0, 1],
+        [fid, f.c!.replace('_', ' · ').toLowerCase(), n / info.l, peaks.get(fid) ?? 0, f.pk],
       ),
     );
   }

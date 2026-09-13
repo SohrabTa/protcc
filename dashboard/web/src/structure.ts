@@ -51,6 +51,11 @@ export async function loadBackbone(base: string, acc: string): Promise<Backbone 
     cif = await new Response(stream).text();
   } else {
     cif = new TextDecoder().decode(bytes);
+    // A missing file is not always a 404. A server with a single-page fallback answers 200 and
+    // sends the application's own HTML, which is what `vite preview` does and what a deployment
+    // behind a catch-all rewrite would do too. That is a missing model, not a broken one, and it
+    // has to be reported as such.
+    if (cif.trimStart().startsWith('<')) return null;
   }
   if (!cif.startsWith('data_')) throw new Error(`${url} is not an mmCIF file.`);
   return { cif, ...alphaCarbons(cif) };

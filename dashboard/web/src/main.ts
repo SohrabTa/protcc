@@ -2,7 +2,7 @@
  * Entry point and router.
  *
  * Routing is hash-based on purpose: `#/feature/1819` resolves without a web server, so the site
- * works from a folder or a USB drive. Three routes, over one set of data.
+ * works from a folder or a USB drive. Five routes, over one set of data.
  */
 
 import './style.css';
@@ -12,6 +12,7 @@ import { renderOverview } from './views/overview';
 import { renderConcept } from './views/concept';
 import { renderFeature } from './views/feature';
 import { renderProtein } from './views/protein';
+import { renderGlossary } from './glossary';
 import { mountJump } from './jump';
 
 const data = new Data('./data');
@@ -65,6 +66,11 @@ async function route(): Promise<void> {
     } else if (kind === 'protein') {
       setCrumbs([el('span', 'mono', rest.toUpperCase())]);
       await renderProtein(data, rest.toUpperCase(), app);
+    } else if (kind === 'glossary') {
+      // The entry is part of the route rather than a second hash, because a second `#` would
+      // not survive the hash router.
+      setCrumbs([el('span', undefined, 'Glossary')]);
+      renderGlossary(data, app, rest || undefined);
     } else {
       app.textContent = '';
       app.append(el('p', 'loading', `No route for ${hash}.`));
@@ -76,7 +82,8 @@ async function route(): Promise<void> {
     app.append(box);
     console.error(err);
   }
-  window.scrollTo(0, 0);
+  // A glossary entry scrolls itself into view, so the route must not fight it back to the top.
+  if (!location.hash.startsWith('#/glossary/')) window.scrollTo(0, 0);
 }
 
 async function start(): Promise<void> {
@@ -96,13 +103,8 @@ async function start(): Promise<void> {
   }
   header();
   mountJump(data, document.getElementById('jump')!);
-  document.getElementById('prov')!.textContent =
-    `${data.manifest.crosscoder} on ${data.manifest.eval_set}, built ${data.manifest.built}. ` +
-    `${num(data.manifest.counts.proteins)} proteins, ` +
-    `${num(data.manifest.counts.latent_protein_pairs)} latent-protein pairs.` +
-    (data.manifest.partial
-      ? ' This tree was built from a subset of shards and is not publishable.'
-      : '');
+  // The provenance used to sit under every page. It now lives at the end of the glossary, which
+  // is where the reader is when they want to know what the numbers were measured on.
   addEventListener('hashchange', () => void route());
   await route();
 }

@@ -1,5 +1,7 @@
 /** Small DOM and drawing helpers. No framework: the site builds elements directly. */
 
+import { metricForHeader } from './metrics';
+
 export function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   cls?: string,
@@ -160,33 +162,210 @@ export function annotationStrip(length: number, ranges: [number, number][]): HTM
   return box;
 }
 
-export function table(headers: string[], alignLeft: number[] = [0]): {
+/**
+ * The one popover that explains a column header.
+ *
+ * One element for the whole page rather than one per header. A table can have six headers and a
+ * page can have three tables, and eighteen hidden popovers that each need closing when another
+ * opens is a worse thing to keep correct than one that moves.
+ */
+let popover: HTMLElement | null = null;
+let popoverFor: HTMLElement | null = null;
+
+function closePopover(): void {
+  popover?.remove();
+  popover = null;
+  popoverFor = null;
+}
+
+function openPopover(anchor: HTMLElement, slug: string, title: string, short: string): void {
+  if (popoverFor === anchor) {
+    closePopover();
+    return;
+  }
+  closePopover();
+  const box = el('div', 'metricpop');
+  box.setAttribute('role', 'dialog');
+  box.append(el('strong', undefined, title), el('p', undefined, short));
+  const more = link(`/glossary/${slug}`, 'Full definition');
+  more.addEventListener('click', () => closePopover());
+  box.append(more);
+  document.body.append(box);
+  const r = anchor.getBoundingClientRect();
+  const w = box.offsetWidth;
+  // Keep it on screen. A right-hand column would otherwise open past the edge of the page.
+  const x = Math.min(Math.max(8, r.left + scrollX), scrollX + innerWidth - w - 8);
+  box.style.left = `${x}px`;
+  box.style.top = `${r.bottom + scrollY + 6}px`;
+  popover = box;
+  popoverFor = anchor;
+}
+
+addEventListener('click', (e) => {
+  const t = e.target as HTMLElement | null;
+  if (popover && t && !popover.contains(t) && !t.closest('.th-info')) closePopover();
+});
+addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closePopover();
+});
+// The popover is attached to the body rather than to the table, so leaving the page does not
+// take it with it. It would otherwise hang over the next page.
+addEventListener('hashchange', closePopover);
+
+/** What one cell sorts by. `data-sort` wins, and the text is parsed when it does not. */
+function cellKey(td: HTMLTableCellElement): number | string | null {
+  const ds = td.dataset.sort;
+  if (ds !== undefined) {
+    const n = Number(ds);
+    return Number.isFinite(n) && ds.trim() !== '' ? n : ds;
+  }
+  const t = (td.textContent ?? '').trim();
+  if (t === '' || t === '—') return null;
+  // `f/1819` sorts by the latent number, `12,345` and `2.9%` by their value.
+  const cleaned = t.replace(/^f\//i, '').replace(/[,%\s]/g, '');
+  const n = Number(cleaned);
+  return cleaned !== '' && Number.isFinite(n) ? n : t.toLowerCase();
+}
+
+export interface TableHandle {
   root: HTMLTableElement;
   body: HTMLTableSectionElement;
-} {
-  const t = el('table');
+}
+
+/**
+ * A table whose columns sort, and whose headers explain themselves.
+ *
+ * Every table on the site comes through here, so both behaviours arrive everywhere at once. A
+ * header cycles through three states rather than two: the first click sorts, the second
+ * reverses, and the third puts the rows back into the order the page built them in. That third
+ * state is the reason the default order is captured on the first click and never lost.
+ */
+export function table(headers: string[], alignLeft: number[] = [0]): TableHandle {
+  const t = el('table', 'sortable');
   const thead = el('thead');
   const tr = el('tr');
+  const body = el('tbody');
+
+  let defaultOrder: HTMLTableRowElement[] | null = null;
+  let sortCol = -1;
+  let sortDir = 0; // 0 default, 1 first click, 2 reversed
+
+  const buttons: HTMLButtonElement[] = [];
+
+  const apply = (col: number): void => {
+    const rows = [...body.rows] as HTMLTableRowElement[];
+    if (!defaultOrder) defaultOrder = rows;
+    if (col !== sortCol) {
+      sortCol = col;
+      sortDir = 1;
+    } else {
+      sortDir = (sortDir + 1) % 3;
+    }
+
+    let ordered: HTMLTableRowElement[];
+    if (sortDir === 0) {
+      sortCol = -1;
+      ordered = defaultOrder.filter((r) => r.isConnected);
+    } else {
+      const keyed = rows.map((r) => ({ r, k: cellKey(r.cells[col]) }));
+      const first = keyed.find((x) => x.k !== null);
+      const numeric = typeof first?.k === 'number';
+      // A number sorts largest first, because the reader wants the best row. A name sorts A to
+      // Z, because there is no "best" name.
+      const flip = (numeric ? -1 : 1) * (sortDir === 1 ? 1 : -1);
+      keyed.sort((a, b) => {
+        if (a.k === null) return 1; // empty cells stay at the end in both directions
+        if (b.k === null) return -1;
+        if (typeof a.k === 'number' && typeof b.k === 'number') return (a.k - b.k) * flip;
+        return String(a.k).localeCompare(String(b.k)) * flip;
+      });
+      ordered = keyed.map((x) => x.r);
+    }
+    for (const r of ordered) body.append(r);
+
+    buttons.forEach((b, i) => {
+      const on = i === sortCol && sortDir !== 0;
+      const numeric = on && typeof cellKey(body.rows[0]?.cells[i] as HTMLTableCellElement) === 'number';
+      b.parentElement!.setAttribute(
+        'aria-sort',
+        on ? (numeric === (sortDir === 1) ? 'descending' : 'ascending') : 'none',
+      );
+      b.dataset.state = on ? String(sortDir) : '0';
+    });
+  };
+
   headers.forEach((h, i) => {
-    const th = el('th', undefined, h);
+    const th = el('th');
+    th.setAttribute('aria-sort', 'none');
     if (alignLeft.includes(i)) th.style.textAlign = 'left';
+    const sort = el('button', 'th-sort');
+    sort.type = 'button';
+    sort.append(el('span', 'th-label', h), el('span', 'th-arrow'));
+    sort.title = `Sort by ${h}. Click again to reverse, and once more for the default order.`;
+    sort.addEventListener('click', () => apply(i));
+    th.append(sort);
+    buttons.push(sort);
+
+    const m = metricForHeader(h);
+    if (m) {
+      const info = el('button', 'th-info', 'i');
+      info.type = 'button';
+      info.setAttribute('aria-label', `What ${h} means`);
+      info.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openPopover(info, m.slug, m.title, m.short);
+      });
+      th.append(info);
+    }
     tr.append(th);
   });
+
   thead.append(tr);
-  const body = el('tbody');
   t.append(thead, body);
   return { root: t, body };
 }
 
-export function row(cells: (Node | string)[], alignLeft: number[] = [0]): HTMLTableRowElement {
+/**
+ * One table row.
+ *
+ * `sortKeys` gives a cell a value to sort by when its text is not the value: a link reading
+ * `f/1819`, a depth ribbon with no text at all, or a percentage already rounded for display.
+ */
+export function row(
+  cells: (Node | string)[],
+  alignLeft: number[] = [0],
+  sortKeys?: (number | string | undefined)[],
+): HTMLTableRowElement {
   const tr = el('tr');
   cells.forEach((c, i) => {
     const td = el('td');
     td.append(c as Node | string);
     if (alignLeft.includes(i)) td.style.textAlign = 'left';
+    const k = sortKeys?.[i];
+    if (k !== undefined) td.dataset.sort = String(k);
     tr.append(td);
   });
   return tr;
+}
+
+/**
+ * A row of figures, for the numbers that used to sit inside a sentence.
+ *
+ * A reader scanning a page finds a number faster than a clause, and a number in a figure can be
+ * compared against the one beside it. The note below carries the caution that a sentence used
+ * to carry, which is usually that one protein describes itself and proves nothing.
+ */
+export function figures(items: [string, string][], note?: string): HTMLElement {
+  const box = el('div', 'statbox');
+  const row_ = el('div', 'statrow');
+  for (const [v, k] of items) {
+    const f = el('div', 'stat');
+    f.append(el('span', 'v', v), el('span', 'k', k));
+    row_.append(f);
+  }
+  box.append(row_);
+  if (note) box.append(el('p', 'small muted statnote', note));
+  return box;
 }
 
 export function panel(eyebrow: string, title: string, lede?: string): HTMLElement {
@@ -198,6 +377,27 @@ export function panel(eyebrow: string, title: string, lede?: string): HTMLElemen
   p.append(h);
   if (lede) p.append(el('p', 'lede', lede));
   return p;
+}
+
+/**
+ * Keep a host at its current height while its contents are replaced.
+ *
+ * Without this the page jumps. A view that empties its host and then awaits a fetch loses its
+ * whole height for as long as the fetch takes. Measured on the concept page: the panel fell from
+ * 759 px to 274 px, the document from 1684 px to 1199 px, and the browser clamped the scroll
+ * position up by 485 px and back again 200 ms later. At the top of the page there is nothing to
+ * clamp, which is why the same click looks calm there and violent lower down.
+ *
+ * Call it before the host is emptied. Call the returned function after the new content is in.
+ */
+export function holdHeight(host: HTMLElement): () => void {
+  const h = host.offsetHeight;
+  if (h > 0) host.style.minHeight = `${h}px`;
+  host.classList.add('busy');
+  return () => {
+    host.style.minHeight = '';
+    host.classList.remove('busy');
+  };
 }
 
 /**
