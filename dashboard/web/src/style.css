@@ -412,3 +412,12 @@ h3.sub {
   text-decoration-color: var(--accent-soft); text-underline-offset: 2px;
 }
 .linkish:hover { text-decoration-color: var(--accent); }
+
+/* The brush on the latent map. */
+.dmap-box { cursor: crosshair; }
+.dmap-marquee {
+  position: absolute; pointer-events: none; border: 1px dashed var(--ink);
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+.dmap-pick { margin-top: 12px; }
+.dmap-pick:empty { margin-top: 0; }

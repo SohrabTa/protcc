@@ -11,6 +11,7 @@
 import { Data, type Concept, type Feature, type Ranking } from '../data';
 import { localityView } from '../locality';
 import { currentStructure, drawStructure } from '../structpanel';
+import { localityPanel } from '../locality3d';
 import {
   cssVar, el, figures, holdHeight, link, num, panel, pct, row, stepper, table,
 } from '../ui';
@@ -149,6 +150,20 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
   locPanel.append(locChooser, locBody);
   views.append(locPanel);
 
+  // Sequence against space, over many proteins at once. The two views above each answer half of
+  // this question and neither can answer it alone.
+  const spacePanel = panel(
+    'Locality',
+    'A stretch of the chain, or a site in the fold',
+    'One dot for each protein. Across: how far apart the firing residues are along the chain. ' +
+      'Up: how far apart they are in space. Both are divided by the same spread over the whole ' +
+      'protein, so 1 means the firing residues are spread like the protein itself. A dot in the ' +
+      'shaded corner is a site in the fold that the letter row shows as scatter.',
+  );
+  const spaceBody = el('div');
+  spacePanel.append(spaceBody);
+  views.append(spacePanel);
+
   const evPanel = panel(
     'Evidence',
     'What changes as the activation gets weaker',
@@ -194,6 +209,16 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
       }),
     );
   }
+
+  // ---- sequence against space ------------------------------------------
+  // The ranking order, so the proteins measured are the ones the latent fires hardest on. That
+  // is a biased sample and the panel says so.
+  const forSpace: string[] = [];
+  for (let i = 0; i < rank.protein.length && forSpace.length < 80; i++) {
+    const acc = d.proteinIds[rank.protein[i]];
+    if (d.hasTrack(acc)) forSpace.push(acc);
+  }
+  spaceBody.append(localityPanel(d, fid, forSpace).root);
 
   // ---- the bands -------------------------------------------------------
   evBody.append(bandChart(bandStats(d, f, rank), paired[0]?.concept));

@@ -1,28 +1,37 @@
 /**
  * Every live latent at once, placed by where it writes and how widely it fires.
  *
- * This is the answer to "where in ProtT5 does the crosscoder find anything nameable", which no
- * table on the site gives. One dot per live latent: across is the encoder layer it writes
- * hardest into, up is how many proteins it fires on. Amber means a Swiss-Prot concept pairs with
- * it, grey means nothing named it.
+ * This answers "where in ProtT5 does the crosscoder find anything nameable", which no table on
+ * the site gives. Across is the encoder layer the latent writes hardest into. Up is how many
+ * proteins it fires on.
  *
- * The shape is the point. Nameable latents sit in the middle of the encoder. Layers 22 to 24
- * hold 937 live latents and 26 paired ones, so the deepest layers are busy with something
- * Swiss-Prot cannot name. The line across the top is that share, layer by layer.
+ * The shape is the point. 4867 of the 8128 live latents, which is 59.9%, peak at layers 15 to
+ * 19, against 20.8% for an even spread. The bars across the top are the share of each layer's
+ * latents that a concept names.
  *
- * It is also the only way into a latent that nobody has a number for, so the dots are clickable.
+ * ## Why the grey is a field and the amber is dots
+ *
+ * 8128 dots in 24 columns cannot be clicked one at a time. They overlap, and a click that lands
+ * between two of them opens the wrong latent. So the 7108 latents that no concept names are
+ * drawn as a density field, which shows the mass without pretending each dot is a target, and
+ * the 1020 that a concept names are drawn as dots, which are few enough to hit.
+ *
+ * A latent that nobody has a number for still has to be reachable, and that is what the brush is
+ * for. Drag a rectangle and every latent inside it, named or not, is listed below the plot.
  */
 
 import type { Data, Feature } from './data';
-import { cssVar, el } from './ui';
+import { cssVar, el, link, num, row, table } from './ui';
 
 const PL = 46;
 const PR = 14;
 const BAND = 40; // the top strip that carries the paired share
 const PT = 26 + BAND;
 const PB = 34;
-const H = 300;
-const DOT = 2.1;
+const H = 340;
+const DOT = 2.4;
+const CELL = 4; // px per density cell
+const MAX_LIST = 120;
 
 export interface DepthMapHandle {
   root: HTMLElement;
@@ -44,13 +53,16 @@ export function depthMap(d: Data): DepthMapHandle {
 
   const box = el('div', 'dmap-box');
   const cv = el('canvas');
-  box.append(cv);
+  const marquee = el('div', 'dmap-marquee');
+  marquee.hidden = true;
+  box.append(cv, marquee);
   root.append(box);
 
   const legend = el('div', 'loc-legend');
   for (const [label, color] of [
     ['pairs with a concept', cssVar('--signal')],
-    ['nothing named it', cssVar('--line-strong')],
+    ['nothing named it, as a density', cssVar('--line-strong')],
+    ['share of that layer’s latents that pair', cssVar('--accent')],
   ] as [string, string][]) {
     const item = el('span', 'loc-key');
     const sw = el('i');
@@ -58,16 +70,22 @@ export function depthMap(d: Data): DepthMapHandle {
     item.append(sw, label);
     legend.append(item);
   }
-  const shareKey = el('span', 'loc-key');
-  const shareSw = el('i');
-  shareSw.style.background = cssVar('--accent');
-  shareKey.append(shareSw, 'share of that layer’s latents that pair with a concept');
-  legend.append(shareKey);
   root.append(legend);
 
+  const hint = el(
+    'p',
+    'small muted',
+    'Click an amber dot to open that latent. Drag a rectangle anywhere to list every latent ' +
+      'inside it, named or not.',
+  );
+  root.append(hint);
+
+  const picked = el('div', 'dmap-pick');
+  root.append(picked);
+
   // A latent's peak layer is one of 24 values, so 1598 of them land on the same vertical line.
-  // A fixed spread inside the layer band separates them, and it is derived from the latent id
-  // rather than drawn at random so that a dot does not move between redraws.
+  // A fixed spread inside the layer band separates them, and it comes from the latent id rather
+  // than from a random number, so a dot does not move between redraws.
   const jitter = (f: Feature): number => (((f.f * 2654435761) % 1000) / 1000 - 0.5) * 0.78;
 
   const shareByLayer: number[] = new Array(nLayers).fill(0);
@@ -80,7 +98,14 @@ export function depthMap(d: Data): DepthMapHandle {
   }
 
   let hover = -1;
-  let placed: { x: number; y: number; f: Feature }[] = [];
+  /** Screen position of every latent, rebuilt on each draw. Paired first, for hit testing. */
+  let placedPaired: { x: number; y: number; f: Feature }[] = [];
+  let placedAll: { x: number; y: number; f: Feature }[] = [];
+
+  // The brush.
+  let dragFrom: { x: number; y: number } | null = null;
+  let dragTo: { x: number; y: number } | null = null;
+  let selection: { x: number; y: number; w: number; h: number } | null = null;
 
   function draw(): void {
     const w = Math.max(1, Math.round(box.clientWidth));
@@ -113,57 +138,75 @@ export function depthMap(d: Data): DepthMapHandle {
       c.fillText(p >= 1000 ? `${p / 1000}k` : String(p), PL - 6, y);
     }
 
-    placed = [];
-    const paired = cssVar('--signal');
+    placedPaired = [];
+    placedAll = [];
+
+    // The unnamed latents as a density field. Overlapping translucent dots make a smudge whose
+    // darkness depends on the draw order; counting into cells makes it depend on the count.
+    const cols = Math.ceil(w / CELL);
+    const rows = Math.ceil(H / CELL);
+    const grid = new Uint16Array(cols * rows);
+    let maxCell = 0;
+    for (const f of live) {
+      const x = X(f.pk + jitter(f));
+      const y = Y(f.np);
+      placedAll.push({ x, y, f });
+      if (f.c) continue;
+      const gx = Math.floor(x / CELL);
+      const gy = Math.floor(y / CELL);
+      if (gx < 0 || gy < 0 || gx >= cols || gy >= rows) continue;
+      const k = gy * cols + gx;
+      grid[k]++;
+      if (grid[k] > maxCell) maxCell = grid[k];
+    }
     const plain = cssVar('--line-strong');
-    // Unpaired first, so the 1020 paired dots are never hidden under the 7108 that are not.
-    for (const pass of [false, true]) {
-      for (const f of live) {
-        if (Boolean(f.c) !== pass) continue;
-        const x = X(f.pk + jitter(f));
-        const y = Y(f.np);
-        if (pass) placed.push({ x, y, f });
-        c.fillStyle = pass ? paired : plain;
-        c.globalAlpha = pass ? 0.85 : 0.36;
-        c.beginPath();
-        c.arc(x, y, DOT, 0, Math.PI * 2);
-        c.fill();
+    for (let gy = 0; gy < rows; gy++) {
+      for (let gx = 0; gx < cols; gx++) {
+        const n = grid[gy * cols + gx];
+        if (!n) continue;
+        // A square root rather than the raw count. The densest cell holds tens of latents and
+        // the sparse ones hold one, and a linear scale makes everything but the core invisible.
+        c.globalAlpha = 0.16 + 0.74 * Math.sqrt(n / maxCell);
+        c.fillStyle = plain;
+        c.fillRect(gx * CELL, gy * CELL, CELL, CELL);
       }
     }
     c.globalAlpha = 1;
-    // Only paired dots were collected above, so add the rest for hit testing.
-    for (const f of live) {
-      if (f.c) continue;
-      placed.push({ x: X(f.pk + jitter(f)), y: Y(f.np), f });
+
+    const paired = cssVar('--signal');
+    c.fillStyle = paired;
+    for (const p of placedAll) {
+      if (!p.f.c) continue;
+      placedPaired.push(p);
+      c.globalAlpha = 0.9;
+      c.beginPath();
+      c.arc(p.x, p.y, DOT, 0, Math.PI * 2);
+      c.fill();
     }
+    c.globalAlpha = 1;
 
     // The share that pairs, layer by layer, as bars across the top band.
     //
     // This was a line inside 22 px, and at that height a range of 0% to 21.7% looked flat. Bars
-    // on a taller band, with the largest one labelled, show the arch: the share climbs to 21.7%
-    // at layer 10, dips through the crowded middle, rises again to 18.7% at layer 19, and
-    // collapses to 1.7% at layer 23.
+    // on a taller band show the arch: the share climbs to 21.7% at layer 10, dips through the
+    // crowded middle, rises again to 18.7% at layer 19, and collapses to 1.7% at layer 23.
     const top = PT - BAND - 4;
     const maxShare = Math.max(...liveByLayer.map((n, i) => (n ? shareByLayer[i] / n : 0)), 0.01);
     const bw = Math.max(2, (iw / nLayers) * 0.62);
-    let peakLayer = 1;
     for (let l = 0; l < nLayers; l++) {
       const s = liveByLayer[l] ? shareByLayer[l] / liveByLayer[l] : 0;
-      if (s > (liveByLayer[peakLayer - 1] ? shareByLayer[peakLayer - 1] / liveByLayer[peakLayer - 1] : 0))
-        peakLayer = l + 1;
       const h = BAND * (s / maxShare);
       c.fillStyle = cssVar('--accent');
       c.globalAlpha = s > 0 ? 0.85 : 0.2;
       c.fillRect(X(l + 1) - bw / 2, top + BAND - h, bw, Math.max(0.8, h));
     }
     c.globalAlpha = 1;
-    const peakShare = shareByLayer[peakLayer - 1] / liveByLayer[peakLayer - 1];
     c.fillStyle = cssVar('--muted');
     c.font = "9px 'IBM Plex Mono', ui-monospace, monospace";
-    c.textAlign = 'left';
+    c.textAlign = 'right';
     c.textBaseline = 'middle';
-    c.fillText(`${(peakShare * 100).toFixed(0)}%`, PL - 40, top + 4);
-    c.fillText('0%', PL - 40, top + BAND);
+    c.fillText(`${(maxShare * 100).toFixed(0)}%`, PL - 6, top + 4);
+    c.fillText('0%', PL - 6, top + BAND);
 
     c.fillStyle = cssVar('--muted');
     c.textAlign = 'center';
@@ -180,21 +223,29 @@ export function depthMap(d: Data): DepthMapHandle {
     c.fillText('proteins it fires on', 0, 0);
     c.restore();
 
-    if (hover >= 0 && hover < placed.length) {
-      const p = placed[hover];
+    if (selection) {
+      c.strokeStyle = cssVar('--ink');
+      c.setLineDash([3, 3]);
+      c.strokeRect(selection.x + 0.5, selection.y + 0.5, selection.w, selection.h);
+      c.setLineDash([]);
+    }
+
+    if (hover >= 0 && hover < placedPaired.length) {
+      const p = placedPaired[hover];
       c.strokeStyle = cssVar('--ink');
       c.beginPath();
-      c.arc(p.x, p.y, DOT + 3, 0, Math.PI * 2);
+      c.arc(p.x, p.y, DOT + 3.5, 0, Math.PI * 2);
       c.stroke();
     }
   }
 
+  /** The nearest paired dot, or -1. Only paired dots are targets, because only they are drawn. */
   function nearest(mx: number, my: number): number {
     let best = -1;
-    let bestD = 90; // squared pixels, so a click has to land near a dot to count
-    for (let i = 0; i < placed.length; i++) {
-      const dx = placed[i].x - mx;
-      const dy = placed[i].y - my;
+    let bestD = 144; // squared pixels, so a click has to land near a dot to count
+    for (let i = 0; i < placedPaired.length; i++) {
+      const dx = placedPaired[i].x - mx;
+      const dy = placedPaired[i].y - my;
       const dd = dx * dx + dy * dy;
       if (dd < bestD) {
         bestD = dd;
@@ -204,41 +255,152 @@ export function depthMap(d: Data): DepthMapHandle {
     return best;
   }
 
-  cv.addEventListener('mousemove', (e) => {
+  function at(e: MouseEvent): { x: number; y: number } {
     const r = cv.getBoundingClientRect();
-    const i = nearest(e.clientX - r.left, e.clientY - r.top);
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  /** List every latent inside the rectangle, named or not. */
+  function listSelection(): void {
+    picked.textContent = '';
+    if (!selection) return;
+    const { x, y, w, h } = selection;
+    const inside = placedAll.filter(
+      (p) => p.x >= x && p.x <= x + w && p.y >= y && p.y <= y + h,
+    );
+    if (inside.length === 0) {
+      picked.append(el('p', 'small muted', 'No latent is inside that rectangle.'));
+      return;
+    }
+    // Widest first, because a latent that fires on more proteins is the one a reader opening a
+    // region is most likely to want, and because it puts the outliers at the top.
+    inside.sort((a, b) => b.f.np - a.f.np);
+    const layers = [...new Set(inside.map((p) => p.f.pk))].sort((a, b) => a - b);
+    const namedCount = inside.filter((p) => p.f.c).length;
+    picked.append(
+      el('h3', 'sub', `${num(inside.length)} latents in the rectangle`),
+      el(
+        'p',
+        'small muted',
+        `Peak layer ${layers[0]} to ${layers[layers.length - 1]}. ` +
+          `${num(namedCount)} of them pair with a concept. ` +
+          (inside.length > MAX_LIST ? `The ${MAX_LIST} that fire on the most proteins:` : ''),
+      ),
+    );
+    const { root: t, body } = table(['Latent', 'Concept', 'Peak layer', 'Proteins'], [0, 1]);
+    for (const p of inside.slice(0, MAX_LIST)) {
+      const f = p.f;
+      body.append(
+        row(
+          [
+            link(`/latent/${f.f}`, `f/${f.f}`, 'mono'),
+            f.c
+              ? link(`/concept/${encodeURIComponent(f.c)}`, f.c.replace('_', ' · '))
+              : (el('span', 'muted', 'nothing named it') as Node),
+            String(f.pk),
+            num(f.np),
+          ],
+          [0, 1],
+          [f.f, f.c ? f.c.toLowerCase() : 'zzz', f.pk, f.np],
+        ),
+      );
+    }
+    const sc = el('div', 'tbl-scroll tbl-capped');
+    sc.append(t);
+    picked.append(sc);
+    const clear = el('button', 'linkish', 'clear the selection');
+    clear.addEventListener('click', () => {
+      selection = null;
+      picked.textContent = '';
+      draw();
+    });
+    picked.append(clear);
+  }
+
+  cv.addEventListener('mousedown', (e) => {
+    dragFrom = at(e);
+    dragTo = dragFrom;
+    marquee.hidden = true;
+  });
+
+  addEventListener('mousemove', (e) => {
+    if (!dragFrom) return;
+    dragTo = at(e);
+    const x = Math.min(dragFrom.x, dragTo.x);
+    const y = Math.min(dragFrom.y, dragTo.y);
+    const w = Math.abs(dragTo.x - dragFrom.x);
+    const h = Math.abs(dragTo.y - dragFrom.y);
+    if (w > 3 || h > 3) {
+      marquee.hidden = false;
+      marquee.style.left = `${x}px`;
+      marquee.style.top = `${y}px`;
+      marquee.style.width = `${w}px`;
+      marquee.style.height = `${h}px`;
+    }
+  });
+
+  addEventListener('mouseup', (e) => {
+    if (!dragFrom) return;
+    const from = dragFrom;
+    const to = dragTo ?? at(e);
+    dragFrom = null;
+    dragTo = null;
+    marquee.hidden = true;
+    const w = Math.abs(to.x - from.x);
+    const h = Math.abs(to.y - from.y);
+    // A drag shorter than 4 px in both directions is a click, not a brush. Without this test
+    // every click would clear the list it just opened.
+    if (w < 4 && h < 4) {
+      const i = nearest(from.x, from.y);
+      if (i >= 0) location.hash = `/latent/${placedPaired[i].f.f}`;
+      return;
+    }
+    selection = { x: Math.min(from.x, to.x), y: Math.min(from.y, to.y), w, h };
+    draw();
+    listSelection();
+    picked.scrollIntoView({ block: 'nearest' });
+  });
+
+  cv.addEventListener('mousemove', (e) => {
+    if (dragFrom) return;
+    const { x, y } = at(e);
+    const i = nearest(x, y);
     if (i === hover) return;
     hover = i;
-    const f = i >= 0 ? placed[i].f : null;
+    const f = i >= 0 ? placedPaired[i].f : null;
     readout.textContent = f
-      ? `f/${f.f}  peak ${f.pk}  ${f.np.toLocaleString('en-US')} proteins` +
-        (f.c ? `  ${f.c.replace('_', ' · ')}` : '  unnamed')
+      ? `f/${f.f}  peak layer ${f.pk}  ${num(f.np)} proteins  ${f.c!.replace('_', ' · ')}`
       : '';
-    cv.style.cursor = f ? 'pointer' : 'default';
+    cv.style.cursor = f ? 'pointer' : 'crosshair';
     draw();
   });
   cv.addEventListener('mouseleave', () => {
+    if (dragFrom) return;
     hover = -1;
     readout.textContent = '';
     draw();
   });
-  cv.addEventListener('click', () => {
-    if (hover >= 0) location.hash = `/feature/${placed[hover].f.f}`;
-  });
 
   const ro = new ResizeObserver(() => {
-    if (box.clientWidth > 0) draw();
+    if (box.clientWidth > 0) {
+      // A resize moves every dot, so a rectangle drawn at the old width no longer means
+      // anything. Dropping it is more honest than keeping a list that no longer matches.
+      if (selection) {
+        selection = null;
+        picked.textContent = '';
+      }
+      draw();
+    }
   });
 
   return {
     root,
     mount() {
-      const deep = liveByLayer.slice(-3).reduce((a, b) => a + b, 0);
-      const deepPaired = shareByLayer.slice(-3).reduce((a, b) => a + b, 0);
+      const mid = [14, 15, 16, 17, 18].reduce((a, l) => a + liveByLayer[l], 0);
       caption.textContent =
-        `${live.length.toLocaleString('en-US')} live latents. ` +
-        `The last three layers hold ${deep.toLocaleString('en-US')} of them and ` +
-        `${deepPaired} that a concept names. Click a dot to open it.`;
+        `${num(live.length)} live latents. ` +
+        `${num(mid)} of them, which is ${((mid / live.length) * 100).toFixed(0)}%, peak at ` +
+        'layers 15 to 19. An even spread over 24 layers would put 21% there.';
       draw();
       ro.observe(box);
     },
