@@ -304,10 +304,24 @@ export function localityView(seq: string, values: Uint8Array, ranges: [number, n
     drawMarker();
   });
 
-  over.addEventListener('click', (e) => {
+  // The window on the overview follows the pointer while the button is held. A click alone
+  // jumped, and a reader who wanted to sweep along the protein had to click again and again.
+  let dragging = false;
+  const moveWindowTo = (clientX: number): void => {
     const r = over.getBoundingClientRect();
-    const frac = (e.clientX - r.left) / r.width;
+    const frac = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
     scroller.scrollLeft = frac * n * CELL - scroller.clientWidth / 2;
+  };
+  over.addEventListener('mousedown', (e) => {
+    dragging = true;
+    moveWindowTo(e.clientX);
+    e.preventDefault(); // otherwise the browser starts a text selection instead
+  });
+  addEventListener('mousemove', (e) => {
+    if (dragging) moveWindowTo(e.clientX);
+  });
+  addEventListener('mouseup', () => {
+    dragging = false;
   });
 
   zoomCv.addEventListener('mousemove', (e) => {

@@ -421,3 +421,21 @@ h3.sub {
 }
 .dmap-pick { margin-top: 12px; }
 .dmap-pick:empty { margin-top: 0; }
+
+/* The latent map's hover readout floats over the plot, so the caption never reflows. */
+.dmap-readout {
+  position: absolute; top: 4px; right: 8px; z-index: 2; pointer-events: none;
+  font-size: 0.74rem; color: var(--ink);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  padding: 2px 7px; border-radius: 3px;
+}
+.dmap-readout:empty { display: none; }
+
+/* The page jump on a long protein list. */
+.pagejump {
+  width: 62px; padding: 3px 6px; font-family: 'IBM Plex Mono', monospace; font-size: 0.76rem;
+  border: 1px solid var(--line); border-radius: 3px; background: var(--surface); color: var(--ink);
+}
+
+/* The overview bar of the letter row is dragged, not only clicked. */
+.loc-over { user-select: none; }

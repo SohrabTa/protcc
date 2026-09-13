@@ -47,15 +47,17 @@ export function depthMap(d: Data): DepthMapHandle {
   const root = el('div', 'dmap');
   const head = el('div', 'loc-head');
   const caption = el('span', 'small muted');
-  const readout = el('span', 'loc-readout mono');
-  head.append(caption, readout);
+  const readout = el('div', 'dmap-readout mono');
+  head.append(caption);
   root.append(head);
 
   const box = el('div', 'dmap-box');
   const cv = el('canvas');
   const marquee = el('div', 'dmap-marquee');
   marquee.hidden = true;
-  box.append(cv, marquee);
+  // The readout sits over the plot rather than beside the caption. In the flow it changed the
+  // caption's line count on every hover, which moved the plot up and down under the pointer.
+  box.append(cv, marquee, readout);
   root.append(box);
 
   const legend = el('div', 'loc-legend');
@@ -75,13 +77,23 @@ export function depthMap(d: Data): DepthMapHandle {
   const hint = el(
     'p',
     'small muted',
-    'Click an amber dot to open that latent. Drag a rectangle anywhere to list every latent ' +
-      'inside it, named or not.',
+    'Click an amber dot to open that latent. Click anywhere else to open that layer on its own, ' +
+      'where every dot can be pointed at. Drag a rectangle to list every latent inside it, ' +
+      'named or not.',
   );
   root.append(hint);
 
   const picked = el('div', 'dmap-pick');
   root.append(picked);
+
+  /** Leave the layer view and draw all 24 again. */
+  function backToAll(): void {
+    zoomLayer = null;
+    hover = -1;
+    readout.textContent = '';
+    picked.textContent = '';
+    draw();
+  }
 
   // A latent's peak layer is one of 24 values, so 1598 of them land on the same vertical line.
   // A fixed spread inside the layer band separates them, and it comes from the latent id rather
@@ -101,6 +113,9 @@ export function depthMap(d: Data): DepthMapHandle {
   /** Screen position of every latent, rebuilt on each draw. Paired first, for hit testing. */
   let placedPaired: { x: number; y: number; f: Feature }[] = [];
   let placedAll: { x: number; y: number; f: Feature }[] = [];
+
+  /** When set, the plot shows one layer spread across the full width. */
+  let zoomLayer: number | null = null;
 
   // The brush.
   let dragFrom: { x: number; y: number } | null = null;
@@ -140,6 +155,11 @@ export function depthMap(d: Data): DepthMapHandle {
 
     placedPaired = [];
     placedAll = [];
+
+    if (zoomLayer !== null) {
+      drawZoom(c, w, iw, ih, Y);
+      return;
+    }
 
     // The unnamed latents as a density field. Overlapping translucent dots make a smudge whose
     // darkness depends on the draw order; counting into cells makes it depend on the count.
@@ -239,6 +259,75 @@ export function depthMap(d: Data): DepthMapHandle {
     }
   }
 
+  /**
+   * One layer, spread across the whole width.
+   *
+   * 1598 latents peak at layer 16, and in the full view they share one column 40 px wide. Here
+   * the same latents get the whole plot, so each one can be pointed at. The spread comes from
+   * the latent id, so a dot keeps its place between redraws.
+   */
+  function drawZoom(
+    c: CanvasRenderingContext2D,
+    w: number,
+    iw: number,
+    ih: number,
+    Y: (np: number) => number,
+  ): void {
+    const layer = zoomLayer!;
+    const mine = live.filter((f) => f.pk === layer);
+    const spread = (f: Feature): number => ((f.f * 2654435761) % 100000) / 100000;
+    for (const f of mine) {
+      const x = PL + 6 + (iw - 12) * spread(f);
+      const y = Y(f.np);
+      placedAll.push({ x, y, f });
+      if (f.c) placedPaired.push({ x, y, f });
+    }
+    // Unnamed first, so the named dots are never hidden under them.
+    for (const pass of [false, true]) {
+      for (const p of placedAll) {
+        if (Boolean(p.f.c) !== pass) continue;
+        c.fillStyle = pass ? cssVar('--signal') : cssVar('--line-strong');
+        c.globalAlpha = pass ? 0.9 : 0.42;
+        c.beginPath();
+        c.arc(p.x, p.y, pass ? DOT + 0.6 : DOT - 0.4, 0, Math.PI * 2);
+        c.fill();
+      }
+    }
+    c.globalAlpha = 1;
+    c.fillStyle = cssVar('--muted');
+    c.font = "10px 'IBM Plex Mono', ui-monospace, monospace";
+    c.textAlign = 'center';
+    c.textBaseline = 'top';
+    c.fillText(
+      `layer ${layer}: ${num(mine.length)} latents, ${num(mine.filter((f) => f.c).length)} named`,
+      PL + iw / 2,
+      H - PB + 12,
+    );
+    c.save();
+    c.translate(11, PT + ih / 2);
+    c.rotate(-Math.PI / 2);
+    c.textBaseline = 'middle';
+    c.fillText('proteins it fires on', 0, 0);
+    c.restore();
+
+    if (hover >= 0 && hover < placedPaired.length) {
+      const p = placedPaired[hover];
+      c.strokeStyle = cssVar('--ink');
+      c.beginPath();
+      c.arc(p.x, p.y, DOT + 4, 0, Math.PI * 2);
+      c.stroke();
+    }
+  }
+
+  /** Which layer a click at this x lands in, or null outside the plot. */
+  function layerAt(x: number): number | null {
+    const w = Math.max(1, Math.round(box.clientWidth));
+    const iw = w - PL - PR;
+    if (x < PL || x > PL + iw) return null;
+    const l = Math.floor(((x - PL) / iw) * nLayers) + 1;
+    return l >= 1 && l <= nLayers ? l : null;
+  }
+
   /** The nearest paired dot, or -1. Only paired dots are targets, because only they are drawn. */
   function nearest(mx: number, my: number): number {
     let best = -1;
@@ -258,6 +347,54 @@ export function depthMap(d: Data): DepthMapHandle {
   function at(e: MouseEvent): { x: number; y: number } {
     const r = cv.getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  /** List one layer's latents, after a click on that layer. */
+  function listLayer(): void {
+    picked.textContent = '';
+    if (zoomLayer === null) return;
+    const mine = live
+      .filter((f) => f.pk === zoomLayer)
+      .sort((a, b) => b.np - a.np);
+    const back = el('button', 'linkish', 'back to all 24 layers');
+    back.addEventListener('click', backToAll);
+    picked.append(
+      el('h3', 'sub', `Layer ${zoomLayer}`),
+      el(
+        'p',
+        'small muted',
+        `${num(mine.length)} latents peak here, and ${num(mine.filter((f) => f.c).length)} of ` +
+          'them pair with a concept. The plot above now spreads this one layer across its whole ' +
+          'width, so every dot can be pointed at. ' +
+          (mine.length > MAX_LIST ? `The ${MAX_LIST} that fire on the most proteins:` : ''),
+      ),
+      back,
+    );
+    picked.append(latentTable(mine.slice(0, MAX_LIST)));
+  }
+
+  /** One table of latents, used by the layer view and by the brush. */
+  function latentTable(list: Feature[]): HTMLElement {
+    const { root: t, body } = table(['Latent', 'Concept', 'Peak layer', 'Proteins'], [0, 1]);
+    for (const f of list) {
+      body.append(
+        row(
+          [
+            link(`/latent/${f.f}`, `f/${f.f}`, 'mono'),
+            f.c
+              ? link(`/concept/${encodeURIComponent(f.c)}`, f.c.replace('_', ' · '))
+              : (el('span', 'muted', 'nothing named it') as Node),
+            String(f.pk),
+            num(f.np),
+          ],
+          [0, 1],
+          [f.f, f.c ? f.c.toLowerCase() : 'zzz', f.pk, f.np],
+        ),
+      );
+    }
+    const sc = el('div', 'tbl-scroll tbl-capped');
+    sc.append(t);
+    return sc;
   }
 
   /** List every latent inside the rectangle, named or not. */
@@ -287,27 +424,7 @@ export function depthMap(d: Data): DepthMapHandle {
           (inside.length > MAX_LIST ? `The ${MAX_LIST} that fire on the most proteins:` : ''),
       ),
     );
-    const { root: t, body } = table(['Latent', 'Concept', 'Peak layer', 'Proteins'], [0, 1]);
-    for (const p of inside.slice(0, MAX_LIST)) {
-      const f = p.f;
-      body.append(
-        row(
-          [
-            link(`/latent/${f.f}`, `f/${f.f}`, 'mono'),
-            f.c
-              ? link(`/concept/${encodeURIComponent(f.c)}`, f.c.replace('_', ' · '))
-              : (el('span', 'muted', 'nothing named it') as Node),
-            String(f.pk),
-            num(f.np),
-          ],
-          [0, 1],
-          [f.f, f.c ? f.c.toLowerCase() : 'zzz', f.pk, f.np],
-        ),
-      );
-    }
-    const sc = el('div', 'tbl-scroll tbl-capped');
-    sc.append(t);
-    picked.append(sc);
+    picked.append(latentTable(inside.map((x) => x.f).slice(0, MAX_LIST)));
     const clear = el('button', 'linkish', 'clear the selection');
     clear.addEventListener('click', () => {
       selection = null;
@@ -352,7 +469,23 @@ export function depthMap(d: Data): DepthMapHandle {
     // every click would clear the list it just opened.
     if (w < 4 && h < 4) {
       const i = nearest(from.x, from.y);
-      if (i >= 0) location.hash = `/latent/${placedPaired[i].f.f}`;
+      if (i >= 0) {
+        location.hash = `/latent/${placedPaired[i].f.f}`;
+        return;
+      }
+      // No dot under the pointer, so the click means the layer it landed in. In the full view
+      // that opens the layer; in a layer view it does nothing, because there is nothing to
+      // open into.
+      if (zoomLayer === null) {
+        const l = layerAt(from.x);
+        if (l !== null && liveByLayer[l - 1] > 0) {
+          zoomLayer = l;
+          selection = null;
+          hover = -1;
+          draw();
+          listLayer();
+        }
+      }
       return;
     }
     selection = { x: Math.min(from.x, to.x), y: Math.min(from.y, to.y), w, h };
@@ -390,6 +523,7 @@ export function depthMap(d: Data): DepthMapHandle {
         picked.textContent = '';
       }
       draw();
+      if (zoomLayer !== null) listLayer();
     }
   });
 

@@ -65,17 +65,15 @@ export function proteinChooser(opts: {
 
   let source = 0;
   let band = -1; // -1 is the whole ranked list
-  let minFiring = 1;
   let order: number[] = [];
   let slice: number[] = [];
   let at = 0;
 
   const rankRow = el('div', 'chips chooser-row');
-  const filterRow = el('div', 'chips chooser-row');
   const bandRow = el('div', 'chips chooser-row');
   const stepRow = el('div', 'chips chooser-row');
   const note = el('p', 'small muted chooser-note');
-  root.append(rankRow, filterRow, bandRow, stepRow, note);
+  root.append(rankRow, bandRow, stepRow, note);
 
   // ---- which latent the ranking uses -----------------------------------
   const sourceSelect = el('select');
@@ -113,26 +111,6 @@ export function proteinChooser(opts: {
     el('span', 'small muted', 'order the proteins by how hard this latent fires:'),
     sourceSelect,
   );
-
-  // ---- how many of the concept's latents have to fire -------------------
-  const firingButtons: HTMLButtonElement[] = [];
-  if (firing && nLatents > 1) {
-    filterRow.append(el('span', 'small muted', 'and keep only proteins that at least'));
-    const steps = [1, 2, Math.max(3, Math.ceil(nLatents / 2)), nLatents].filter(
-      (v, i, a) => v <= nLatents && a.indexOf(v) === i,
-    );
-    for (const k of steps) {
-      const b = el('button', undefined, k === 1 ? '1 latent' : `${k} latents`);
-      b.addEventListener('click', () => {
-        minFiring = k;
-        rebuild();
-        pick(0);
-      });
-      firingButtons.push(b);
-      filterRow.append(b);
-    }
-    filterRow.append(el('span', 'small muted', 'fire on'));
-  }
 
   // ---- which part of the ranking ---------------------------------------
   const bandButtons: HTMLButtonElement[] = [];
@@ -173,12 +151,7 @@ export function proteinChooser(opts: {
     const s = sources[source];
     if (!s.values) return;
     const values = s.values;
-    const keep: number[] = [];
-    for (let i = 0; i < items.length; i++) {
-      if (firing && firing.length === items.length && firing[i] < minFiring) continue;
-      keep.push(i);
-    }
-    order = keep.sort((a, b) => values[b] - values[a]);
+    order = items.map((_, i) => i).sort((a, b) => values[b] - values[a]);
 
     if (band < 0) {
       slice = order;
@@ -192,9 +165,6 @@ export function proteinChooser(opts: {
       slice = order.slice(a, Math.min(order.length, b));
     }
     bandButtons.forEach((b, i) => b.setAttribute('aria-pressed', String(i - 1 === band)));
-    firingButtons.forEach((b) =>
-      b.setAttribute('aria-pressed', String(b.textContent!.startsWith(String(minFiring)))),
-    );
   }
 
   function pick(i: number): void {
@@ -213,14 +183,11 @@ export function proteinChooser(opts: {
     value.textContent = s.values
       ? `${s.label.split(' ')[0]} fires at ${s.format(s.values[idx])} here`
       : '';
-    const filtered = order.length < items.length;
     note.textContent =
       `Ordered by how hard ${s.label.split(' ')[0]} fires, strongest first. ` +
-      (band < 0 ? 'The whole range. ' : `The ${BANDS[band][0]} of the range. `) +
-      (filtered
-        ? `${order.length.toLocaleString('en-US')} of the ` +
-          `${items.length.toLocaleString('en-US')} carriers pass the filter.`
-        : `All ${items.length.toLocaleString('en-US')} carriers.`) +
+      (band < 0
+        ? `The whole range of ${items.length.toLocaleString('en-US')} carriers.`
+        : `The ${BANDS[band][0]} of the range, of ${items.length.toLocaleString('en-US')} carriers.`) +
       (firing && firing.length === items.length
         ? ` ${firing[idx]} of the ${nLatents} latents fire on this one.`
         : '');

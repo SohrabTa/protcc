@@ -51,9 +51,28 @@ than a section heading:
   at layers 15 to 19 against 20.8% for an even spread. That concentration is real and not an
   artifact of the layer-norm correction: see `PP-06` in the roadmap.
 
-The depth map is also the only way into a latent nobody has a number for, so its dots open the
-latent page. It replaced a plain histogram of peak layers, which showed the same distribution
-and none of the rest.
+## Reaching one latent in the depth map
+
+8128 dots in 24 columns are not targets. They overlap, and a click that lands between two of them
+opens the wrong latent. So the map draws the 7108 unnamed latents as a density field, counted
+into 4 px cells, and only the 1020 named ones as dots. Counting into cells also makes the
+darkness depend on the count instead of on the draw order.
+
+Three ways in, in rising order of precision:
+
+- **Click a named dot** to open that latent.
+- **Click anywhere else** to open that layer on its own. The plot then spreads one layer across
+  its whole width, so all 1598 latents of layer 16 can be pointed at one at a time, and the list
+  below carries the same latents with their concept and protein count.
+- **Drag a rectangle** to list every latent inside it, named or not, widest first.
+
+An unnamed latent has a page and a complete ranking file, exactly like a named one, so the lists
+link to it. What it does not have is a dot of its own in the full view, because at that density a
+dot is not a thing anyone can hit.
+
+The hover readout floats over the plot rather than sitting beside the caption. In the flow it
+changed the caption's line count on every hover, which moved the plot up and down under the
+pointer.
 
 ## Tables, and what a column means
 
@@ -89,21 +108,46 @@ cannot carry. The entry scrolls itself into view twice and once more after a pau
 first load the fonts arrive after the first layout and every panel above the target changes
 height.
 
+## A stretch of the chain, or a site in the fold
+
+The letter row and the structure view each answer half of one question. A latent that fires on
+residues 40 to 60 reads a stretch, and the letter row shows it. A latent that fires on residues
+12, 88 and 140 looks like scatter on the letter row, and can still be reading one pocket, because
+the chain folds and brings those residues together.
+
+Stage 8 measures both spreads for every live latent, over the 20 proteins it fires hardest on.
+For one protein it takes every pair of firing residues and takes the median gap along the chain
+and the median distance in space, each divided by the same spread over the whole protein. Both
+are 1 when the firing residues are spread like the protein itself.
+
+The sequence ratio alone decides a stretch, and the spatial ratio is read only when the sequence
+ratio is not local. A first version tested both and got it wrong twice: latent 831 reads the ABC
+transporter domain at 0.48 along the chain and 0.72 in space, and latent 7489 on a collagen-like
+domain sits at 0.06 along the chain and 1.49 in space, because a collagen helix is extended.
+
+The panel was a button that measured proteins in the browser while the reader waited. It now
+draws all the latents at once and marks the one on screen, which is the part that carries a
+finding. Latent 1531, paired with `Motif · Histidine box-3`, sits in the fold-site corner:
+histidine boxes coordinate a di-iron centre, so they are far apart in sequence and together in
+space.
+
 ## Choosing a protein
 
 `Region_Disordered` is carried by 38,966 proteins. A stepper cannot choose among them and a
 dropdown cannot either, because nobody recognises an accession. What makes the choice possible is
 a number per protein, and the concept page offers two of them:
 
-- **Reads**, from stage 7: the share of the annotated residues that the concept's latents fire
-  on. This is the number the page prints for the protein on screen, precomputed for every carrier.
-- **Strength**: how hard the concept's best latent fires on that protein. One fetch of the
-  latent's ranked protein list, no precompute.
+Two earlier attempts are worth recording, because both looked reasonable and both were wrong:
 
-They rank the carriers differently on purpose. A latent can fire very hard on one residue of a
-long region, which is a high strength and a low read. The reader picks a metric, then a part of
-its range (top, upper, middle, lower, bottom), and the stepper walks inside that part. An
-accession box is there for returning to a protein already seen.
+- **Reads**, from stage 7: the share of the annotated residues that all the concept's latents
+  fire on, blended.
+- **Strength**: how hard the concept's best latent fires, where "best" was never shown.
+
+Both of those blended several latents and neither said what it ranked against, which is not a
+control a reader can trust. The chooser now ranks the carriers by how hard **one named latent**
+fires on each of them, and a picker says which latent, defaulting to the highest F1 per domain.
+The reader then takes a part of that range (top, upper, middle, lower, bottom) and the stepper
+walks inside it.
 
 ## What changes as the activation gets weaker
 

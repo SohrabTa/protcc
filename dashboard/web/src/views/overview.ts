@@ -224,13 +224,13 @@ export function renderOverview(d: Data, host: HTMLElement): void {
  * nothing to a reader who has not been told what the two axes buy.
  */
 function splitPanel(d: Data): HTMLElement {
-  const pairs: { fid: number; concept: string; prec: number; rec: number }[] = [];
+  const pairs: { fid: number; concept: string; prec: number; rec: number; recd?: number }[] = [];
   const multi: Concept[] = [];
   for (const c of d.concepts) {
     if (!c.feats?.length) continue;
     if (c.nf >= 2) multi.push(c);
-    for (const [fid, , prec, rec] of c.feats) {
-      pairs.push({ fid, concept: c.c, prec, rec });
+    for (const [fid, , prec, rec, recd] of c.feats) {
+      pairs.push({ fid, concept: c.c, prec, rec, recd });
     }
   }
   const found = d.concepts.filter((c) => c.nf > 0);
@@ -252,16 +252,19 @@ function splitPanel(d: Data): HTMLElement {
     figures([
       [`${multi.length} of ${found.length}`, 'found concepts take more than one latent'],
       [String(nf), 'latents for the median found concept'],
-      [String(Math.max(...found.map((c) => c.nf))), 'latents for the most split one'],
+      [String(Math.max(...found.map((c) => c.nf))), 'latents for the most split concept'],
       [med(pairs.map((x) => x.prec)).toFixed(2), 'median precision of a pair'],
       [med(pairs.map((x) => x.rec)).toFixed(3), 'median recall per residue'],
+      ...(pairs.some((x) => x.recd !== undefined)
+        ? ([[
+            med(pairs.filter((x) => x.recd !== undefined).map((x) => x.recd!)).toFixed(3),
+            'median recall per domain',
+          ]] as [string, string][])
+        : []),
     ]),
   );
 
-  const wrap = el('div', 'splitwrap');
-  wrap.append(splitScatter(pairs));
-  wrap.append(splitSketch());
-  p.append(wrap);
+  p.append(splitScatter(pairs));
 
   p.append(
     el(
@@ -279,7 +282,9 @@ function splitPanel(d: Data): HTMLElement {
   mostSplit.forEach((c, i) => {
     if (i) links.append(' · ');
     links.append(
-      link(`/concept/${encodeURIComponent(c.c)}`, `${c.c.split('_').slice(1).join('_')} (${c.nf})`),
+      // The full name, not the part after the underscore. `Zinc finger_any` is a roll-up over a
+      // whole Swiss-Prot field, and its tail alone reads as "any".
+      link(`/concept/${encodeURIComponent(c.c)}`, `${c.c.replace('_', ' · ')} (${c.nf})`),
     );
   });
   p.append(links);
@@ -299,61 +304,6 @@ function svgNode(
   if (text !== undefined) n.textContent = text;
   parent.append(n);
   return n;
-}
-
-/** What a dot in the top left actually looks like on a protein. */
-function splitSketch(): HTMLElement {
-  const W = 250;
-  const H = 232;
-  const svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  svg.setAttribute('width', '100%');
-  svg.style.display = 'block';
-  svg.style.maxWidth = `${W}px`;
-
-  const x0 = 64;
-  const n = 30;
-  const cw = 6;
-  const strip = (y: number, name: string, spans: [number, number][], color: string) => {
-    svgNode(svg, 'text', {
-      x: x0 - 7, y: y + 9, 'text-anchor': 'end', fill: 'var(--muted)', 'font-size': 9,
-    }, name);
-    for (let i = 0; i < n; i++) {
-      const on = spans.some(([a, b]) => i >= a && i <= b);
-      svgNode(svg, 'rect', {
-        x: x0 + i * cw, y, width: cw - 1, height: 11, rx: 1,
-        fill: on ? color : 'var(--surface-2)',
-      });
-    }
-  };
-
-  svgNode(svg, 'text', { x: 4, y: 10, 'font-size': 10, fill: 'var(--ink-2)' }, 'What a top-left dot is');
-  strip(20, 'the region', [[6, 25]], 'var(--accent)');
-  strip(40, 'latent A', [[6, 10]], 'var(--signal)');
-  strip(54, 'latent B', [[13, 16]], 'var(--signal)');
-  strip(68, 'latent C', [[21, 25]], 'var(--signal)');
-  svgNode(svg, 'text', {
-    x: x0, y: 96, 'font-size': 9.5, fill: 'var(--muted)',
-  }, 'each right when it fires,');
-  svgNode(svg, 'text', {
-    x: x0, y: 108, 'font-size': 9.5, fill: 'var(--muted)',
-  }, 'each reading a quarter');
-
-  svgNode(svg, 'line', { x1: 4, y1: 124, x2: W - 4, y2: 124, stroke: 'var(--line)' });
-
-  svgNode(svg, 'text', { x: 4, y: 142, 'font-size': 10, fill: 'var(--ink-2)' }, 'What a top-right dot would be');
-  strip(152, 'the region', [[6, 25]], 'var(--accent)');
-  strip(172, 'one latent', [[6, 25]], 'var(--signal)');
-  svgNode(svg, 'text', {
-    x: x0, y: 200, 'font-size': 9.5, fill: 'var(--muted)',
-  }, 'right when it fires, and');
-  svgNode(svg, 'text', {
-    x: x0, y: 212, 'font-size': 9.5, fill: 'var(--muted)',
-  }, 'reading all of the region');
-
-  const wrap = el('div', 'gl-pic');
-  wrap.append(svg);
-  return wrap;
 }
 
 function splitScatter(
@@ -421,9 +371,9 @@ function splitScatter(
     corners.append(el('dt', undefined, k));
     corners.append(el('dd', undefined, v));
   };
-  put('top left', 'right when it fires, and reads a sliver of the region. This corner is full.');
-  put('top right', 'right when it fires, and reads all of the region. This corner is empty.');
-  put('bottom', 'wrong more often than right. Few latents pair from here.');
+  put('top left', 'right when it fires, and reads a sliver of the region.');
+  put('top right', 'right when it fires, and reads all of the region.');
+  put('bottom', 'wrong more often than right.');
   wrap.append(corners);
   return wrap;
 }

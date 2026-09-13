@@ -15,6 +15,7 @@ const MAGIC = {
   concept: 0x50434331, // PCC1  concept_proteins.bin
   track: 0x50435431, // PCT1  tracks/<XX>/<acc>.bin
   coverage: 0x50435631, // PCV1  concept_coverage.bin
+  locality: 0x50434c31, // PCL1  latent_locality.bin
 } as const;
 
 export interface Manifest {
@@ -51,7 +52,9 @@ export interface Concept {
   f1: number; // best per-domain F1 any latent reaches
   nf: number; // how many latents pair with it
   bf?: number; // the best latent
-  feats?: [number, number, number, number][]; // latent, f1, precision, recall
+  // latent, F1 per domain, precision, recall per residue, recall per domain. The last entry is
+  // absent in a tree built before stage 4 wrote it.
+  feats?: [number, number, number, number, number?][];
   po?: [number, number]; // its slice of concept_proteins.bin
   npr?: number; // how many proteins carry it
 }
@@ -135,6 +138,16 @@ export class Data {
   conceptCoverage!: Uint8Array;
   /** How many of a concept's latents fire on that protein, same pair order. */
   conceptFiring!: Uint8Array;
+  /**
+   * Stage 8: how spread out each latent's firing residues are, along the chain and in space.
+   *
+   * Both are medians over the proteins the latent fires hardest on, each divided by the same
+   * spread over the whole protein. 1 means the firing residues are spread like the protein.
+   * NaN means the latent was not measured.
+   */
+  localitySeq!: Float32Array;
+  localitySpace!: Float32Array;
+  localityN!: Uint16Array;
   proteinIds!: string[];
   proteinShard = new Map<string, number>();
   /** Column order of the annotation ranges inside a protein bundle. */
@@ -149,7 +162,7 @@ export class Data {
   }
 
   async load(): Promise<void> {
-    const [manifest, concepts, features, lookup, depthBuf, cpBuf, columns, covBuf] =
+    const [manifest, concepts, features, lookup, depthBuf, cpBuf, columns, covBuf, locBuf] =
       await Promise.all([
         getJSON<Manifest>(`${this.base}/manifest.json`),
         getJSON<Concept[]>(`${this.base}/concepts.json`),
@@ -159,6 +172,7 @@ export class Data {
         getBuffer(`${this.base}/concept_proteins.bin`).catch(() => null),
         getJSON<string[]>(`${this.base}/concept_columns.json`).catch(() => [] as string[]),
         getBuffer(`${this.base}/concept_coverage.bin`).catch(() => null),
+        getBuffer(`${this.base}/latent_locality.bin`).catch(() => null),
       ]);
     this.manifest = manifest;
     this.conceptColumns = columns;
@@ -198,6 +212,19 @@ export class Data {
     } else {
       this.conceptCoverage = new Uint8Array(0);
       this.conceptFiring = new Uint8Array(0);
+    }
+
+    if (locBuf) {
+      const lv = new DataView(locBuf);
+      check(lv, MAGIC.locality, 'latent_locality.bin');
+      const nl = lv.getUint32(4, true);
+      this.localitySeq = new Float32Array(locBuf, 16, nl);
+      this.localitySpace = new Float32Array(locBuf, 16 + 4 * nl, nl);
+      this.localityN = new Uint16Array(locBuf, 16 + 8 * nl, nl);
+    } else {
+      this.localitySeq = new Float32Array(0);
+      this.localitySpace = new Float32Array(0);
+      this.localityN = new Uint16Array(0);
     }
 
     this.proteinIds = new Array(Object.keys(lookup).length);
@@ -259,6 +286,15 @@ export class Data {
     const [lo, hi] = c.po;
     if (hi > this.conceptFiring.length) return null;
     return this.conceptFiring.subarray(lo, hi);
+  }
+
+  /** One latent's two spreads, or null when stage 8 has not run or could not measure it. */
+  localityOf(fid: number): { seq: number; space: number; n: number } | null {
+    if (fid >= this.localityN.length || !this.localityN[fid]) return null;
+    const seq = this.localitySeq[fid];
+    const space = this.localitySpace[fid];
+    if (!Number.isFinite(seq) || !Number.isFinite(space)) return null;
+    return { seq, space, n: this.localityN[fid] };
   }
 
   /** How many proteins have an AlphaFold model in this tree, or null in an older tree. */

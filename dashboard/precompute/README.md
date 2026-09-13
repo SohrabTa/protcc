@@ -17,6 +17,7 @@ Heavy stages read data that only exists on the LRZ cluster. Everything else runs
 | 5. Protein bundles | `build_protein_bundles.py` + `submit_protein_bundles.sh` | cluster | the eval set annotations | sequence, name, concept ranges, and the concept-to-proteins index |
 | 6. Structures | `build_structures.py` + `submit_structures.sh` | cluster | AlphaFold via Foldcomp | backbone mmCIF, gzipped |
 | 7. Concept coverage | `build_concept_coverage.py` | local | stages 2, 4 and 5 | one byte per concept-protein pair: how much of the annotation the concept's latents read |
+| 8. Latent locality | `build_latent_locality.py` | local | stages 2, 4 and 6 | two numbers per latent: how spread out its firing residues are along the chain and in space |
 
 Stage 1 replaces InterPLM's `collect_feature_activations.py`, which answers the same question
 by keeping the ten strongest proteins per latent plus ten sampled from each of five activation
@@ -30,6 +31,12 @@ proteins, and a stepper through them is not a choice anybody can make. One numbe
 turns it into one: pick the part of the range you want. Computing that number in the browser
 would need a fetch and a decode of every carrier's track, so it is computed once here. The whole
 file is 627 kB.
+
+Stage 8 also runs after stage 4 and reads the built web tree. It answers whether a latent reads
+a stretch of the chain or a site in the fold, which the letter row and the structure view can
+each only half answer. The browser used to compute it for one latent at a time, over proteins
+the reader waited for. Measured once here, the site can draw all 8128 latents at once and mark
+the one on screen, which is the part that carries a finding. It takes about 18 minutes.
 
 The cluster is reachable as `ssh ai`. Cluster paths under
 `/dss/dssfs02/lwp-dss-0001/pn67na/pn67na-dss-0000/ga25ley2/` map to the local `data/` mirror.

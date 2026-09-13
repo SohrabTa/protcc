@@ -192,8 +192,12 @@ def main():
                "nf": int(len(g)) if g is not None else 0}
         if g is not None and len(g):
             row["bf"] = int(g.feature.iloc[0])
+            # latent, F1 per domain, precision, recall per residue, recall per domain. The
+            # last one is what makes the gap between the two recalls readable on the site: the
+            # median pairing recalls 98% of the regions and 3% of their residues.
             row["feats"] = [[int(x.feature), round(float(x.f1_per_domain), 4),
-                             round(float(x.precision), 4), round(float(x.recall), 4)]
+                             round(float(x.precision), 4), round(float(x.recall), 4),
+                             round(float(x.recall_per_domain), 4)]
                             for x in g.itertuples()]
         if name in carriers:
             lo, hi = carriers[name]
