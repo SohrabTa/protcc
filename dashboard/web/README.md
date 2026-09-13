@@ -127,9 +127,19 @@ domain sits at 0.06 along the chain and 1.49 in space, because a collagen helix 
 
 The panel was a button that measured proteins in the browser while the reader waited. It now
 draws all the latents at once and marks the one on screen, which is the part that carries a
-finding. Latent 1531, paired with `Motif · Histidine box-3`, sits in the fold-site corner:
-histidine boxes coordinate a di-iron centre, so they are far apart in sequence and together in
-space.
+finding.
+
+Over the 6625 live latents the stage could measure, **4491 read one stretch of the chain, 337
+read one site in the fold, and 1797 read no single place**. The remaining 1503 fire on fewer than
+six residues of every protein tried, or those proteins have no model in this tree.
+
+The fold-site corner holds 337 latents, 21 of them named, and the names are the check that the
+measurement works. Sorted by how tight they are in space, the named ones start:
+`Domain · SMP-LTD` twice, which is a lipid-transfer tunnel; `Domain · CBS 1`;
+`Motif · Histidine box-3`, a di-iron centre; `Domain · Radical SAM core`, which binds a
+[4Fe-4S] cluster through three cysteines in a CX3CX2C motif; and `Domain · Peptidase S8`, whose
+Asp-His-Ser catalytic triad is spread along the chain and meets in the fold. Nothing in the
+measurement knows about metals, tunnels or catalysis. It found them from coordinates alone.
 
 ## Choosing a protein
 
