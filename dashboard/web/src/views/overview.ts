@@ -37,10 +37,11 @@ export function renderOverview(d: Data, host: HTMLElement): void {
   const bar = panel(
     'Filter',
     'One biological family at a time',
-    'All 408 concepts at once is 187 rows of table, and the two panels below it never get read. ' +
-      'So the table shows one family. The same choice runs the whole page: the two plots below ' +
-      'keep every latent and every pairing, and only colour the family you pick. Nothing is ' +
-      'removed from them. Pick "all families" to colour everything.',
+    'Every family at once is 187 rows of table, and the two panels under it never get read. So ' +
+      'the table shows one family. The same choice runs the whole page. The two plots below ' +
+      'keep every latent and every pairing, and only colour the family you pick, so nothing ' +
+      'leaves them. Their figures carry the whole set beside the family. Pick "all families" ' +
+      'to colour everything.',
   );
   views.append(bar);
 
