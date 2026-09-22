@@ -34,6 +34,16 @@ export function renderOverview(d: Data, host: HTMLElement): void {
   );
   let family = famOrder[0]?.[0] ?? '';
 
+  const bar = panel(
+    'Filter',
+    'One biological family at a time',
+    'All 408 concepts at once is 187 rows of table, and the two panels below it never get read. ' +
+      'So the table shows one family. The same choice runs the whole page: the two plots below ' +
+      'keep every latent and every pairing, and only colour the family you pick. Nothing is ' +
+      'removed from them. Pick "all families" to colour everything.',
+  );
+  views.append(bar);
+
   const p = panel(
     'Concepts',
     'What the crosscoder found',
@@ -65,12 +75,12 @@ export function renderOverview(d: Data, host: HTMLElement): void {
     tabButtons.set(key, b);
     tabs.append(b);
   };
+  bar.append(tabs);
   const allFound = d.concepts.filter((c) => c.nf > 0).length;
   makeTab('', 'all families', allFound, d.concepts.length);
   for (const [fam, list] of famOrder) {
     makeTab(fam, fam, list.filter((c) => c.nf > 0).length, list.length);
   }
-  p.append(tabs);
 
   const controls = el('div', 'chips');
   const search = el('input');
@@ -165,8 +175,8 @@ export function renderOverview(d: Data, host: HTMLElement): void {
     'What it names lives in the middle of the encoder',
     'Each latent adds a vector to all 24 encoder layers. The length of that vector is how much ' +
       'the latent changes that layer. The peak layer is the layer where the vector is longest. ' +
-      'A per-layer sparse autoencoder has no peak layer, because it trains one model for each ' +
-      'layer and a unit in one model has no counterpart in the next.',
+      'A per-layer sparse autoencoder has no peak layer. It trains one model for each layer, ' +
+      'and a unit in one model has no counterpart in the next.',
   );
   const map = depthMap(d);
   depthPanel.append(map.root);
@@ -231,27 +241,49 @@ function splitPanel(d: Data): SplitHandle {
   const links = el('p', 'small muted');
   p.append(stats, plot, note, links);
 
+  const allFound = d.concepts.filter((c) => c.nf > 0);
+  const allMulti = allFound.filter((c) => c.nf >= 2);
+
   function setFamily(fam: string): void {
     const found = d.concepts.filter((c) => c.nf > 0 && (!fam || (c.fam || 'unassigned') === fam));
     const multi = found.filter((c) => c.nf >= 2);
     const mine = fam ? pairs.filter((x) => x.fam === fam) : pairs;
     const most = [...multi].sort((a, b) => b.nf - a.nf).slice(0, 6);
+    // Under a family the figures describe that family, so the whole set goes beside each one.
+    // Otherwise a reader who picks a family reads a smaller finding and never learns it is one.
+    const all = (v: string) => (fam ? ` (all families: ${v})` : '');
 
     stats.textContent = '';
     stats.append(
       figures([
-        [`${multi.length} of ${found.length}`, 'found concepts take more than one latent'],
-        [String(med(found.map((c) => c.nf))), 'latents for the median found concept'],
+        [
+          `${multi.length} of ${found.length}`,
+          'found concepts take more than one latent' +
+            all(`${allMulti.length} of ${allFound.length}`),
+        ],
+        [
+          String(med(found.map((c) => c.nf))),
+          'latents for the median found concept' + all(String(med(allFound.map((c) => c.nf)))),
+        ],
         [
           String(found.length ? Math.max(...found.map((c) => c.nf)) : 0),
-          'latents for the most split concept',
+          'latents for the most split concept' +
+            all(String(Math.max(...allFound.map((c) => c.nf)))),
         ],
-        [med(mine.map((x) => x.prec)).toFixed(2), 'median precision of a pair'],
-        [med(mine.map((x) => x.rec)).toFixed(3), 'median recall per residue'],
+        [
+          med(mine.map((x) => x.prec)).toFixed(2),
+          'median precision of a pair' + all(med(pairs.map((x) => x.prec)).toFixed(2)),
+        ],
+        [
+          med(mine.map((x) => x.rec)).toFixed(3),
+          'median recall per residue' + all(med(pairs.map((x) => x.rec)).toFixed(3)),
+        ],
         ...(mine.some((x) => x.recd !== undefined)
           ? ([[
               med(mine.filter((x) => x.recd !== undefined).map((x) => x.recd!)).toFixed(3),
-              'median recall per domain',
+              'median recall per domain' +
+                all(med(pairs.filter((x) => x.recd !== undefined)
+                  .map((x) => x.recd!)).toFixed(3)),
             ]] as [string, string][])
           : []),
       ]),
@@ -265,8 +297,8 @@ function splitPanel(d: Data): SplitHandle {
         ? `${num(mine.length)} of the ${num(pairs.length)} dots are a latent paired with a ` +
           `concept of ${fam}, and they are the amber ones. Every other dot is grey. `
         : `Every one of the ${num(pairs.length)} dots is one latent paired with one concept. `) +
-      'A crosscoder that had learned whole concepts would fill the top right corner, where a ' +
-      'latent is right when it fires and also reads the whole region. This one fills the top ' +
+      'A crosscoder that had learned whole concepts would fill the top right corner. A latent ' +
+      'there is right when it fires and also reads the whole region. This one fills the top ' +
       'left.';
 
     links.textContent = '';
@@ -345,7 +377,7 @@ function splitScatter(pairs: Pair[], family: string): HTMLElement {
         'fill-opacity': pass ? 0.4 : 0.3,
       });
       const t = document.createElementNS(NS, 'title');
-      t.textContent = `f/${q.fid}  ${q.concept.replace('_', ' · ')}`;
+      t.textContent = `f/${q.fid}  ${q.concept.replace('_', ' · ')}  ${q.fam}`;
       dot.append(t);
     }
   }

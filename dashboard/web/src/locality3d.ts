@@ -311,8 +311,8 @@ export function latentLocalityPlot(d: Data, self?: Feature): HTMLElement {
       'p',
       'small muted',
       `${num(placed.length)} of the ${num(d.features.length)} live latents were measured. A ` +
-        'latent is left out when it fires on fewer than 6 residues of every protein tried, or ' +
-        'when this tree holds no model for those proteins.',
+        'latent drops out when it fires on fewer than 6 residues of every protein tried. It ' +
+        'also drops out when this tree holds no model for those proteins.',
     ),
   );
   return wrap;

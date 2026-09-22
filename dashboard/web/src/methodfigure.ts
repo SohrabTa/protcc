@@ -14,7 +14,7 @@ import { el, num } from './ui';
 
 const NS = 'http://www.w3.org/2000/svg';
 const W = 1120;
-const H = 182;
+const H = 206;
 
 function add(
   parent: SVGElement,
@@ -39,14 +39,14 @@ function station(
   lines: string[],
 ): void {
   add(svg, 'text', {
-    x, y: 14, 'font-size': 9, fill: 'var(--muted)', 'letter-spacing': 1.3,
+    x, y: 14, 'font-size': 10.5, fill: 'var(--muted)', 'letter-spacing': 1.2,
   }, `${n} · ${head}`);
   add(svg, 'text', {
-    x, y: 132, 'font-size': 15, 'font-weight': 700, fill: 'var(--ink)',
+    x, y: 136, 'font-size': 18, 'font-weight': 700, fill: 'var(--ink)',
     'font-family': 'Archivo, sans-serif',
   }, value);
   lines.forEach((t, i) => {
-    add(svg, 'text', { x, y: 147 + i * 12, 'font-size': 9.3, fill: 'var(--muted)' }, t);
+    add(svg, 'text', { x, y: 154 + i * 14, 'font-size': 11, fill: 'var(--muted)' }, t);
   });
 }
 
@@ -92,7 +92,7 @@ export function methodFigure(d: Data): HTMLElement {
   const mono = "'IBM Plex Mono', ui-monospace, monospace";
   ['AQSVPYGIS', 'QIKAPALHS', 'QGYTGSNVK'].forEach((t, i) => {
     add(svg, 'text', {
-      x: 14, y: 52 + i * 18, 'font-size': 12, fill: 'var(--ink-2)', 'font-family': mono,
+      x: 14, y: 52 + i * 18, 'font-size': 13, fill: 'var(--ink-2)', 'font-family': mono,
     }, t);
   });
   station(svg, 14, 1, 'A PROTEIN', num(d.manifest.counts.proteins), [
@@ -110,9 +110,9 @@ export function methodFigure(d: Data): HTMLElement {
       fill: lit ? 'var(--accent)' : 'var(--line-strong)', opacity: lit ? 0.85 : 0.5,
     });
   }
-  add(svg, 'text', { x: 352, y: 33, 'font-size': 8.5, fill: 'var(--muted)' }, `layer ${h.layers}`);
-  add(svg, 'text', { x: 352, y: 81, 'font-size': 8.5, fill: 'var(--accent)' }, 'layers 15 to 19');
-  add(svg, 'text', { x: 352, y: 117, 'font-size': 8.5, fill: 'var(--muted)' }, 'layer 1');
+  add(svg, 'text', { x: 352, y: 33, 'font-size': 10, fill: 'var(--muted)' }, `layer ${h.layers}`);
+  add(svg, 'text', { x: 352, y: 81, 'font-size': 10, fill: 'var(--accent)' }, 'layers 15 to 19');
+  add(svg, 'text', { x: 352, y: 117, 'font-size': 10, fill: 'var(--muted)' }, 'layer 1');
   station(svg, 196, 2, 'PROTT5, 24 ENCODER LAYERS', String(h.layers), [
     'layers, and each one holds its own',
     'vector for every residue',
@@ -140,9 +140,9 @@ export function methodFigure(d: Data): HTMLElement {
     add(firing, 'rect', { x: 564, y, width: 18, height: 2.6 });
   });
   add(svg, 'text', {
-    x: 573, y: 22, 'font-size': 8.5, fill: 'var(--muted)', 'text-anchor': 'middle',
+    x: 573, y: 20, 'font-size': 10, fill: 'var(--muted)', 'text-anchor': 'middle',
   }, num(h.latents_total));
-  add(svg, 'text', { x: 592, y: 44, 'font-size': 8.5, fill: 'var(--signal)' }, '32 fire at a time');
+  add(svg, 'text', { x: 592, y: 44, 'font-size': 10, fill: 'var(--signal)' }, '32 fire at a time');
   const out = add(svg, 'g', {
     stroke: 'var(--signal)', 'stroke-width': 0.7, opacity: 0.5, fill: 'none',
   });
@@ -153,10 +153,10 @@ export function methodFigure(d: Data): HTMLElement {
     x: 668, y: 26, width: 8, height: 104, rx: 1.5, fill: 'var(--surface-2)', stroke: 'var(--line)',
   });
   add(svg, 'text', {
-    x: 672, y: 140, 'font-size': 8.5, fill: 'var(--muted)', 'text-anchor': 'middle',
+    x: 672, y: 142, 'font-size': 10, fill: 'var(--muted)', 'text-anchor': 'middle',
   }, 'back into');
   add(svg, 'text', {
-    x: 672, y: 151, 'font-size': 8.5, fill: 'var(--muted)', 'text-anchor': 'middle',
+    x: 672, y: 155, 'font-size': 10, fill: 'var(--muted)', 'text-anchor': 'middle',
   }, 'all 24');
   station(svg, 476, 3, 'ONE CROSSCODER READS ALL 24 AT ONCE', num(h.latents_alive), [
     `of ${num(h.latents_total)} latents ever fire. One latent`,
@@ -167,7 +167,7 @@ export function methodFigure(d: Data): HTMLElement {
 
   // ---- 4. Swiss-Prot names them ---------------------------------------
   const rowLabel = (y: number, t: string, fill: string) => {
-    add(svg, 'text', { x: 746, y, 'font-size': 8.5, fill, 'font-family': mono }, t);
+    add(svg, 'text', { x: 746, y, 'font-size': 10, fill, 'font-family': mono }, t);
   };
   const strip = (y: number) => {
     add(svg, 'rect', {
@@ -193,7 +193,7 @@ export function methodFigure(d: Data): HTMLElement {
     x: 940, y: 69, width: 60, height: 7, rx: 1.5, fill: 'var(--signal)', opacity: 0.85,
   });
   add(svg, 'text', {
-    x: 820, y: 92, 'font-size': 8.5, fill: 'var(--muted)',
+    x: 820, y: 94, 'font-size': 10, fill: 'var(--muted)',
   }, 'one protein, one row for each latent');
   station(
     svg,

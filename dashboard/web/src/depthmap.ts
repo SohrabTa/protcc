@@ -54,7 +54,7 @@ export function depthMap(d: Data): DepthMapHandle {
   // way back used to be a button under the layer list, which a reader has to scroll to find.
   const backTop = el('button', 'linkish dmap-back', 'back to all 24 layers');
   backTop.hidden = true;
-  backTop.addEventListener('click', backToAll);
+  backTop.addEventListener('click', leaveDetail);
   head.append(caption, backTop);
   root.append(head);
 
@@ -99,7 +99,7 @@ export function depthMap(d: Data): DepthMapHandle {
   const picked = el('div', 'dmap-pick');
   root.append(picked);
 
-  /** Leave the layer view or the rectangle and draw all 24 again. */
+  /** Leave the layer view and draw all 24 again. */
   function backToAll(): void {
     zoomLayer = null;
     selection = null;
@@ -110,12 +110,31 @@ export function depthMap(d: Data): DepthMapHandle {
     draw();
   }
 
+  /** Drop the rectangle and keep the view it was drawn in. */
+  function clearSelection(): void {
+    selection = null;
+    picked.textContent = '';
+    if (zoomLayer === null) {
+      backTop.hidden = true;
+    } else {
+      backTop.textContent = `back to all ${nLayers} layers`;
+      listLayer();
+    }
+    draw();
+  }
+
+  /** What the one button at the top does depends on what it says. */
+  function leaveDetail(): void {
+    if (selection) clearSelection();
+    else backToAll();
+  }
+
   // Escape is the other way out, because a reader who zoomed in by clicking expects it.
   root.addEventListener('keydown', (e) => {
     if ((e as KeyboardEvent).key === 'Escape') backToAll();
   });
   addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && (zoomLayer !== null || selection)) backToAll();
+    if (e.key === 'Escape' && (zoomLayer !== null || selection)) leaveDetail();
   });
 
   /** The family the overview has selected. Latents outside it are drawn as ground. */
@@ -189,6 +208,7 @@ export function depthMap(d: Data): DepthMapHandle {
 
     if (zoomLayer !== null) {
       drawZoom(c, w, iw, ih, Y);
+      drawMarks(c);
       return;
     }
 
@@ -229,7 +249,7 @@ export function depthMap(d: Data): DepthMapHandle {
       for (const p of placedAll) {
         if (!p.f.c) continue;
         if (inFamily(p.f) !== pass) continue;
-        if (pass) placedPaired.push(p);
+        placedPaired.push(p);
         c.fillStyle = pass ? cssVar('--signal') : cssVar('--line-strong');
         c.globalAlpha = pass ? 0.9 : 0.5;
         c.beginPath();
@@ -277,13 +297,17 @@ export function depthMap(d: Data): DepthMapHandle {
     c.fillText('proteins it fires on', 0, 0);
     c.restore();
 
+    drawMarks(c);
+  }
+
+  /** The rectangle and the ring under the pointer. Both views draw them the same way. */
+  function drawMarks(c: CanvasRenderingContext2D): void {
     if (selection) {
       c.strokeStyle = cssVar('--ink');
       c.setLineDash([3, 3]);
       c.strokeRect(selection.x + 0.5, selection.y + 0.5, selection.w, selection.h);
       c.setLineDash([]);
     }
-
     if (hover >= 0 && hover < placedPaired.length) {
       const p = placedPaired[hover];
       c.strokeStyle = cssVar('--ink');
@@ -314,7 +338,7 @@ export function depthMap(d: Data): DepthMapHandle {
       const x = PL + 6 + (iw - 12) * spread(f);
       const y = Y(f.np);
       placedAll.push({ x, y, f });
-      if (inFamily(f)) placedPaired.push({ x, y, f });
+      if (f.c) placedPaired.push({ x, y, f });
     }
     // Unnamed first, then out of family, then the family. Each pass draws over the one before.
     for (const pass of [0, 1, 2]) {
@@ -344,14 +368,6 @@ export function depthMap(d: Data): DepthMapHandle {
     c.textBaseline = 'middle';
     c.fillText('proteins it fires on', 0, 0);
     c.restore();
-
-    if (hover >= 0 && hover < placedPaired.length) {
-      const p = placedPaired[hover];
-      c.strokeStyle = cssVar('--ink');
-      c.beginPath();
-      c.arc(p.x, p.y, DOT + 4, 0, Math.PI * 2);
-      c.stroke();
-    }
   }
 
   /** Which layer a click at this x lands in, or null outside the plot. */
@@ -465,12 +481,8 @@ export function depthMap(d: Data): DepthMapHandle {
       ),
     );
     picked.append(latentTable(inside.map((x) => x.f).slice(0, MAX_LIST)));
-    const clear = el('button', 'linkish', 'clear the selection');
-    clear.addEventListener('click', () => {
-      selection = null;
-      picked.textContent = '';
-      draw();
-    });
+    const clear = el('button', 'linkish', 'clear the rectangle');
+    clear.addEventListener('click', clearSelection);
     picked.append(clear);
   }
 
@@ -545,8 +557,12 @@ export function depthMap(d: Data): DepthMapHandle {
     if (i === hover) return;
     hover = i;
     const f = i >= 0 ? placedPaired[i].f : null;
+    // The family is in the readout because a grey dot is grey for one reason only, and a reader
+    // pointing at one wants to know which family it belongs to.
+    const fam = f?.c ? d.conceptByName.get(f.c)?.fam || 'unassigned' : '';
     readout.textContent = f
-      ? `f/${f.f}  peak layer ${f.pk}  ${num(f.np)} proteins  ${f.c!.replace('_', ' · ')}`
+      ? `f/${f.f}  peak layer ${f.pk}  ${num(f.np)} proteins  ` +
+        `${f.c!.replace('_', ' · ')}  ${fam}`
       : '';
     cv.style.cursor = f ? 'pointer' : 'crosshair';
     draw();
@@ -579,8 +595,8 @@ export function depthMap(d: Data): DepthMapHandle {
       'layers 15 to 19. An even spread over 24 layers would put 21% there.';
     const named = live.filter((f) => inFamily(f)).length;
     caption.textContent = family
-      ? `${base} ${num(named)} of them pair with a concept of ${family}, and they are the ` +
-        'amber dots. Every other latent is grey.'
+      ? `${base} ${num(named)} of them pair with a concept of ${family} and are amber. Every ` +
+        'other latent is grey, and a grey dot still answers the pointer and still opens.'
       : base;
   }
 

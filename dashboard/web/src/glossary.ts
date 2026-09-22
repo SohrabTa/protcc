@@ -193,9 +193,9 @@ function formula(text: string): HTMLElement {
 const BODIES: Record<string, () => Node[]> = {
   pairing: () => [
     para(
-      'A latent pairs with a concept when it scores more than 0.5 on F1 per domain, measured on ' +
-      'a held-out set of proteins that the pairing search never saw. InterPLM sets that cut, and ' +
-      'this site keeps it.',
+      'A latent pairs with a concept when it scores more than 0.5 on F1 per domain. The score ' +
+      'comes from a held-out set of proteins that the pairing search never saw. InterPLM sets ' +
+      'that cut, and this site keeps it.',
     ),
     formula('pairs with the concept  =  F1 per domain > 0.5 on the held-out set'),
     para(
@@ -230,9 +230,9 @@ const BODIES: Record<string, () => Node[]> = {
     residuePicture(true),
     formula('recall per residue = 5 right / (5 right + 11 missed) = 0.31'),
     para(
-      'This is the number that shows concept splitting. Most paired latents have a high ' +
-      'precision and a low recall per residue, because each one reads a part of the region and ' +
-      'no single latent reads all of it. Over the 1080 pairings the median is 0.032.',
+      'This number shows concept splitting. Most paired latents have a high precision and a ' +
+      'low recall per residue. Each one reads a part of the region, and no single latent reads ' +
+      'all of it. Over the 1080 pairings the median is 0.032.',
     ),
   ],
   'recall-per-domain': () => [
@@ -291,8 +291,8 @@ const BODIES: Record<string, () => Node[]> = {
   'peak-layer': () => [
     para(
       'A crosscoder latent writes into all 24 encoder layers at once. To write into a layer ' +
-      'means to add a vector to that layer’s residual stream, which is the running sum of ' +
-      'everything the model has computed about a residue so far.',
+      'means to add a vector to that layer’s residual stream. The residual stream is the ' +
+      'running sum of everything the model holds about a residue so far.',
     ),
     para(
       'Each layer gets its own vector for the same latent. The length of that vector is how much ' +
@@ -300,9 +300,9 @@ const BODIES: Record<string, () => Node[]> = {
     ),
     depthPicture(),
     para(
-      'The lengths are corrected before they are compared. The residual stream of ProtT5 grows ' +
-      'about 600-fold from layer 1 to layer 24, so without the correction every latent appears ' +
-      'to peak at layer 24.',
+      'The site corrects the lengths before it compares them. The residual stream of ProtT5 ' +
+      'grows about 600-fold from layer 1 to layer 24. Without the correction, every latent ' +
+      'appears to peak at layer 24.',
     ),
     para(
       'A per-layer sparse autoencoder has no peak layer. It trains one model for each layer, and ' +
@@ -374,8 +374,8 @@ const BODIES: Record<string, () => Node[]> = {
     ),
     para(
       'In a concept table the Latents column counts how many latents pair with that concept. A ' +
-      'concept with 11 in that column has 11 separate latents that each clear the pairing cut ' +
-      'for it, and each of them reads a part of the region.',
+      'concept with 11 in that column has 11 latents that each clear the pairing cut. Each one ' +
+      'reads a part of the region.',
     ),
     para(
       '1020 of the live latents pair with a concept, and 58 of those pair with more than one. ' +
@@ -464,7 +464,7 @@ export function renderGlossary(d: Data, host: HTMLElement, slug?: string): void 
     'Each entry is the definition this site uses, not the general one. Where a number could be ' +
       'counted in more than one way, the entry says which way it is counted here. This page ' +
       'says what a word means. The method page says why the number is measured that way, and ' +
-      'every entry below links to the part of it that argues for the entry.',
+      'every entry links to the part of it that argues for the entry.',
   );
   const toc = el('div', 'gl-toc');
   for (const m of METRIC_INFO) {

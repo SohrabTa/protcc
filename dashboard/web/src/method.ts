@@ -55,7 +55,7 @@ function cite(text: string, href: string): HTMLAnchorElement {
  */
 function dictionaryPicture(): HTMLElement {
   const W = 700;
-  const H = 210;
+  const H = 214;
   const s = document.createElementNS(NS, 'svg');
   s.setAttribute('viewBox', `0 0 ${W} ${H}`);
   s.setAttribute('width', '100%');
@@ -71,7 +71,7 @@ function dictionaryPicture(): HTMLElement {
   const ys = [34, 62, 90, 118, 146];
   const heading = (x: number, t: string) =>
     svgNode(s, 'text', {
-      x, y: 16, 'font-size': 10, fill: 'var(--ink-2)', 'font-weight': 600,
+      x, y: 16, 'font-size': 12, fill: 'var(--ink-2)', 'font-weight': 600,
     }, t);
 
   // ---- left: one autoencoder for each layer ----
@@ -81,7 +81,7 @@ function dictionaryPicture(): HTMLElement {
       x: 10, y, width: 76, height: 20, rx: 2, fill: 'var(--surface-2)', stroke: 'var(--line)',
     });
     svgNode(s, 'text', {
-      x: 48, y: y + 14, 'font-size': 9, fill: 'var(--muted)', 'text-anchor': 'middle',
+      x: 48, y: y + 14, 'font-size': 10.5, fill: 'var(--muted)', 'text-anchor': 'middle',
     }, i === 2 ? 'layer m' : `layer ${[24, 23, '', 2, 1][i]}`);
     svgNode(s, 'line', {
       x1: 88, y1: y + 10, x2: 108, y2: y + 10, stroke: 'var(--line-strong)',
@@ -98,10 +98,10 @@ function dictionaryPicture(): HTMLElement {
       fill: 'var(--line-strong)', opacity: 0.5 });
   });
   svgNode(s, 'text', {
-    x: 10, y: 182, 'font-size': 9, fill: 'var(--muted)',
+    x: 10, y: 182, 'font-size': 10.5, fill: 'var(--muted)',
   }, 'The amber unit is the same direction in all five, and');
   svgNode(s, 'text', {
-    x: 10, y: 194, 'font-size': 9, fill: 'var(--muted)',
+    x: 10, y: 196, 'font-size': 10.5, fill: 'var(--muted)',
   }, 'nothing in the training says so. 24 models, 24 dictionaries.');
 
   // ---- right: one crosscoder ----
@@ -111,7 +111,7 @@ function dictionaryPicture(): HTMLElement {
       x: 360, y, width: 76, height: 20, rx: 2, fill: 'var(--surface-2)', stroke: 'var(--line)',
     });
     svgNode(s, 'text', {
-      x: 398, y: y + 14, 'font-size': 9, fill: 'var(--muted)', 'text-anchor': 'middle',
+      x: 398, y: y + 14, 'font-size': 10.5, fill: 'var(--muted)', 'text-anchor': 'middle',
     }, i === 2 ? 'layer m' : `layer ${[24, 23, '', 2, 1][i]}`);
     svgNode(s, 'path', {
       d: `M438 ${y + 10} C 470 ${y + 10}, 470 90, 500 90`,
@@ -135,13 +135,13 @@ function dictionaryPicture(): HTMLElement {
   svgNode(s, 'rect', { x: 508, y: 104, width: 34, height: 8, rx: 1.5, fill: 'var(--line-strong)',
     opacity: 0.5 });
   svgNode(s, 'text', {
-    x: 530, y: 58, 'font-size': 9, fill: 'var(--muted)', 'text-anchor': 'middle',
+    x: 530, y: 56, 'font-size': 10.5, fill: 'var(--muted)', 'text-anchor': 'middle',
   }, 'one dictionary');
   svgNode(s, 'text', {
-    x: 360, y: 182, 'font-size': 9, fill: 'var(--muted)',
+    x: 360, y: 182, 'font-size': 10.5, fill: 'var(--muted)',
   }, 'The amber unit is one latent. It reads every layer and writes');
   svgNode(s, 'text', {
-    x: 360, y: 194, 'font-size': 9, fill: 'var(--muted)',
+    x: 360, y: 196, 'font-size': 10.5, fill: 'var(--muted)',
   }, 'back into every layer, so it has a length at each of the 24.');
 
   const box = el('div', 'gl-pic');
@@ -185,9 +185,9 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
   const intro = panel(
     'Method',
     'What this dashboard is, and why it is built this way',
-    'ProtT5 reads a protein sequence and writes a vector for every residue. Those vectors carry ' +
-      'what the model knows, and nothing in them is labelled. This site is an attempt to put ' +
-      'names on parts of them, and this page is the argument behind every number it prints.',
+    'ProtT5 reads a protein sequence and writes a vector for every residue. Those vectors hold ' +
+      'what the model knows, and nothing in them is labeled. This site puts names on parts of ' +
+      'them. This page is the argument behind every number it prints.',
   );
   const toc = el('div', 'gl-toc');
   for (const sct of METHOD_SECTIONS) {
@@ -201,9 +201,8 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
   intro.append(toc);
   intro.append(
     para(
-      'The glossary holds the definitions, one entry for each number, and each section here ' +
-        'ends with the entries it used. Read this page for the argument and the glossary for a ' +
-        'word.',
+      'The glossary holds the definitions, one entry for each number. Each section here ends ' +
+        'with the entries it used. Read this page for the argument and the glossary for a word.',
     ),
   );
   views.append(intro);
@@ -225,10 +224,9 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
           'one.',
       ),
       para(
-        'That is worth having for two reasons. A prediction that can be traced to a named part ' +
-          'of the model can be checked against biology, and a named part can be used on ' +
-          'purpose: a latent that tracks a real property is a handle for guided mutation or ' +
-          'for steering ',
+        'Two things follow from a named part. A prediction that traces back to one can be ' +
+          'checked against biology. And a named part can be used on purpose, as a handle for ' +
+          'guided mutation or for steering ',
         cite('(Yang and others, 2025)', 'https://doi.org/10.1038/s41467-025-55987-8'),
         '. Neither is possible while the vector is one dense block of 1024 numbers.',
       ),
@@ -239,19 +237,19 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
   views.append(
     section('sparse', 'Why sparse features', [
       para(
-        'A residue vector is dense: every one of its 1024 numbers is non-zero, and no single ' +
-          'number means anything on its own. The working assumption of this field is that the ' +
-          'model holds many more concepts than it has dimensions, and that it packs them in as ' +
-          'directions that overlap. A dense vector is then a sum of many concepts at once, ' +
-          'which is why reading one dimension tells you nothing.',
+        'A residue vector is dense. Every one of its 1024 numbers is non-zero, and no single ' +
+          'number means anything alone. This field works from one assumption: the model holds ' +
+          'many more concepts than it has dimensions, so it packs them in as directions that ' +
+          'overlap. A dense vector is then a sum of many concepts at once, and that is why one ' +
+          'dimension says nothing.',
       ),
       para(
         'A sparse autoencoder unpacks that sum ',
         cite('(Shu and others, 2025)', 'https://arxiv.org/abs/2503.05613'),
-        '. It learns a much wider dictionary, here 8192 units against 1024 dimensions, and it ' +
-          'is trained to rebuild the original vector from only a few of them. Two terms: how ' +
-          'well the rebuild matches, and how few units it may use. The units that survive that ' +
-          'pressure are the parts the model actually reuses.',
+        '. It learns a wider dictionary, here 8192 units against 1024 dimensions, and it must ' +
+          'rebuild the vector from only a few of them. Two terms decide the training: how well ' +
+          'the rebuild matches, and how few units it may use. The units that survive are the ' +
+          'parts the model reuses.',
       ),
       para(
         'Each of those units is what this site calls a latent. A latent has an activation at ' +
@@ -279,10 +277,10 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
           'them, one for each layer. That has three costs.',
       ),
       para(
-        'It is 24 training runs instead of one. The same direction is learned again in every ' +
-          'dictionary, so the same concept is counted 24 times. And nothing in the training ' +
-          'says that the copies are the same thing, so there is no way to ask where in the ' +
-          'network a concept appears, grows or disappears.',
+        'It is 24 training runs instead of one. Every dictionary learns the same direction ' +
+          'again, so the same concept is counted 24 times. And nothing in the training says ' +
+          'that the copies are one unit. So nobody can ask where in the network a concept ' +
+          'appears or disappears.',
       ),
       dictionaryPicture(),
       para(
@@ -292,13 +290,13 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
           'https://transformer-circuits.pub/2024/crosscoders/index.html',
         ),
         '. One dictionary reads all 24 layers at once and writes its reconstruction back into ' +
-          'all 24. A latent is therefore one unit with 24 decoder vectors, one for each layer, ' +
-          'and the length of each is how hard that latent writes into that layer.',
+          'all 24. A latent is then one unit with 24 decoder vectors, one for each layer. The ' +
+          'length of each vector is how hard the latent writes into that layer.',
       ),
       para(
-        'That row of 24 lengths is the depth profile, and it is the thing a per-layer ' +
-          'autoencoder cannot produce. It is what the Depth panel draws on every latent page, ' +
-          'and it is why the landing page can say where in the encoder the named latents live. ',
+        'That row of 24 lengths is the depth profile, and a per-layer autoencoder cannot ' +
+          'produce it. The Depth panel draws it on every latent page. It is also why the ' +
+          'landing page can say where in the encoder the named latents live. ',
         el(
           'strong',
           undefined,
@@ -329,11 +327,11 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
         '. An auxiliary term pushes dead latents back into use.',
       ),
       para(
-        'At inference the model is converted to JumpReLU with one global threshold, so a latent ' +
-          'fires whenever it clears that threshold and the count per residue is no longer ' +
-          'fixed at 32. Every activation on this site is read that way, on normalised ' +
-          'activations. Reading un-normalised activations was a real bug in this project and it ' +
-          'cost 0.11 of average F1.',
+        'At inference the model changes to JumpReLU with one global threshold. A latent then ' +
+          'fires whenever it clears that threshold, and the count per residue is no longer ' +
+          'fixed at 32. Every activation on this site is read that way, on normalized ' +
+          'activations. Reading un-normalized activations was a real bug here, and it cost ' +
+          '0.11 of average F1.',
       ),
       para(
         'The evaluation set is separate from the training data: ',
@@ -362,9 +360,9 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
       para(
         `Swiss-Prot contributes ${h.concepts_total} concepts to this evaluation set. A domain, ` +
           'a motif, an active site, a zinc finger. For every concept and every latent, the ' +
-          'residues the latent fires on are compared against the residues the concept covers, ' +
-          'and the comparison gives precision and recall. A latent pairs with a concept when ' +
-          'its F1 per domain is more than 0.5 on the held-out proteins.',
+          'pipeline compares the residues the latent fires on against the residues the concept ' +
+          'covers. That comparison gives precision and recall. A latent pairs with a concept ' +
+          'when its F1 per domain is more than 0.5 on the held-out proteins.',
       ),
       para(
         el(
@@ -400,11 +398,11 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
       ),
       para(
         el('strong', undefined, 'F1 per domain is a generous score. '),
-        'One firing residue inside a region counts as recalling the whole region. A latent that ' +
-          'fires on a single conserved glycine therefore scores near the top while reading ' +
-          'almost none of the domain. Read recall per residue beside it, always. The gap ' +
-          'between the two is the central methodological result of this project, and every ' +
-          'concept page prints both.',
+        'One firing residue inside a region counts as recalling the whole region. So a latent ' +
+          'that fires on a single conserved glycine scores near the top, and reads almost none ' +
+          'of the domain. Read recall per residue beside it, always. The gap between the two ' +
+          'is the main methodological result of this project, and every concept page prints ' +
+          'both.',
       ),
       para(
         el('strong', undefined, 'The set is one set. '),
