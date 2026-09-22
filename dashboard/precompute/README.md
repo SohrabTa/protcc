@@ -16,6 +16,7 @@ Heavy stages read data that only exists on the LRZ cluster. Everything else runs
 | 4. Indexes | `build_indexes.py` | local | stages 0, 1, 3 and 5 plus the eval tables | the data contract the site reads |
 | 5. Protein bundles | `build_protein_bundles.py` + `submit_protein_bundles.sh` | cluster | the eval set annotations | sequence, name, concept ranges, and the concept-to-proteins index |
 | 6. Structures | `build_structures.py` + `submit_structures.sh` | cluster | AlphaFold via Foldcomp | backbone mmCIF, gzipped |
+| 6b. Structure backfill | `fetch_missing_structures.py` | local | AlphaFold at EBI, one model at a time | the same backbone mmCIF, for the proteins stage 6 could not find |
 | 7. Concept coverage | `build_concept_coverage.py` | local | stages 2, 4 and 5 | one byte per concept-protein pair: how much of the annotation the concept's latents read |
 | 8. Latent locality | `build_latent_locality.py` | local | stages 2, 4 and 6 | two numbers per latent: how spread out its firing residues are along the chain and in space |
 
@@ -84,9 +85,19 @@ The first complete run over all 208 shards. Four jobs on `lrz-cpu`, then stage 4
 | 6. Structures | `5776353` | 1m 1s | failed, see below |
 | 6. Structures | `5777472` | 1h 32m | 202,106 structures, 3.90 GB, mean 19.3 kB |
 | 4. Indexes | local | 6.9s | 952.3 MB, 8128 feature files, `partial: false` |
+| 6b. Structure backfill | local | 8m 19s | 5347 models, 100 MB, AlphaFold v6 |
 
 Stage 2's non-zero count matches the store's own count to the digit, so it read every shard.
 Stage 6 found no AlphaFold model for 5357 accessions, listed in `missing.txt`, and 202,106 plus 5357 is the full 207,463.
+
+**Stage 6b closed that gap on 2026-09-22.** The Foldcomp database is a snapshot of AlphaFold
+model version 3 and holds 542,380 accessions, and those 5357 proteins entered Swiss-Prot after
+it. EBI serves a current model for them, so the backfill downloaded each one and wrote the same
+backbone mmCIF. The tree now holds **207,459 of 207,463**. Four proteins have no AlphaFold model
+at all, at any version: `P49895` carries a selenocysteine and `O02827` an unknown residue, both
+of which AlphaFold excludes, `P0DO61` is 13 residues long, and `Q9LYL8` has no reason we found.
+Those four keep the cross-reference in UniProt, so the cross-reference is not proof of a model.
+The accessions the backfill wrote are listed in `structures_from_ebi.txt` in the web tree.
 Stage 4 reproduces the published headline: 0.4794 average best test F1, 187 of 408 concepts,
 1020 features paired, 8128 of 8192 latents alive.
 

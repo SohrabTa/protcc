@@ -57,14 +57,16 @@ export async function drawStructure(
     // Every protein in this evaluation set carries an AlphaFoldDB cross-reference, so a model
     // exists. This tree is extracted from a Foldcomp database that does not hold all of them.
     const missing = d.manifest.counts.no_structure;
+    const why =
+      d.manifest.counts.no_structure_note ||
+      'AlphaFold has a model for every one of them. The Foldcomp database the models were ' +
+        'extracted from does not.';
     note.textContent =
       `This data tree holds no model for ${acc}. ` +
       (missing
         ? `${num(missing)} of the ${num(d.manifest.counts.proteins)} proteins are in that ` +
-          'position. AlphaFold has a model for every one of them. The Foldcomp database the ' +
-          'models were extracted from does not.'
-        : 'AlphaFold has a model for it, and the database the models were extracted from ' +
-          'does not hold it.');
+          `position. ${why}`
+        : why);
     wrap.remove();
     return null;
   }

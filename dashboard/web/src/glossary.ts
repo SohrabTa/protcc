@@ -507,13 +507,27 @@ export function renderGlossary(d: Data, host: HTMLElement, slug?: string): void 
   put('Latents', `${num(man.headline.latents_alive)} live of ${num(man.headline.latents_total)}`);
   put('Concepts', `${man.headline.concepts_identified} found of ${man.headline.concepts_total}`);
   put('Average best test F1', man.headline.avg_best_test_f1.toFixed(3));
+  const fromEbi = man.counts.structures_from_ebi ?? 0;
+  const missing = man.counts.no_structure ?? 0;
+  const note = man.counts.no_structure_note;
+  const source =
+    fromEbi && d.nStructures
+      ? `A Foldcomp snapshot of AlphaFold model version 3 holds ${num(d.nStructures - fromEbi)} ` +
+        `of them. The other ${num(fromEbi)} entered Swiss-Prot after that snapshot, so this ` +
+        'tree carries the model AlphaFold serves for them today, one download each from EBI. '
+      : '';
   put(
     'Structures',
     d.nStructures === null
       ? 'AlphaFold models, backbone only'
       : `AlphaFold models, backbone only, for ${num(d.nStructures)} of the proteins. ` +
-        `The ${num(man.counts.no_structure ?? 0)} that are missing all carry an AlphaFoldDB ` +
-        'cross-reference. The Foldcomp database this tree was extracted from does not hold them.',
+        source +
+        (missing
+          ? `${num(missing)} have none. ` +
+            (note ||
+              'The Foldcomp database this tree was extracted from does not hold them, and they ' +
+                'all carry an AlphaFoldDB cross-reference.')
+          : ''),
   );
   prov.append(dl);
   if (man.partial) {

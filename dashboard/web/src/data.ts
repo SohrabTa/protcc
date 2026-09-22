@@ -40,6 +40,10 @@ export interface Manifest {
     /** Written from stage 6. Absent in a tree built before that count existed. */
     structures?: number;
     no_structure?: number;
+    /** Written from stage 6b: the models downloaded from EBI rather than read from Foldcomp. */
+    structures_from_ebi?: number;
+    /** Written from stage 6b: why the proteins with no model have none. */
+    no_structure_note?: string;
   };
 }
 
