@@ -187,9 +187,23 @@ export async function renderProtein(d: Data, acc: string, host: HTMLElement): Pr
     );
   }
 
-  // The strongest latent on this protein is the one worth colouring the model by.
+  // The model is coloured by one latent, and the page picks it, so the panel says which one and
+  // why. A reader who does not know that reads the numbers beside the model as a fact about the
+  // protein, which they are not.
   const best = withConcept[0]?.[0] ?? ranked[0]?.[0];
   if (best !== undefined) {
-    await drawStructure(d, acc, Data.activationOf(track, best), views, `f/${best}`);
+    const named = withConcept[0]?.[0] === best;
+    await drawStructure(
+      d,
+      acc,
+      Data.activationOf(track, best),
+      views,
+      `f/${best}`,
+      named
+        ? `Of the latents that fire on ${acc} and pair with a concept, this one fires on the ` +
+          'most residues of it.'
+        : `No latent that fires on ${acc} pairs with a concept, so this is the latent that ` +
+          'fires on the most residues of it.',
+    );
   }
 }

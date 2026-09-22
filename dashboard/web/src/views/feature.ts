@@ -139,9 +139,10 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
   const spacePanel = panel(
     'Locality',
     'A stretch of the chain, or a site in the fold',
-    'One dot for each live latent. Across: how far apart its firing residues are along the ' +
-      'chain. Up: how far apart they are in space. Both are divided by the same spread over the ' +
-      'whole protein, so 1 means the firing residues are spread like the protein itself.',
+    'One dot for each live latent. A dot near the left fires on residues that are neighbours in ' +
+      'the chain. A dot near the bottom fires on residues that are together in space. Both axes ' +
+      'are divided by the same spread over the whole protein, so 1 is as far apart as the ' +
+      'protein itself. Point at a dot to name its latent, and click it to open it.',
   );
   spacePanel.append(latentLocalityPlot(d, f));
   leftCol.append(spacePanel);
@@ -167,8 +168,11 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
   const evPanel = panel(
     'Evidence',
     'What changes as the activation gets weaker',
-    'Every protein this latent fires on, cut into five bands by how hard it fires. Each bar ' +
-      'counts only the proteins inside its own band, so the five bars do not add up to 100%.',
+    'Every protein this latent fires on, put into one of five bands by how hard the latent ' +
+      'fires on it. The bar over a band is the share of those proteins that Swiss-Prot ' +
+      'annotates with the one concept this latent pairs with. The bars count proteins, not ' +
+      'residues. Each bar counts only the proteins inside its own band, so the five bars do ' +
+      'not add up to 100%.',
   );
   const evBody = el('div');
   evPanel.append(evBody);
@@ -476,15 +480,20 @@ function bandChart(stats: BandStat[], concept: Concept | undefined): HTMLElement
   add(
     'text',
     { x: PL + iw / 2, y: H - 4, 'text-anchor': 'middle', 'font-size': 9, fill: 'var(--muted)' },
-    'how hard the latent fires, as a share of its hardest anywhere',
+    'how hard the latent fires on the protein, over its hardest anywhere',
   );
   if (concept) {
-    const rot = add(
-      'text',
-      { x: 12, y: PT + ih / 2, 'text-anchor': 'middle', 'font-size': 9, fill: 'var(--muted)' },
-      'share of that band that carries the concept',
-    );
-    rot.setAttribute('transform', `rotate(-90 12 ${PT + ih / 2})`);
+    // Two lines. One line is longer than the drawing is high, and the end of it was cut off.
+    const mid = H / 2;
+    ['share of the proteins in that band', 'that carry the concept'].forEach((t, i) => {
+      const x = 12 + i * 13;
+      const rot = add(
+        'text',
+        { x, y: mid, 'text-anchor': 'middle', 'font-size': 9, fill: 'var(--muted)' },
+        t,
+      );
+      rot.setAttribute('transform', `rotate(-90 ${x} ${mid})`);
+    });
   }
 
   const wrap = el('div');

@@ -423,13 +423,18 @@ h3.sub {
 .dmap-pick:empty { margin-top: 0; }
 
 /* The latent map's hover readout floats over the plot, so the caption never reflows. */
-.dmap-readout {
+.dmap-readout, .loc3d-readout {
   position: absolute; top: 4px; right: 8px; z-index: 2; pointer-events: none;
   font-size: 0.74rem; color: var(--ink);
   background: color-mix(in srgb, var(--surface) 88%, transparent);
   padding: 2px 7px; border-radius: 3px;
 }
-.dmap-readout:empty { display: none; }
+.dmap-readout:empty, .loc3d-readout:empty { display: none; }
+
+/* The locality plot holds its hover readout over itself, for the same reason. */
+.loc3d-box { position: relative; }
+.loc3d-readout { top: 2px; left: 8px; right: auto; max-width: calc(100% - 20px); }
+.loc3d-readout .mono { color: var(--accent); margin-right: 4px; }
 
 /* The page jump on a long protein list. */
 .pagejump {

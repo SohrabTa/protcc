@@ -26,7 +26,13 @@ export async function drawStructure(
   acts: Uint8Array,
   host: HTMLElement,
   coloredBy: string,
+  why?: string,
 ): Promise<StructureHandle | null> {
+  // "The firing residues" left a reader on the protein page with no way to know whose residues
+  // they are, because that page picks the latent for them. Name it in every sentence instead.
+  const one = /^f\/\d+$/.test(coloredBy);
+  const subject = one ? `the residues ${coloredBy} fires on` : 'the firing residues';
+  const between = one ? `between the residues ${coloredBy} fires on` : 'between the firing residues';
   live?.destroy();
   live = null;
 
@@ -63,26 +69,27 @@ export async function drawStructure(
     return null;
   }
 
-  note.textContent = `Coloured by ${coloredBy}, on the same scale as the strips and the letters.`;
+  note.textContent =
+    `Coloured by ${coloredBy}, on the same scale as the strips and the letters.` +
+    (why ? ` ${why}` : '');
 
   const sp = spatialStat(bb, acts);
   if (sp) {
     side.append(
       figures(
         [
-          [`${sp.firing.toFixed(0)} Å`, 'between firing residues'],
-          [`${sp.protein.toFixed(0)} Å`, 'across the whole protein'],
+          [`${sp.firing.toFixed(0)} Å`, between],
+          [`${sp.protein.toFixed(0)} Å`, 'between any two residues of the protein'],
           [num(sp.nPairs), 'pairs measured'],
         ],
-        sp.firing < sp.protein
-          ? 'The firing residues sit closer together in space than the protein does on average, ' +
-            'so they are one site rather than scattered points. Only residue pairs more than 20 ' +
-            'apart in the sequence are counted, so the chain itself cannot produce the effect. ' +
-            'One protein, so this describes it rather than shows a rule.'
-          : 'The firing residues sit no closer together in space than the protein does on ' +
-            'average, so this latent is not reading one site on this protein. Only residue ' +
-            'pairs more than 20 apart in the sequence are counted. One protein, so this ' +
-            'describes it rather than shows a rule.',
+        (sp.firing < sp.protein
+          ? `In space, ${subject} sit closer together than the protein does on average. ` +
+            'They are one site and not scattered points. '
+          : `In space, ${subject} sit no closer together than the protein does on average. ` +
+            'On this protein they are not one site. ') +
+          'Only residue pairs more than 20 apart in the sequence count here, so the chain ' +
+          'itself cannot make the effect. One protein, so the number describes that protein ' +
+          'and does not show a rule.',
       ),
     );
   }

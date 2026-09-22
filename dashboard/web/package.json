@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "postbuild": "ln -sfn ../../data/web dist/data",
     "preview": "vite preview",
     "serve": "ln -sfn ../../data/web dist/data && vite preview --port 4173 --open",
     "start": "npm run build && npm run serve"
