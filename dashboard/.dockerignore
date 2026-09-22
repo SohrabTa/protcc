@@ -1,0 +1,4 @@
+# The data tree never goes into an image. It arrives in a volume.
+data/
+web/dist/
+web/node_modules/

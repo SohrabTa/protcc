@@ -1,0 +1,12 @@
+{
+  "release": "",
+  "zenodo_record": "",
+  "source": "dashboard/deploy/make_release.sh",
+  "note": "Placeholder. Run make_release.sh on the built data tree, upload the four archives to one Zenodo record, then replace this file with the one it wrote and add the record id.",
+  "expect": {
+    "proteins": 207463,
+    "structures": 207459
+  },
+  "expect_files": [],
+  "parts": {}
+}

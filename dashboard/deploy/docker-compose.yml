@@ -1,0 +1,50 @@
+# The dashboard on one host: fetch the data once, then serve it.
+#
+#   docker compose up -d
+#
+# The first start downloads about 11.5 GB from Zenodo and unpacks it into a named volume. Every
+# later start finds the data in place and goes straight to serving, because the fetch container
+# compares the release it wrote against the release it wants.
+#
+# Set ZENODO_RECORD in a .env file beside this one, or accept the id in data-release.json.
+
+name: protcc-dashboard
+
+services:
+  # Runs to completion, then the web service starts. It is not a daemon.
+  fetch-data:
+    build:
+      context: ./fetch
+    environment:
+      ZENODO_RECORD: ${ZENODO_RECORD:-}
+      # A mirror, or a local server while testing. Empty means Zenodo.
+      BASE_URL: ${BASE_URL:-}
+      FORCE: ${FORCE:-0}
+      VERIFY: ${VERIFY:-0}
+    volumes:
+      - dashboard-data:/data
+      - ./data-release.json:/release/data-release.json:ro
+    restart: "no"
+
+  web:
+    build:
+      # The context is the dashboard folder, because the image builds the site from web/.
+      context: ..
+      dockerfile: deploy/web/Dockerfile
+    depends_on:
+      fetch-data:
+        condition: service_completed_successfully
+    ports:
+      - "${PORT:-8080}:80"
+    volumes:
+      - dashboard-data:/usr/share/nginx/html/data:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/data/manifest.json"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  dashboard-data:
