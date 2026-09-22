@@ -306,6 +306,17 @@ export function latentLocalityPlot(d: Data, self?: Feature): HTMLElement {
       'proteins measured.',
   );
   wrap.append(key);
+  // The cut is a convenience for counting, and a reader who takes it for a boundary in the data
+  // will over-read it. Measured over this tree: 167 latents at 0.5, 337 at 0.7, 401 at 0.9.
+  wrap.append(
+    el(
+      'p',
+      'small muted',
+      'The cut at 0.7 is a choice, not a measurement. A cut at 0.5 puts 167 latents in the ' +
+        'lower right corner, and a cut at 0.9 puts 401 there. The position of a dot is the ' +
+        'measurement.',
+    ),
+  );
   wrap.append(
     el(
       'p',

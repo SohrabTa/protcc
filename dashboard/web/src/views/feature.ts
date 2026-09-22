@@ -169,10 +169,14 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
     'Evidence',
     'What changes as the activation gets weaker',
     'Every protein this latent fires on, put into one of five bands by how hard the latent ' +
-      'fires on it. The bar over a band is the share of those proteins that Swiss-Prot ' +
-      'annotates with the one concept this latent pairs with. The bars count proteins, not ' +
-      'residues. Each bar counts only the proteins inside its own band, so the five bars do ' +
-      'not add up to 100%.',
+      'fires on it. The bands are fifths of the hardest this latent fires anywhere, so the ' +
+      'strongest band holds the proteins above 0.8 of that. The bar over a band is the share ' +
+      'of those proteins that Swiss-Prot annotates with ' +
+      (paired.length > 1
+        ? `one of the ${paired.length} concepts this latent pairs with, which you pick below. `
+        : 'the one concept this latent pairs with. ') +
+      'The bars count proteins, not residues. Each bar counts only the proteins inside its own ' +
+      'band, so the five bars do not add up to 100%.',
   );
   const evBody = el('div');
   evPanel.append(evBody);
@@ -215,7 +219,28 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
   }
 
   // ---- the bands -------------------------------------------------------
-  evBody.append(bandChart(bandStats(d, f, rank), paired[0]?.concept));
+  // 58 of the 1020 paired latents pair with more than one concept, and two of them with three.
+  // The chart counts against one concept at a time, so the reader picks which one.
+  const bandHost = el('div');
+  if (paired.length > 1) {
+    const pick = el('div', 'chips');
+    pick.append(el('span', 'small muted', 'count against:'));
+    const btns: HTMLButtonElement[] = [];
+    paired.forEach((x, i) => {
+      const b = el('button', undefined, x.concept.c.replace('_', ' · '));
+      b.addEventListener('click', () => {
+        btns.forEach((o, j) => o.setAttribute('aria-pressed', String(i === j)));
+        bandHost.textContent = '';
+        bandHost.append(bandChart(bandStats(d, x.concept, rank), x.concept));
+      });
+      btns.push(b);
+      pick.append(b);
+    });
+    btns.forEach((b, i) => b.setAttribute('aria-pressed', String(i === 0)));
+    evBody.append(pick);
+  }
+  evBody.append(bandHost);
+  bandHost.append(bandChart(bandStats(d, paired[0]?.concept, rank), paired[0]?.concept));
 }
 
 function conceptLink(c: Concept): HTMLAnchorElement {
@@ -375,8 +400,7 @@ interface BandStat {
  * holds every protein and its peak, and the proteins that carry the paired concept are already
  * in memory.
  */
-function bandStats(d: Data, f: Feature, rank: Ranking): BandStat[] {
-  const concept = f.c ? d.conceptByName.get(f.c) : undefined;
+function bandStats(d: Data, concept: Concept | undefined, rank: Ranking): BandStat[] {
   const carrierSet = new Set<number>();
   if (concept?.po) {
     for (let i = concept.po[0]; i < concept.po[1]; i++) carrierSet.add(d.conceptProtein[i]);
