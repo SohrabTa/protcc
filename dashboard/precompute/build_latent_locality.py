@@ -277,8 +277,13 @@ def main() -> None:
     )
 
     measured = out_n > 0
-    stretch = int((measured & (out_seq < 0.7)).sum())
-    pocket = int((measured & (out_seq >= 0.7) & (out_space < 0.7)).sum())
+    # float64, because the browser reads these bytes into a Float32Array and compares the widened
+    # double against 0.7. NumPy casts the scalar down to float32 instead, and latent 1513 sits at
+    # exactly float32(0.7), so the two rules put it on different sides and the counts differ by 1.
+    seq64 = out_seq.astype(np.float64)
+    space64 = out_space.astype(np.float64)
+    stretch = int((measured & (seq64 < 0.7)).sum())
+    pocket = int((measured & (seq64 >= 0.7) & (space64 < 0.7)).sum())
     manifest = {
         "stage": "8-latent-locality",
         "built": time.strftime("%Y-%m-%d"),
