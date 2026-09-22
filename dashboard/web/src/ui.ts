@@ -26,6 +26,21 @@ export function link(href: string, text: string, cls = ''): HTMLAnchorElement {
   return a;
 }
 
+/**
+ * A link out to the UniProt entry for one accession.
+ *
+ * Every page that names a protein wants it. The dashboard holds 26 columns of that entry and
+ * UniProt holds the rest, so a reader who wants the organism or the literature goes there.
+ */
+export function uniprotLink(acc: string, text = 'UniProt'): HTMLAnchorElement {
+  const a = el('a', 'extlink', text);
+  a.href = `https://www.uniprot.org/uniprotkb/${acc}/entry`;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  a.title = `Open ${acc} at UniProt in a new tab`;
+  return a;
+}
+
 export function cssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }

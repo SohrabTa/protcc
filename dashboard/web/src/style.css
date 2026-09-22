@@ -386,11 +386,6 @@ h3.sub {
 .navtools { display: flex; align-items: center; gap: 14px; }
 .glosslink { font-size: 0.82rem; white-space: nowrap; }
 
-/* The role chips carry their own count, and a role with no concept is disabled. */
-.rolechip { display: inline-flex; align-items: baseline; gap: 6px; }
-.rolechip .rolecount {
-  font-size: 0.68rem; color: var(--muted); font-variant-numeric: tabular-nums;
-}
 .chips button:disabled { opacity: 0.4; cursor: not-allowed; }
 .chips button:disabled:hover { background: var(--surface-2); }
 
@@ -419,6 +414,7 @@ h3.sub {
   position: absolute; pointer-events: none; border: 1px dashed var(--ink);
   background: color-mix(in srgb, var(--ink) 7%, transparent);
 }
+.dmap-back { margin-top: 0; white-space: nowrap; }
 .dmap-pick { margin-top: 12px; }
 .dmap-pick:empty { margin-top: 0; }
 
@@ -444,3 +440,6 @@ h3.sub {
 
 /* The overview bar of the letter row is dragged, not only clicked. */
 .loc-over { user-select: none; }
+
+/* A link that leaves the dashboard. The arrow says so before the click does. */
+.extlink::after { content: ' \2197'; font-size: 0.85em; }

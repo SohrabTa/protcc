@@ -37,6 +37,8 @@ export interface DepthMapHandle {
   root: HTMLElement;
   /** Draw. Call after the root is in the document, for the reason locality.ts gives. */
   mount(): void;
+  /** Keep the latents of one biological family in colour and mute the rest. '' is all of them. */
+  setFamily(fam: string): void;
 }
 
 export function depthMap(d: Data): DepthMapHandle {
@@ -48,7 +50,12 @@ export function depthMap(d: Data): DepthMapHandle {
   const head = el('div', 'loc-head');
   const caption = el('span', 'small muted');
   const readout = el('div', 'dmap-readout mono');
-  head.append(caption);
+  // The way out of a detail view sits beside the plot, not under the table below it. The only
+  // way back used to be a button under the layer list, which a reader has to scroll to find.
+  const backTop = el('button', 'linkish dmap-back', 'back to all 24 layers');
+  backTop.hidden = true;
+  backTop.addEventListener('click', backToAll);
+  head.append(caption, backTop);
   root.append(head);
 
   const box = el('div', 'dmap-box');
@@ -61,16 +68,22 @@ export function depthMap(d: Data): DepthMapHandle {
   root.append(box);
 
   const legend = el('div', 'loc-legend');
-  for (const [label, color] of [
-    ['pairs with a concept', cssVar('--signal')],
-    ['nothing named it, as a density', cssVar('--line-strong')],
-    ['share of that layer’s latents that pair', cssVar('--accent')],
-  ] as [string, string][]) {
-    const item = el('span', 'loc-key');
-    const sw = el('i');
-    sw.style.background = color;
-    item.append(sw, label);
-    legend.append(item);
+  function writeLegend(): void {
+    legend.textContent = '';
+    for (const [label, color] of [
+      [family ? `pairs with a concept of ${family}` : 'pairs with a concept', cssVar('--signal')],
+      [
+        family ? 'every other latent, as a density' : 'nothing named it, as a density',
+        cssVar('--line-strong'),
+      ],
+      ['share of that layer’s latents that pair', cssVar('--accent')],
+    ] as [string, string][]) {
+      const item = el('span', 'loc-key');
+      const sw = el('i');
+      sw.style.background = color;
+      item.append(sw, label);
+      legend.append(item);
+    }
   }
   root.append(legend);
 
@@ -86,14 +99,32 @@ export function depthMap(d: Data): DepthMapHandle {
   const picked = el('div', 'dmap-pick');
   root.append(picked);
 
-  /** Leave the layer view and draw all 24 again. */
+  /** Leave the layer view or the rectangle and draw all 24 again. */
   function backToAll(): void {
     zoomLayer = null;
+    selection = null;
     hover = -1;
     readout.textContent = '';
     picked.textContent = '';
+    backTop.hidden = true;
     draw();
   }
+
+  // Escape is the other way out, because a reader who zoomed in by clicking expects it.
+  root.addEventListener('keydown', (e) => {
+    if ((e as KeyboardEvent).key === 'Escape') backToAll();
+  });
+  addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && (zoomLayer !== null || selection)) backToAll();
+  });
+
+  /** The family the overview has selected. Latents outside it are drawn as ground. */
+  let family = '';
+  const inFamily = (f: Feature): boolean => {
+    if (!f.c) return false;
+    if (!family) return true;
+    return (d.conceptByName.get(f.c)?.fam || 'unassigned') === family;
+  };
 
   // A latent's peak layer is one of 24 values, so 1598 of them land on the same vertical line.
   // A fixed spread inside the layer band separates them, and it comes from the latent id rather
@@ -193,15 +224,18 @@ export function depthMap(d: Data): DepthMapHandle {
     }
     c.globalAlpha = 1;
 
-    const paired = cssVar('--signal');
-    c.fillStyle = paired;
-    for (const p of placedAll) {
-      if (!p.f.c) continue;
-      placedPaired.push(p);
-      c.globalAlpha = 0.9;
-      c.beginPath();
-      c.arc(p.x, p.y, DOT, 0, Math.PI * 2);
-      c.fill();
+    // Out of family first, so a dot in the family is never hidden under a muted one.
+    for (const pass of [false, true]) {
+      for (const p of placedAll) {
+        if (!p.f.c) continue;
+        if (inFamily(p.f) !== pass) continue;
+        if (pass) placedPaired.push(p);
+        c.fillStyle = pass ? cssVar('--signal') : cssVar('--line-strong');
+        c.globalAlpha = pass ? 0.9 : 0.5;
+        c.beginPath();
+        c.arc(p.x, p.y, pass ? DOT : DOT - 0.6, 0, Math.PI * 2);
+        c.fill();
+      }
     }
     c.globalAlpha = 1;
 
@@ -280,14 +314,15 @@ export function depthMap(d: Data): DepthMapHandle {
       const x = PL + 6 + (iw - 12) * spread(f);
       const y = Y(f.np);
       placedAll.push({ x, y, f });
-      if (f.c) placedPaired.push({ x, y, f });
+      if (inFamily(f)) placedPaired.push({ x, y, f });
     }
-    // Unnamed first, so the named dots are never hidden under them.
-    for (const pass of [false, true]) {
+    // Unnamed first, then out of family, then the family. Each pass draws over the one before.
+    for (const pass of [0, 1, 2]) {
       for (const p of placedAll) {
-        if (Boolean(p.f.c) !== pass) continue;
-        c.fillStyle = pass ? cssVar('--signal') : cssVar('--line-strong');
-        c.globalAlpha = pass ? 0.9 : 0.42;
+        const mine = p.f.c ? (inFamily(p.f) ? 2 : 1) : 0;
+        if (mine !== pass) continue;
+        c.fillStyle = pass === 2 ? cssVar('--signal') : cssVar('--line-strong');
+        c.globalAlpha = pass === 2 ? 0.9 : pass === 1 ? 0.55 : 0.42;
         c.beginPath();
         c.arc(p.x, p.y, pass ? DOT + 0.6 : DOT - 0.4, 0, Math.PI * 2);
         c.fill();
@@ -355,7 +390,8 @@ export function depthMap(d: Data): DepthMapHandle {
     if (zoomLayer === null) return;
     const mine = live
       .filter((f) => f.pk === zoomLayer)
-      .sort((a, b) => b.np - a.np);
+      .sort((a, b) => Number(inFamily(b)) - Number(inFamily(a)) || b.np - a.np);
+    const named = mine.filter((f) => inFamily(f)).length;
     const back = el('button', 'linkish', 'back to all 24 layers');
     back.addEventListener('click', backToAll);
     picked.append(
@@ -366,7 +402,11 @@ export function depthMap(d: Data): DepthMapHandle {
         `${num(mine.length)} latents peak here, and ${num(mine.filter((f) => f.c).length)} of ` +
           'them pair with a concept. The plot above now spreads this one layer across its whole ' +
           'width, so every dot can be pointed at. ' +
-          (mine.length > MAX_LIST ? `The ${MAX_LIST} that fire on the most proteins:` : ''),
+          (family
+            ? `${num(named)} of them pair with a concept of ${family}, and the table starts ` +
+              'with those. '
+            : '') +
+          (mine.length > MAX_LIST ? `The first ${MAX_LIST} by proteins they fire on:` : ''),
       ),
       back,
     );
@@ -481,6 +521,8 @@ export function depthMap(d: Data): DepthMapHandle {
         if (l !== null && liveByLayer[l - 1] > 0) {
           zoomLayer = l;
           selection = null;
+          backTop.textContent = `back to all ${nLayers} layers`;
+          backTop.hidden = false;
           hover = -1;
           draw();
           listLayer();
@@ -489,6 +531,8 @@ export function depthMap(d: Data): DepthMapHandle {
       return;
     }
     selection = { x: Math.min(from.x, to.x), y: Math.min(from.y, to.y), w, h };
+    backTop.textContent = 'clear the rectangle';
+    backTop.hidden = false;
     draw();
     listSelection();
     picked.scrollIntoView({ block: 'nearest' });
@@ -527,16 +571,36 @@ export function depthMap(d: Data): DepthMapHandle {
     }
   });
 
+  function writeCaption(): void {
+    const mid = [14, 15, 16, 17, 18].reduce((a, l) => a + liveByLayer[l], 0);
+    const base =
+      `${num(live.length)} live latents. ` +
+      `${num(mid)} of them, which is ${((mid / live.length) * 100).toFixed(0)}%, peak at ` +
+      'layers 15 to 19. An even spread over 24 layers would put 21% there.';
+    const named = live.filter((f) => inFamily(f)).length;
+    caption.textContent = family
+      ? `${base} ${num(named)} of them pair with a concept of ${family}, and they are the ` +
+        'amber dots. Every other latent is grey.'
+      : base;
+  }
+
   return {
     root,
     mount() {
-      const mid = [14, 15, 16, 17, 18].reduce((a, l) => a + liveByLayer[l], 0);
-      caption.textContent =
-        `${num(live.length)} live latents. ` +
-        `${num(mid)} of them, which is ${((mid / live.length) * 100).toFixed(0)}%, peak at ` +
-        'layers 15 to 19. An even spread over 24 layers would put 21% there.';
+      writeCaption();
+      writeLegend();
       draw();
       ro.observe(box);
+    },
+    setFamily(fam: string) {
+      if (fam === family) return;
+      family = fam;
+      hover = -1;
+      readout.textContent = '';
+      writeCaption();
+      writeLegend();
+      draw();
+      if (zoomLayer !== null) listLayer();
     },
   };
 }

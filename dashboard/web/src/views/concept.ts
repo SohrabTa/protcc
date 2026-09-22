@@ -12,7 +12,7 @@ import { proteinChooser, type ChooserSource } from '../chooser';
 import { drawStructure } from '../structpanel';
 import {
   activationStrip, annotationStrip, depthRibbon, el, figures, holdHeight, link, num, panel,
-  redrawStrips, row, table,
+  redrawStrips, row, table, uniprotLink,
 } from '../ui';
 
 export async function renderConcept(d: Data, name: string, host: HTMLElement): Promise<void> {
@@ -180,7 +180,13 @@ async function drawEvidence(
   }
 
   const head = el('p', 'small');
-  head.append(el('span', 'mono', acc), ` — ${info.n}`, el('span', 'muted', `  ${info.l} aa`));
+  head.append(
+    link(`/protein/${acc}`, acc, 'mono'),
+    ` — ${info.n}`,
+    el('span', 'muted', `  ${info.l} aa`),
+    '  ',
+    uniprotLink(acc),
+  );
   host.append(head);
 
   const rows = el('div', 'rows');

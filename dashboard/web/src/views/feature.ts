@@ -13,7 +13,7 @@ import { localityView } from '../locality';
 import { currentStructure, drawStructure } from '../structpanel';
 import { latentLocalityPlot } from '../locality3d';
 import {
-  cssVar, el, figures, holdHeight, link, num, panel, pct, row, stepper, table,
+  cssVar, el, figures, holdHeight, link, num, panel, pct, row, stepper, table, uniprotLink,
 } from '../ui';
 
 const BANDS: [string, number, number][] = [
@@ -689,7 +689,13 @@ async function drawLocality(
     return;
   }
   const head = el('p', 'small');
-  head.append(el('span', 'mono', acc), ` — ${info.n}`);
+  head.append(
+    link(`/protein/${acc}`, acc, 'mono'),
+    ` — ${info.n}`,
+    el('span', 'muted', `  ${info.l} aa`),
+    '  ',
+    uniprotLink(acc),
+  );
   host.append(head);
 
   // The teal band marks the concept this latent pairs with, so the reader can see at a glance

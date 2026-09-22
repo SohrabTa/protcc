@@ -9,6 +9,7 @@ import { Data } from '../data';
 import { drawStructure } from '../structpanel';
 import {
   activationStrip, annotationStrip, el, figures, link, num, panel, pct, redrawStrips, row, table,
+  uniprotLink,
 } from '../ui';
 
 export async function renderProtein(d: Data, acc: string, host: HTMLElement): Promise<void> {
@@ -37,11 +38,7 @@ export async function renderProtein(d: Data, acc: string, host: HTMLElement): Pr
   const p = panel('Protein', acc);
   const lede = el('p', 'lede');
   lede.append(`${info.n}.`);
-  const uni = el('a', undefined, 'Open the UniProt entry');
-  uni.href = `https://www.uniprot.org/uniprotkb/${acc}`;
-  uni.target = '_blank';
-  uni.rel = 'noopener';
-  lede.append(' ', uni, '.');
+  lede.append(' ', uniprotLink(acc, 'Open the UniProt entry'), '.');
   p.append(lede);
 
   // Which latents fire here, ranked by how much of the protein they cover.

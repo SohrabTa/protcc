@@ -14,14 +14,11 @@ import type { Concept, Data } from '../data';
 import { depthMap } from '../depthmap';
 import { coverageBar, el, figures, link, num, panel, row, table } from '../ui';
 
-const ROLES = ['catalytic', 'binding', 'structural', 'PTM', 'targeting', 'disorder'];
-
 export function renderOverview(d: Data, host: HTMLElement): void {
   host.textContent = '';
   const views = el('div', 'views');
   host.append(views);
 
-  let roleFilter = '';
   let query = '';
 
   // Families, most found concepts first. The tab row is also the summary: it says how much of
@@ -57,9 +54,13 @@ export function renderOverview(d: Data, host: HTMLElement): void {
     fill.style.width = `${total ? (found / total) * 100 : 0}%`;
     bar.append(fill);
     b.append(bar);
+    // One family selection runs the whole page. The two panels below were fixed while the tabs
+    // moved, so a reader who picked a family saw a plot about a different set.
     b.addEventListener('click', () => {
       family = key;
       draw();
+      split.setFamily(key);
+      map.setFamily(key);
     });
     tabButtons.set(key, b);
     tabs.append(b);
@@ -80,21 +81,6 @@ export function renderOverview(d: Data, host: HTMLElement): void {
     draw();
   });
   controls.append(search);
-  // Each role button carries its own count for the family on screen, and a role with no concept
-  // in that family is disabled rather than silently empty. A button that does nothing when
-  // clicked is worse than a button that says why it does nothing.
-  const roleButtons = new Map<string, HTMLButtonElement>();
-  for (const r of ['', ...ROLES]) {
-    const b = el('button', 'rolechip');
-    b.append(el('span', undefined, r || 'all roles'), el('span', 'rolecount', ''));
-    b.addEventListener('click', () => {
-      if (b.disabled) return;
-      roleFilter = r;
-      draw();
-    });
-    roleButtons.set(r, b);
-    controls.append(b);
-  }
   p.append(controls);
 
   const body = el('div');
@@ -106,22 +92,6 @@ export function renderOverview(d: Data, host: HTMLElement): void {
     for (const [key, b] of tabButtons) b.setAttribute('aria-pressed', String(key === family));
     const q = query.toLowerCase();
 
-    // The role counts follow the family and the search box, so they always describe what a
-    // click would actually give.
-    const pool = d.concepts.filter(
-      (x) =>
-        x.nf > 0 &&
-        (family === '' || (x.fam || 'unassigned') === family) &&
-        (!q || x.c.toLowerCase().includes(q)),
-    );
-    for (const [r, b] of roleButtons) {
-      const n = r === '' ? pool.length : pool.filter((x) => x.role === r).length;
-      b.querySelector('.rolecount')!.textContent = String(n);
-      b.disabled = n === 0;
-      b.title = n === 0 ? `No found concept in this family has the role ${r}.` : '';
-      if (n === 0 && roleFilter === r) roleFilter = '';
-    }
-    for (const [r, b] of roleButtons) b.setAttribute('aria-pressed', String(roleFilter === r));
     // A search runs over every family, because a reader who types a name does not know which
     // family it is in. That is the one case the tabs step aside for.
     const searching = q.length > 0;
@@ -129,20 +99,13 @@ export function renderOverview(d: Data, host: HTMLElement): void {
 
     let any = false;
     for (const [fam, list] of shown) {
-      const match = list.filter(
-        (c) =>
-          c.nf > 0 &&
-          (!roleFilter || c.role === roleFilter) &&
-          (!q || c.c.toLowerCase().includes(q)),
-      );
+      const match = list.filter((c) => c.nf > 0 && (!q || c.c.toLowerCase().includes(q)));
       if (match.length === 0) continue;
       any = true;
       const g = el('div', 'famgroup');
       const head = el('div', 'famhead');
       head.append(el('h3', undefined, fam));
-      const inFamily = list.filter(
-        (c) => (!roleFilter || c.role === roleFilter) && (!q || c.c.toLowerCase().includes(q)),
-      );
+      const inFamily = list.filter((c) => !q || c.c.toLowerCase().includes(q));
       head.append(coverageBar(match.length, inFamily.length, 130));
       head.append(el('span', 'sub', `${inFamily.reduce((a, c) => a + c.nf, 0)} latents`));
       g.append(head);
@@ -193,9 +156,8 @@ export function renderOverview(d: Data, host: HTMLElement): void {
     if (!any) body.append(el('p', 'loading', 'Nothing matches that filter.'));
   }
 
-  draw();
-
-  views.append(splitPanel(d));
+  const split = splitPanel(d);
+  views.append(split.root);
 
   // Where the latents live in the encoder, and which of them anything named.
   const depthPanel = panel(
@@ -209,7 +171,10 @@ export function renderOverview(d: Data, host: HTMLElement): void {
   const map = depthMap(d);
   depthPanel.append(map.root);
   views.append(depthPanel);
+  draw();
+  split.setFamily(family);
   map.mount();
+  map.setFamily(family);
 }
 
 /**
@@ -223,24 +188,36 @@ export function renderOverview(d: Data, host: HTMLElement): void {
  * The corners are labelled and a sketch sits beside the plot, because a dot at (0.09, 0.54) says
  * nothing to a reader who has not been told what the two axes buy.
  */
-function splitPanel(d: Data): HTMLElement {
-  const pairs: { fid: number; concept: string; prec: number; rec: number; recd?: number }[] = [];
-  const multi: Concept[] = [];
+interface SplitHandle {
+  root: HTMLElement;
+  /** Count and colour one biological family. '' is all of them. */
+  setFamily(fam: string): void;
+}
+
+interface Pair {
+  fid: number;
+  concept: string;
+  fam: string;
+  prec: number;
+  rec: number;
+  recd?: number;
+}
+
+function splitPanel(d: Data): SplitHandle {
+  const pairs: Pair[] = [];
   for (const c of d.concepts) {
     if (!c.feats?.length) continue;
-    if (c.nf >= 2) multi.push(c);
+    const fam = c.fam || 'unassigned';
     for (const [fid, , prec, rec, recd] of c.feats) {
-      pairs.push({ fid, concept: c.c, prec, rec, recd });
+      pairs.push({ fid, concept: c.c, fam, prec, rec, recd });
     }
   }
-  const found = d.concepts.filter((c) => c.nf > 0);
   const med = (xs: number[]) => {
+    if (xs.length === 0) return 0;
     const a = [...xs].sort((x, y) => x - y);
     const m = a.length >> 1;
     return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
   };
-  const nf = med(found.map((c) => c.nf));
-  const mostSplit = [...multi].sort((a, b) => b.nf - a.nf).slice(0, 6);
 
   const p = panel(
     'Splitting',
@@ -248,47 +225,65 @@ function splitPanel(d: Data): HTMLElement {
     'A concept is rarely one latent. A group of latents detects most concepts, and each latent ' +
       'in the group fires where the concept is and covers only a part of it.',
   );
-  p.append(
-    figures([
-      [`${multi.length} of ${found.length}`, 'found concepts take more than one latent'],
-      [String(nf), 'latents for the median found concept'],
-      [String(Math.max(...found.map((c) => c.nf))), 'latents for the most split concept'],
-      [med(pairs.map((x) => x.prec)).toFixed(2), 'median precision of a pair'],
-      [med(pairs.map((x) => x.rec)).toFixed(3), 'median recall per residue'],
-      ...(pairs.some((x) => x.recd !== undefined)
-        ? ([[
-            med(pairs.filter((x) => x.recd !== undefined).map((x) => x.recd!)).toFixed(3),
-            'median recall per domain',
-          ]] as [string, string][])
-        : []),
-    ]),
-  );
-
-  p.append(splitScatter(pairs));
-
-  p.append(
-    el(
-      'p',
-      'small muted',
-      `Every one of the ${num(pairs.length)} dots is one latent paired with one concept. A ` +
-        'crosscoder that had learned whole concepts would fill the top right corner, where a ' +
-        'latent is right when it fires and also reads the whole region. This one fills the top ' +
-        'left.',
-    ),
-  );
-
+  const stats = el('div');
+  const plot = el('div');
+  const note = el('p', 'small muted');
   const links = el('p', 'small muted');
-  links.append('The most split: ');
-  mostSplit.forEach((c, i) => {
-    if (i) links.append(' · ');
-    links.append(
-      // The full name, not the part after the underscore. `Zinc finger_any` is a roll-up over a
-      // whole Swiss-Prot field, and its tail alone reads as "any".
-      link(`/concept/${encodeURIComponent(c.c)}`, `${c.c.replace('_', ' · ')} (${c.nf})`),
+  p.append(stats, plot, note, links);
+
+  function setFamily(fam: string): void {
+    const found = d.concepts.filter((c) => c.nf > 0 && (!fam || (c.fam || 'unassigned') === fam));
+    const multi = found.filter((c) => c.nf >= 2);
+    const mine = fam ? pairs.filter((x) => x.fam === fam) : pairs;
+    const most = [...multi].sort((a, b) => b.nf - a.nf).slice(0, 6);
+
+    stats.textContent = '';
+    stats.append(
+      figures([
+        [`${multi.length} of ${found.length}`, 'found concepts take more than one latent'],
+        [String(med(found.map((c) => c.nf))), 'latents for the median found concept'],
+        [
+          String(found.length ? Math.max(...found.map((c) => c.nf)) : 0),
+          'latents for the most split concept',
+        ],
+        [med(mine.map((x) => x.prec)).toFixed(2), 'median precision of a pair'],
+        [med(mine.map((x) => x.rec)).toFixed(3), 'median recall per residue'],
+        ...(mine.some((x) => x.recd !== undefined)
+          ? ([[
+              med(mine.filter((x) => x.recd !== undefined).map((x) => x.recd!)).toFixed(3),
+              'median recall per domain',
+            ]] as [string, string][])
+          : []),
+      ]),
     );
-  });
-  p.append(links);
-  return p;
+
+    plot.textContent = '';
+    plot.append(splitScatter(pairs, fam));
+
+    note.textContent =
+      (fam
+        ? `${num(mine.length)} of the ${num(pairs.length)} dots are a latent paired with a ` +
+          `concept of ${fam}, and they are the amber ones. Every other dot is grey. `
+        : `Every one of the ${num(pairs.length)} dots is one latent paired with one concept. `) +
+      'A crosscoder that had learned whole concepts would fill the top right corner, where a ' +
+      'latent is right when it fires and also reads the whole region. This one fills the top ' +
+      'left.';
+
+    links.textContent = '';
+    if (most.length) {
+      links.append(fam ? `The most split in ${fam}: ` : 'The most split: ');
+      most.forEach((c, i) => {
+        if (i) links.append(' · ');
+        links.append(
+          // The full name, not the part after the underscore. `Zinc finger_any` is a roll-up over
+          // a whole Swiss-Prot field, and its tail alone reads as "any".
+          link(`/concept/${encodeURIComponent(c.c)}`, `${c.c.replace('_', ' · ')} (${c.nf})`),
+        );
+      });
+    }
+  }
+
+  return { root: p, setFamily };
 }
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -306,9 +301,7 @@ function svgNode(
   return n;
 }
 
-function splitScatter(
-  pairs: { fid: number; concept: string; prec: number; rec: number }[],
-): HTMLElement {
+function splitScatter(pairs: Pair[], family: string): HTMLElement {
   const W = 640;
   const H = 280;
   const PL = 46;
@@ -339,17 +332,22 @@ function splitScatter(
       g.toFixed(1),
     );
   }
-  for (const q of pairs) {
-    const dot = add('circle', {
-      cx: X(q.rec).toFixed(1),
-      cy: Y(q.prec).toFixed(1),
-      r: 2,
-      fill: 'var(--signal)',
-      'fill-opacity': 0.4,
-    });
-    const t = document.createElementNS(NS, 'title');
-    t.textContent = `f/${q.fid}  ${q.concept.replace('_', ' · ')}`;
-    dot.append(t);
+  // Out of family first, so a dot in the family is never hidden under a muted one.
+  for (const pass of [false, true]) {
+    for (const q of pairs) {
+      const mine = !family || q.fam === family;
+      if (mine !== pass) continue;
+      const dot = add('circle', {
+        cx: X(q.rec).toFixed(1),
+        cy: Y(q.prec).toFixed(1),
+        r: pass ? 2 : 1.7,
+        fill: pass ? 'var(--signal)' : 'var(--line-strong)',
+        'fill-opacity': pass ? 0.4 : 0.3,
+      });
+      const t = document.createElementNS(NS, 'title');
+      t.textContent = `f/${q.fid}  ${q.concept.replace('_', ' · ')}`;
+      dot.append(t);
+    }
   }
   add(
     'text',
