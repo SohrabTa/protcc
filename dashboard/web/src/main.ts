@@ -2,18 +2,20 @@
  * Entry point and router.
  *
  * Routing is hash-based on purpose: `#/feature/1819` resolves without a web server, so the site
- * works from a folder or a USB drive. Five routes, over one set of data. `#/feature/<id>` is
+ * works from a folder or a USB drive. Six routes, over one set of data. `#/feature/<id>` is
  * kept as an alias of `#/latent/<id>` so that links sent before the rename still resolve.
  */
 
 import './style.css';
 import { Data } from './data';
-import { el, link, num } from './ui';
+import { el, link } from './ui';
 import { renderOverview } from './views/overview';
 import { renderConcept } from './views/concept';
 import { renderFeature } from './views/feature';
 import { renderProtein } from './views/protein';
 import { renderGlossary } from './glossary';
+import { renderMethod } from './method';
+import { methodFigure } from './methodfigure';
 import { mountJump } from './jump';
 
 const data = new Data('./data');
@@ -21,21 +23,11 @@ const app = document.getElementById('app')!;
 const crumbs = document.getElementById('crumbs')!;
 
 function header(): void {
-  const h = data.manifest.headline;
+  // The five numbers used to stand alone here, and a number with no context says nothing. Each
+  // one now sits under the station of the method it counts, and the picture is a link.
   const figs = document.getElementById('figs')!;
   figs.textContent = '';
-  const items: [string, string][] = [
-    ['Average best test F1', h.avg_best_test_f1.toFixed(3)],
-    ['Concepts found', `${h.concepts_identified} of ${h.concepts_total}`],
-    ['Latents paired', num(h.features_paired)],
-    ['Live latents', `${num(h.latents_alive)} of ${num(h.latents_total)}`],
-    ['Encoder layers', String(h.layers)],
-  ];
-  for (const [k, v] of items) {
-    const f = el('div', 'fig');
-    f.append(el('span', 'v', v), el('span', 'k', k));
-    figs.append(f);
-  }
+  figs.append(methodFigure(data));
   if (data.manifest.partial) {
     document.getElementById('partial')!.hidden = false;
   }
@@ -70,6 +62,9 @@ async function route(): Promise<void> {
     } else if (kind === 'protein') {
       setCrumbs([el('span', 'mono', rest.toUpperCase())]);
       await renderProtein(data, rest.toUpperCase(), app);
+    } else if (kind === 'method') {
+      setCrumbs([el('span', undefined, 'Method')]);
+      renderMethod(data, app, rest || undefined);
     } else if (kind === 'glossary') {
       // The entry is part of the route rather than a second hash, because a second `#` would
       // not survive the hash router.
@@ -86,8 +81,9 @@ async function route(): Promise<void> {
     app.append(box);
     console.error(err);
   }
-  // A glossary entry scrolls itself into view, so the route must not fight it back to the top.
-  if (!location.hash.startsWith('#/glossary/')) window.scrollTo(0, 0);
+  // A glossary entry and a method section scroll themselves into view, so the route must not
+  // fight them back to the top.
+  if (!/^#\/(glossary|method)\/./.test(location.hash)) window.scrollTo(0, 0);
 }
 
 async function start(): Promise<void> {

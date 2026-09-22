@@ -8,7 +8,7 @@
  */
 
 import type { Data } from './data';
-import { METRIC_INFO } from './metrics';
+import { METHOD_SECTIONS, METRIC_INFO } from './metrics';
 import { el, link, num, panel } from './ui';
 
 const ns = 'http://www.w3.org/2000/svg';
@@ -462,7 +462,9 @@ export function renderGlossary(d: Data, host: HTMLElement, slug?: string): void 
     'Glossary',
     'Every number on this site',
     'Each entry is the definition this site uses, not the general one. Where a number could be ' +
-      'counted in more than one way, the entry says which way it is counted here.',
+      'counted in more than one way, the entry says which way it is counted here. This page ' +
+      'says what a word means. The method page says why the number is measured that way, and ' +
+      'every entry below links to the part of it that argues for the entry.',
   );
   const toc = el('div', 'gl-toc');
   for (const m of METRIC_INFO) {
@@ -470,6 +472,9 @@ export function renderGlossary(d: Data, host: HTMLElement, slug?: string): void 
     a.href = `#/glossary/${m.slug}`;
     toc.append(a);
   }
+  const method = el('a', undefined, 'Method');
+  method.href = '#/method';
+  toc.append(method);
   intro.append(toc);
   views.append(intro);
 
@@ -479,6 +484,15 @@ export function renderGlossary(d: Data, host: HTMLElement, slug?: string): void 
     p.append(el('p', 'lede', m.short));
     const body = el('div', 'gl-body');
     body.append(...(BODIES[m.slug]?.() ?? []));
+    // The one link that ties the two pages: this entry, and the argument for measuring it.
+    const sct = METHOD_SECTIONS.find((x) => x.id === m.section);
+    if (sct) {
+      const why = el('p', 'm-defs');
+      const a = el('a', undefined, sct.title);
+      a.href = `#/method/${sct.id}`;
+      why.append(el('span', 'm-defs-lead', 'Why it is measured this way: '), a);
+      body.append(why);
+    }
     p.append(body);
     views.append(p);
   }
