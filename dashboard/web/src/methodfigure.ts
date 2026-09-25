@@ -140,9 +140,9 @@ export function methodFigure(d: Data): HTMLElement {
     add(firing, 'rect', { x: 564, y, width: 18, height: 2.6 });
   });
   add(svg, 'text', {
-    x: 573, y: 20, 'font-size': 10, fill: 'var(--muted)', 'text-anchor': 'middle',
-  }, num(h.latents_total));
-  add(svg, 'text', { x: 592, y: 44, 'font-size': 10, fill: 'var(--signal)' }, '32 fire at a time');
+    x: 592, y: 36, 'font-size': 10, fill: 'var(--muted)',
+  }, `${num(h.latents_total)} latents`);
+  add(svg, 'text', { x: 592, y: 50, 'font-size': 10, fill: 'var(--signal)' }, '32 fire at a time');
   const out = add(svg, 'g', {
     stroke: 'var(--signal)', 'stroke-width': 0.7, opacity: 0.5, fill: 'none',
   });
@@ -216,9 +216,7 @@ export function methodFigure(d: Data): HTMLElement {
   hotspot(box, 732, 388, 'naming', 'How a latent gets a name');
 
   const foot = el('div', 'methodfoot');
-  const a = el('a', undefined, 'How a crosscoder works, and what these numbers can and cannot say');
-  a.href = '#/method';
-  foot.append(el('span', undefined, 'Point at a station to open that part of the method.'), a);
+  foot.append(el('span', undefined, 'Click a station to open that part of the method.'));
   box.append(foot);
   return box;
 }

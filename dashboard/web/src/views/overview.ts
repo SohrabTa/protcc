@@ -22,7 +22,7 @@ export function renderOverview(d: Data, host: HTMLElement): void {
   let query = '';
 
   const famOrder = familyOrder(d);
-  let family = famOrder[0]?.[0] ?? '';
+  let family = '';
 
   const p = panel(
     'Concepts',
@@ -32,8 +32,8 @@ export function renderOverview(d: Data, host: HTMLElement): void {
       'pairs with a concept when its F1 per domain is more than 0.5 on a held-out set of ' +
       'proteins. Open a concept to see which latents detect it, and where.',
   );
-  // The table starts on one family, because all of them at once is 187 rows and the panels below
-  // it never get read. Each panel on this page has its own family chips, so this choice is local.
+  // Every panel on this page starts on all families and has its own chips. All families is 187
+  // rows, so the table body scrolls inside the panel instead of pushing the other panels down.
   const tabs = familyTabs(d, famOrder, family, (key) => {
     family = key;
     draw();
@@ -51,7 +51,8 @@ export function renderOverview(d: Data, host: HTMLElement): void {
   controls.append(search);
   p.append(controls);
 
-  const body = el('div');
+  // One scroll box for the whole list, not one per family. Nested scroll boxes trap the wheel.
+  const body = el('div', 'concept-scroll');
   p.append(body);
   views.append(p);
 
@@ -98,7 +99,7 @@ export function renderOverview(d: Data, host: HTMLElement): void {
         );
       }
       const missed = inFamily.length - match.length;
-      const scroll = el('div', 'tbl-scroll tbl-capped');
+      const scroll = el('div', 'tbl-scroll');
       scroll.append(root);
       g.append(scroll);
       if (missed > 0) {

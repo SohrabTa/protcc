@@ -363,10 +363,7 @@ h3.sub {
 @media (max-width: 820px) { .splitwrap { grid-template-columns: 1fr; } }
 
 /* The model and the numbers beside it. */
-.structwrap { display: grid; grid-template-columns: 1fr 230px; gap: 16px; align-items: start; }
 .structwrap .struct { margin-top: 0; }
-.structside .statbox { margin-top: 0; }
-@media (max-width: 820px) { .structwrap { grid-template-columns: 1fr; } }
 
 /* The letter row: the legend on the left, the chemistry count on the right. */
 .loc-foot { display: grid; grid-template-columns: 1fr 260px; gap: 18px; align-items: start;
@@ -412,6 +409,11 @@ h3.sub {
 .chips button:disabled { opacity: 0.4; cursor: not-allowed; }
 .chips button:disabled:hover { background: var(--surface-2); }
 
+/* The concept list scrolls inside its panel, so the panels below stay in reach. */
+.concept-scroll {
+  max-height: 640px; overflow-y: auto; margin-top: 8px; padding-right: 6px;
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+}
 /* A long concept table scrolls inside the panel, so the panels below stay reachable. */
 .tbl-capped { max-height: 460px; overflow-y: auto; }
 
