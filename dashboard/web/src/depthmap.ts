@@ -593,10 +593,8 @@ export function depthMap(d: Data): DepthMapHandle {
       `${num(live.length)} live latents. ` +
       `${num(mid)} of them, which is ${((mid / live.length) * 100).toFixed(0)}%, peak at ` +
       'layers 15 to 19. An even spread over 24 layers would put 21% there.';
-    const named = live.filter((f) => inFamily(f)).length;
     caption.textContent = family
-      ? `${base} ${num(named)} of them pair with a concept of ${family} and are amber. Every ` +
-        'other latent is grey, and a grey dot still answers the pointer and still opens.'
+      ? `${base} The amber dots pair with a concept of ${family}. Every other latent is grey.`
       : base;
   }
 
