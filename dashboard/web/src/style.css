@@ -151,14 +151,21 @@ th .th-arrow { width: 7px; height: 9px; opacity: 0.25; background: currentColor;
 th .th-sort[data-state='1'] .th-arrow { opacity: 1; transform: rotate(180deg); }
 th .th-sort[data-state='2'] .th-arrow { opacity: 1; }
 th[aria-sort='descending'], th[aria-sort='ascending'] { color: var(--ink); }
-th .th-info {
+/* The round "i" that opens one explanation. Column headers carry it, and so do the chips, the
+   family bars and the figures. */
+.info-btn {
   font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; font-weight: 600;
-  width: 13px; height: 13px; margin-left: 5px; padding: 0; vertical-align: 1px;
+  width: 15px; height: 15px; margin-left: 5px; padding: 0; vertical-align: 1px;
   border: 1px solid var(--line-strong); border-radius: 50%; background: transparent;
   color: var(--muted); cursor: pointer; text-transform: none; line-height: 1;
+  letter-spacing: 0; flex: none;
 }
-th .th-info:hover { border-color: var(--accent); color: var(--accent); }
-th .th-info:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.info-btn:hover { border-color: var(--accent); color: var(--accent); }
+.info-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+th .th-info { width: 13px; height: 13px; }
+.famtabs-info { align-self: center; margin-left: 2px; }
+.famhead .info-btn { margin-left: 0; }
+.stat .v .info-btn { vertical-align: 3px; margin-left: 6px; }
 .metricpop {
   position: absolute; z-index: 40; width: 270px; padding: 9px 11px 10px;
   background: var(--surface); border: 1px solid var(--line-strong); border-radius: 3px;
@@ -411,11 +418,39 @@ h3.sub {
 
 /* The concept list scrolls inside its panel, so the panels below stay in reach. */
 .concept-scroll {
-  max-height: 640px; overflow-y: auto; margin-top: 8px; padding-right: 6px;
+  max-height: 640px; overflow-y: auto; margin-top: 8px; padding-right: 12px;
   border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
 }
-/* A long concept table scrolls inside the panel, so the panels below stay reachable. */
-.tbl-capped { max-height: 460px; overflow-y: auto; }
+/* A long latent table scrolls inside the panel, so the panels below stay reachable. */
+.tbl-capped { max-height: 460px; overflow-y: auto; padding-right: 12px; }
+/* The header row stays in view while the rows scroll under it. */
+.concept-scroll thead th, .tbl-capped thead th {
+  position: sticky; top: 0; z-index: 1; background: var(--surface); padding-top: 6px;
+}
+/* A scroll box shows its scroll bar all the time, so a reader can see that more rows follow.
+   macOS hides an unstyled bar until the reader scrolls, and then it floats over the last column
+   and covers its buttons. A styled bar is always drawn and takes its own width. */
+.concept-scroll::-webkit-scrollbar, .tbl-capped::-webkit-scrollbar { width: 11px; }
+.concept-scroll::-webkit-scrollbar-track, .tbl-capped::-webkit-scrollbar-track {
+  background: var(--surface-2); border-radius: 6px;
+}
+.concept-scroll::-webkit-scrollbar-thumb, .tbl-capped::-webkit-scrollbar-thumb {
+  background: var(--line-strong); border-radius: 6px; border: 2px solid var(--surface-2);
+}
+.concept-scroll::-webkit-scrollbar-thumb:hover, .tbl-capped::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+@supports not selector(::-webkit-scrollbar) {
+  .concept-scroll, .tbl-capped { scrollbar-color: var(--line-strong) var(--surface-2); }
+}
+
+/* How to use a panel. It sits above what it explains, at body size and on a tinted ground, so
+   a reader finds it before the plot and not after. */
+.panel p.howto {
+  margin: 10px 0 0; padding: 7px 12px; max-width: 105ch;
+  background: var(--accent-soft); border-left: 3px solid var(--accent);
+  border-radius: 0 3px 3px 0; color: var(--ink); font-size: 0.95rem;
+}
 
 /* The corners of the splitting scatter, named under it rather than drawn on top of the dots. */
 .cornerkey {
@@ -433,8 +468,8 @@ h3.sub {
 }
 .linkish:hover { text-decoration-color: var(--accent); }
 
-/* The brush on the latent map. */
-.dmap-box { cursor: crosshair; }
+/* The brush on the latent map. The cursor is set per point, because the brush works only
+   inside the plot. */
 .dmap-marquee {
   position: absolute; pointer-events: none; border: 1px dashed var(--ink);
   background: color-mix(in srgb, var(--ink) 7%, transparent);
@@ -451,6 +486,15 @@ h3.sub {
   padding: 2px 7px; border-radius: 3px;
 }
 .dmap-readout:empty, .loc3d-readout:empty { display: none; }
+/* The share of one layer, under the bar the pointer is on. */
+.dmap-tip {
+  position: absolute; z-index: 3; pointer-events: none; max-width: 330px;
+  font-size: 0.86rem; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line-strong); border-radius: 3px; padding: 4px 8px;
+  box-shadow: var(--shadow);
+}
+/* The layer being read, first in the caption of the layer view. */
+.dmap-where { color: var(--ink); font-size: 1rem; margin-right: 2px; }
 
 /* The locality plot holds its hover readout over itself, for the same reason. */
 .loc3d-box { position: relative; }

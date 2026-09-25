@@ -134,8 +134,8 @@ export const METRIC_INFO: MetricInfo[] = [
     section: 'sparse',
     title: 'Latent',
     short:
-      'One of the 8192 units the crosscoder learned. This column counts the latents that pair ' +
-      'with the concept in this row.',
+      'One of the 8192 units the crosscoder learned. In a concept table, the Latents column ' +
+      'counts the latents that pair with the concept in that row.',
   },
   {
     slug: 'best-latent',
@@ -187,7 +187,6 @@ const BY_HEADER: Record<string, string> = {
   covers: 'covers',
   peak: 'peak-activation',
   'peak here': 'peak-activation',
-  latent: 'latents',
   latents: 'latents',
   'best latent': 'best-latent',
   concept: 'concept',
@@ -196,8 +195,41 @@ const BY_HEADER: Record<string, string> = {
   carriers: 'proteins',
 };
 
+/**
+ * A header whose meaning depends on its table. The entry keeps the glossary slug of the word and
+ * changes only the sentence in the popover. A table names the key beside the label it prints.
+ */
+const BY_KEY: Record<string, { slug: string; short: string }> = {
+  // Every table with this header lists latents, one for each row. The plural header counts them.
+  latent: {
+    slug: 'latents',
+    short:
+      'One of the 8192 units the crosscoder learned. Each row is one latent, and the link opens ' +
+      'its page.',
+  },
+  'proteins it fires on': {
+    slug: 'proteins',
+    short:
+      'How many of the 207,463 proteins in the evaluation set this latent fires on. Swiss-Prot ' +
+      'does not have to annotate anything there, so a latent that nothing named also has a count.',
+  },
+  'paired concept': {
+    slug: 'concept',
+    short:
+      'The concept this latent pairs with. When it pairs with more than one, this is the one ' +
+      'with the highest F1 per domain. "Nothing named it" means that no concept clears the ' +
+      'pairing cut for this latent.',
+  },
+};
+
 export function metricForHeader(header: string): MetricInfo | undefined {
-  const slug = BY_HEADER[header.trim().toLowerCase()];
+  const key = header.trim().toLowerCase();
+  const alt = BY_KEY[key];
+  if (alt) {
+    const base = BY_SLUG.get(alt.slug);
+    return base ? { ...base, short: alt.short } : undefined;
+  }
+  const slug = BY_HEADER[key];
   return slug ? BY_SLUG.get(slug) : undefined;
 }
 

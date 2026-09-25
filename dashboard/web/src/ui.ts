@@ -193,7 +193,7 @@ function closePopover(): void {
   popoverFor = null;
 }
 
-function openPopover(anchor: HTMLElement, slug: string, title: string, short: string): void {
+function openPopover(anchor: HTMLElement, slug: string | undefined, title: string, short: string): void {
   if (popoverFor === anchor) {
     closePopover();
     return;
@@ -201,10 +201,14 @@ function openPopover(anchor: HTMLElement, slug: string, title: string, short: st
   closePopover();
   const box = el('div', 'metricpop');
   box.setAttribute('role', 'dialog');
-  box.append(el('strong', undefined, title), el('p', undefined, short));
-  const more = link(`/glossary/${slug}`, 'Full definition');
-  more.addEventListener('click', () => closePopover());
-  box.append(more);
+  box.append(el('strong', undefined, title));
+  // A long explanation comes in as several sentences split by a blank line, one paragraph each.
+  for (const part of short.split('\n\n')) box.append(el('p', undefined, part));
+  if (slug) {
+    const more = link(`/glossary/${slug}`, 'Full definition');
+    more.addEventListener('click', () => closePopover());
+    box.append(more);
+  }
   document.body.append(box);
   const r = anchor.getBoundingClientRect();
   const w = box.offsetWidth;
@@ -218,7 +222,7 @@ function openPopover(anchor: HTMLElement, slug: string, title: string, short: st
 
 addEventListener('click', (e) => {
   const t = e.target as HTMLElement | null;
-  if (popover && t && !popover.contains(t) && !t.closest('.th-info')) closePopover();
+  if (popover && t && !popover.contains(t) && !t.closest('.info-btn')) closePopover();
 });
 addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closePopover();
@@ -242,6 +246,33 @@ function cellKey(td: HTMLTableCellElement): number | string | null {
   return cleaned !== '' && Number.isFinite(n) ? n : t.toLowerCase();
 }
 
+/**
+ * A column header. A plain string is its own lookup key. A pair gives the key separately,
+ * because one word can mean two things: Proteins in a concept table counts the proteins that
+ * carry the concept, and in a latent table the proteins the latent fires on.
+ */
+export type Header = string | [label: string, key: string];
+
+/**
+ * The round "i" button that opens one explanation. Column headers use it, and so does anything
+ * else on a page that a reader has to be told how to read.
+ */
+export function infoButton(
+  label: string,
+  title: string,
+  short: string,
+  slug?: string,
+): HTMLButtonElement {
+  const info = el('button', 'info-btn', 'i');
+  info.type = 'button';
+  info.setAttribute('aria-label', `What ${label} means`);
+  info.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openPopover(info, slug, title, short);
+  });
+  return info;
+}
+
 export interface TableHandle {
   root: HTMLTableElement;
   body: HTMLTableSectionElement;
@@ -255,7 +286,7 @@ export interface TableHandle {
  * reverses, and the third puts the rows back into the order the page built them in. That third
  * state is the reason the default order is captured on the first click and never lost.
  */
-export function table(headers: string[], alignLeft: number[] = [0]): TableHandle {
+export function table(headers: Header[], alignLeft: number[] = [0]): TableHandle {
   const t = el('table', 'sortable');
   const thead = el('thead');
   const tr = el('tr');
@@ -309,7 +340,9 @@ export function table(headers: string[], alignLeft: number[] = [0]): TableHandle
     });
   };
 
-  headers.forEach((h, i) => {
+  headers.forEach((header, i) => {
+    const [label, key] = typeof header === 'string' ? [header, header] : header;
+    const h = label;
     const th = el('th');
     th.setAttribute('aria-sort', 'none');
     if (alignLeft.includes(i)) th.style.textAlign = 'left';
@@ -321,15 +354,10 @@ export function table(headers: string[], alignLeft: number[] = [0]): TableHandle
     th.append(sort);
     buttons.push(sort);
 
-    const m = metricForHeader(h);
+    const m = metricForHeader(key);
     if (m) {
-      const info = el('button', 'th-info', 'i');
-      info.type = 'button';
-      info.setAttribute('aria-label', `What ${h} means`);
-      info.addEventListener('click', (e) => {
-        e.stopPropagation();
-        openPopover(info, m.slug, m.title, m.short);
-      });
+      const info = infoButton(label, m.title, m.short, m.slug);
+      info.classList.add('th-info');
       th.append(info);
     }
     tr.append(th);
@@ -370,17 +398,36 @@ export function row(
  * compared against the one beside it. The note below carries the caution that a sentence used
  * to carry, which is usually that one protein describes itself and proves nothing.
  */
-export function figures(items: [string, string][], note?: string): HTMLElement {
+export interface FigureInfo {
+  title: string;
+  short: string;
+  slug?: string;
+}
+
+export function figures(
+  items: [string, string, FigureInfo?][],
+  note?: string,
+): HTMLElement {
   const box = el('div', 'statbox');
   const row_ = el('div', 'statrow');
-  for (const [v, k] of items) {
+  for (const [v, k, info] of items) {
     const f = el('div', 'stat');
-    f.append(el('span', 'v', v), el('span', 'k', k));
+    const value = el('span', 'v', v);
+    if (info) value.append(infoButton(k, info.title, info.short, info.slug));
+    f.append(value, el('span', 'k', k));
     row_.append(f);
   }
   box.append(row_);
   if (note) box.append(el('p', 'small muted statnote', note));
   return box;
+}
+
+/**
+ * How to use a panel. It goes above the thing it explains, never under it: a reader who has to
+ * scroll past a plot to learn how to use the plot has already tried it and given up.
+ */
+export function howto(text: string): HTMLElement {
+  return el('p', 'howto', text);
 }
 
 export function panel(eyebrow: string, title: string, lede?: string): HTMLElement {

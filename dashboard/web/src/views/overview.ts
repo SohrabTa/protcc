@@ -12,7 +12,7 @@
 
 import type { Concept, Data } from '../data';
 import { depthMap } from '../depthmap';
-import { coverageBar, el, figures, link, num, panel, row, table } from '../ui';
+import { coverageBar, el, figures, howto, infoButton, link, num, panel, row, table } from '../ui';
 
 export function renderOverview(d: Data, host: HTMLElement): void {
   host.textContent = '';
@@ -32,10 +32,23 @@ export function renderOverview(d: Data, host: HTMLElement): void {
       'pairs with a concept when its F1 per domain is more than 0.5 on a held-out set of ' +
       'proteins. Open a concept to see which latents detect it, and where.',
   );
+  p.append(
+    howto(
+      'Pick a family chip to show one family, or type in the filter box. The filter searches ' +
+        'all families, whichever chip is picked. The rows start with the best F1, highest ' +
+        'first. Click a column header to sort by it.',
+    ),
+  );
   // Every panel on this page starts on all families and has its own chips. All families is 187
   // rows, so the table body scrolls inside the panel instead of pushing the other panels down.
   const tabs = familyTabs(d, famOrder, family, (key) => {
     family = key;
+    // A chip and the filter are two ways to narrow the list, and the last one used wins. A chip
+    // that did nothing while the box held text would look broken.
+    if (query) {
+      query = '';
+      search.value = '';
+    }
     draw();
   });
   p.append(tabs.root);
@@ -43,12 +56,13 @@ export function renderOverview(d: Data, host: HTMLElement): void {
   const controls = el('div', 'chips');
   const search = el('input');
   search.type = 'search';
-  search.placeholder = 'Filter this list';
+  search.placeholder = 'Filter all families';
   search.addEventListener('input', () => {
     query = search.value.trim();
     draw();
   });
-  controls.append(search);
+  const status = el('span', 'small muted');
+  controls.append(search, status);
   p.append(controls);
 
   // One scroll box for the whole list, not one per family. Nested scroll boxes trap the wheel.
@@ -58,25 +72,42 @@ export function renderOverview(d: Data, host: HTMLElement): void {
 
   function draw() {
     body.textContent = '';
-    tabs.set(family);
     const q = query.toLowerCase();
 
     // A search runs over every family, because a reader who types a name does not know which
-    // family it is in. That is the one case the tabs step aside for.
+    // family it is in. That is the one case the tabs step aside for, and they show it by having
+    // no chip pressed.
     const searching = q.length > 0;
+    tabs.set(searching ? null : family);
     const shown = searching || family === '' ? famOrder : famOrder.filter(([f]) => f === family);
 
     let any = false;
+    let hits = 0;
+    let hitFamilies = 0;
     for (const [fam, list] of shown) {
       const match = list.filter((c) => c.nf > 0 && (!q || c.c.toLowerCase().includes(q)));
       if (match.length === 0) continue;
       any = true;
+      hits += match.length;
+      hitFamilies++;
       const g = el('div', 'famgroup');
       const head = el('div', 'famhead');
       head.append(el('h3', undefined, fam));
       const inFamily = list.filter((c) => !q || c.c.toLowerCase().includes(q));
       head.append(coverageBar(match.length, inFamily.length, 130));
       head.append(el('span', 'sub', `${inFamily.reduce((a, c) => a + c.nf, 0)} latents`));
+      head.append(
+        infoButton(
+          'the family bar',
+          'The bar beside a family',
+          'The two numbers are the concepts of this family that at least one latent pairs ' +
+            'with, and all the concepts of this family. The bar shows the same share.\n\n' +
+            'The number of latents is the sum of the Latents column. A latent that pairs with ' +
+            'two concepts of the family counts two times.' +
+            (searching ? '\n\nThe filter holds text, so all three numbers count only the ' +
+              'concepts that match it.' : ''),
+        ),
+      );
       g.append(head);
 
       const { root, body: tb } = table(
@@ -112,17 +143,14 @@ export function renderOverview(d: Data, host: HTMLElement): void {
           ),
         );
       }
-      g.append(
-        el(
-          'p',
-          'small muted',
-          'The rows are in the default order, which is best F1, highest first. Click a column ' +
-            'header to sort by it.',
-        ),
-      );
       body.append(g);
     }
     if (!any) body.append(el('p', 'loading', 'Nothing matches that filter.'));
+    status.textContent = searching
+      ? `${hits} found concept${hits === 1 ? '' : 's'} in ${hitFamilies} ` +
+        `famil${hitFamilies === 1 ? 'y' : 'ies'} match. The filter searches all families. ` +
+        'Pick a family chip to clear it.'
+      : '';
   }
 
   const split = splitPanel(d, famOrder);
@@ -133,9 +161,7 @@ export function renderOverview(d: Data, host: HTMLElement): void {
     'Depth',
     'What it names lives in the middle of the encoder',
     'Each latent adds a vector to all 24 encoder layers. The length of that vector is how much ' +
-      'the latent changes that layer. The peak layer is the layer where the vector is longest. ' +
-      'A per-layer sparse autoencoder has no peak layer. It trains one model for each layer, ' +
-      'and a unit in one model has no counterpart in the next.',
+      'the latent changes that layer. The peak layer is the layer where the vector is longest.',
   );
   const map = depthMap(d);
   // The two plots start on all families, so nothing in them is hidden until a reader asks.
@@ -143,7 +169,7 @@ export function renderOverview(d: Data, host: HTMLElement): void {
     depthTabs.set(key);
     map.setFamily(key);
   });
-  depthPanel.append(depthTabs.root, map.root);
+  depthPanel.append(map.howto, depthTabs.root, map.root);
   views.append(depthPanel);
   draw();
   map.mount();
@@ -175,7 +201,7 @@ function familyTabs(
   famOrder: FamilyOrder,
   initial: string,
   onPick: (key: string) => void,
-): { root: HTMLElement; set(key: string): void } {
+): { root: HTMLElement; set(key: string | null): void } {
   const root = el('div', 'famtabs');
   const buttons = new Map<string, HTMLButtonElement>();
   const make = (key: string, label: string, found: number, total: number) => {
@@ -191,11 +217,25 @@ function familyTabs(
     buttons.set(key, b);
     root.append(b);
   };
-  make('', 'all families', d.concepts.filter((c) => c.nf > 0).length, d.concepts.length);
+  const found = d.concepts.filter((c) => c.nf > 0).length;
+  make('', 'all families', found, d.concepts.length);
   for (const [fam, list] of famOrder) {
     make(fam, fam, list.filter((c) => c.nf > 0).length, list.length);
   }
-  const set = (key: string) => {
+  const info = infoButton(
+    'the family chips',
+    'The family chips',
+    'Each chip is one biological family of Swiss-Prot concepts. The first number counts the ' +
+      'concepts of the family that at least one latent pairs with. The second number counts ' +
+      'all the concepts of the family. The bar shows the same share.\n\n' +
+      `For all families that is ${found} of ${d.concepts.length}. A latent pairs with a ` +
+      'concept when its F1 per domain is more than 0.5.',
+    'pairing',
+  );
+  info.classList.add('famtabs-info');
+  root.append(info);
+  // null presses no chip, which is how the Concepts panel shows that its filter overrides them.
+  const set = (key: string | null) => {
     for (const [k, b] of buttons) b.setAttribute('aria-pressed', String(k === key));
   };
   set(initial);
@@ -247,15 +287,24 @@ function splitPanel(d: Data, famOrder: FamilyOrder): SplitHandle {
   const p = panel(
     'Splitting',
     'One concept, several latents',
-    'A concept is rarely one latent. A group of latents detects most concepts, and each latent ' +
-      'in the group fires where the concept is and covers only a part of it.',
+    'A concept is rarely one latent. A group of latents detects most concepts.',
   );
   const tabs = familyTabs(d, famOrder, '', (key) => setFamily(key));
   const stats = el('div');
   const plot = el('div');
   const note = el('p', 'small muted');
   const links = el('p', 'small muted');
-  p.append(tabs.root, stats, plot, note, links);
+  p.append(
+    howto(
+      'Every dot is one latent paired with one concept. Pick a family chip to count only that ' +
+        'family and to color its dots amber. Point at a dot to see its latent and its concept.',
+    ),
+    tabs.root,
+    stats,
+    plot,
+    note,
+    links,
+  );
 
   function setFamily(fam: string): void {
     tabs.set(fam);
@@ -264,22 +313,88 @@ function splitPanel(d: Data, famOrder: FamilyOrder): SplitHandle {
     const mine = fam ? pairs.filter((x) => x.fam === fam) : pairs;
     const most = [...multi].sort((a, b) => b.nf - a.nf).slice(0, 6);
 
+    // Every figure says how it is counted, because "3.5 latents" and "0.035" mean nothing to a
+    // reader who does not know what was counted and over what.
+    const ofFam = fam ? ` of the ${fam} family` : '';
+    const pairsIn = (n: number) =>
+      `A pair is one latent and one concept it pairs with. The value is the middle one over ` +
+      (fam ? `the ${num(n)} pairs${ofFam}.` : `all ${num(n)} pairs.`);
+    const recRes = med(mine.map((x) => x.rec));
+    const withDom = mine.filter((x) => x.recd !== undefined);
     stats.textContent = '';
     stats.append(
       figures([
-        [`${multi.length} of ${found.length}`, 'found concepts take more than one latent'],
-        [String(med(found.map((c) => c.nf))), 'latents for the median found concept'],
+        [
+          `${multi.length} of ${found.length}`,
+          'found concepts take more than one latent',
+          {
+            title: 'Concepts that take more than one latent',
+            short:
+              'A concept is found when at least one latent pairs with it. The first number ' +
+              'counts the found concepts that two or more latents pair with. The second number ' +
+              `counts all the found concepts${ofFam}.`,
+            slug: 'pairing',
+          },
+        ],
+        [
+          String(med(found.map((c) => c.nf))),
+          'latents for the median found concept',
+          {
+            title: 'Latents for the median found concept',
+            short:
+              'Count the latents that pair with each found concept, and sort the counts. This ' +
+              'is the middle count. When the number of concepts is even, it is the mean of the ' +
+              'two middle counts, so it can end in .5.',
+          },
+        ],
         [
           String(found.length ? Math.max(...found.map((c) => c.nf)) : 0),
           'latents for the most split concept',
+          {
+            title: 'The most split concept',
+            short:
+              `The largest number of latents that pair with one concept${ofFam}. The line ` +
+              'under the plot names the concepts with the most latents.',
+          },
         ],
-        [med(mine.map((x) => x.prec)).toFixed(2), 'median precision of a pair'],
-        [med(mine.map((x) => x.rec)).toFixed(3), 'median recall per residue'],
-        ...(mine.some((x) => x.recd !== undefined)
+        [
+          med(mine.map((x) => x.prec)).toFixed(2),
+          'median precision of a pair',
+          {
+            title: 'Median precision of a pair',
+            short:
+              'Precision is the share of the residues the latent fires on that the annotation ' +
+              `covers. It is the vertical axis of the plot.\n\n${pairsIn(mine.length)}`,
+            slug: 'precision',
+          },
+        ],
+        [
+          recRes.toFixed(3),
+          'median recall per residue',
+          {
+            title: 'Median recall per residue',
+            short:
+              'Recall per residue is the share of the annotated residues that the latent fires ' +
+              `on. It is the horizontal axis of the plot. ${recRes.toFixed(3)} means that the ` +
+              `middle pair fires on ${(recRes * 100).toFixed(1)}% of the annotated residues.` +
+              `\n\n${pairsIn(mine.length)}`,
+            slug: 'recall-per-residue',
+          },
+        ],
+        ...(withDom.length
           ? ([[
-              med(mine.filter((x) => x.recd !== undefined).map((x) => x.recd!)).toFixed(3),
+              med(withDom.map((x) => x.recd!)).toFixed(3),
               'median recall per domain',
-            ]] as [string, string][])
+              {
+                title: 'Median recall per domain',
+                short:
+                  'Recall per domain is the share of the annotated regions where the latent ' +
+                  'fires at least once. One residue is enough to recall a whole region, so ' +
+                  'this value is high while recall per residue is low.' +
+                  `\n\n${pairsIn(withDom.length)}`,
+                slug: 'recall-per-domain',
+              },
+            ]] as [string, string, { title: string; short: string; slug: string }][])
           : []),
       ]),
     );
@@ -288,7 +403,6 @@ function splitPanel(d: Data, famOrder: FamilyOrder): SplitHandle {
     plot.append(splitScatter(pairs, fam));
 
     note.textContent =
-      `Every dot is one latent paired with one concept. ` +
       (fam ? `The amber dots pair with a concept of ${fam}, and the grey dots with another. ` : '') +
       'A crosscoder that had learned whole concepts would fill the top right corner. A latent ' +
       'there is right when it fires and also reads the whole region. This one fills the top ' +
