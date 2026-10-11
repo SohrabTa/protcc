@@ -293,8 +293,8 @@ function splitPanel(d: Data, famOrder: FamilyOrder): SplitHandle {
     'Splitting',
     'One concept, several latents',
     'A concept is rarely one latent. Most found concepts pair with a group of latents. The ' +
-      'plot shows each pair of a latent and a concept: how often the latent is right when it ' +
-      'fires, and how much of the annotated region it reads.',
+      'plot shows each pair of a latent and a concept. Up is how often the latent is right when ' +
+      'it fires, and across is how much of the annotated region it reads.',
   );
   const tabs = familyTabs(d, famOrder, '', (key) => setFamily(key));
   const stats = el('div');
