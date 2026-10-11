@@ -150,8 +150,7 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
   const locPanel = panel(
     'Which residues',
     'The firing site, in place',
-    'The top bar is the whole protein, so the firing site can be seen against the residues the ' +
-      'latent ignores. The row below shows the amino-acid letters, one cell for each residue.',
+    'Where on one protein this latent fires, against the residues it ignores.',
   );
   const locChooser = el('div', 'chips');
   // Which concept the teal marks show. A latent with one concept has nothing to pick.

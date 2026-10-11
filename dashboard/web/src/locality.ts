@@ -13,7 +13,7 @@
  */
 
 import { AA_CLASSES, classOf, enrichment } from './chemistry';
-import { cssVar, el, figures, inkOn, rampRGB } from './ui';
+import { cssVar, el, figures, howto, inkOn, rampRGB } from './ui';
 
 const CELL = 9; // px per residue in the letter row
 const ANN_H = 6;
@@ -57,6 +57,14 @@ export function localityView(seq: string, values: Uint8Array, ranges: [number, n
   let mask = annotationMask(n, ranges);
 
   const root = el('div', 'loc');
+  // How to read and move the view comes first, as on every panel of the site.
+  root.append(
+    howto(
+      'The top bar is the whole protein, at one pixel for each group of residues. The row under ' +
+        'it shows the amino-acid letters, one cell for each residue. Click the top bar to move ' +
+        'the letters, or scroll the letters.',
+    ),
+  );
 
   // ---- the readout -----------------------------------------------------
   const head = el('div', 'loc-head');
@@ -97,15 +105,6 @@ export function localityView(seq: string, values: Uint8Array, ranges: [number, n
   }
   const legendSide = el('div');
   legendSide.append(legend);
-  legendSide.append(
-    el(
-      'p',
-      'small muted',
-      'The top bar is the whole protein, at one pixel for each group of residues. The row below ' +
-      'shows the amino-acid letters, one cell for each residue. Click the top bar to move the ' +
-      'letters, or scroll them directly.',
-    ),
-  );
   const chem = el('div', 'loc-chem');
   const chemHead = el('h3', 'sub', 'What the firing residues are made of');
   const chemSide = el('div');

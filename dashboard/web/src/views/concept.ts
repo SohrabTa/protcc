@@ -11,7 +11,7 @@ import { localityView } from '../locality';
 import { proteinChooser, type ChooserSource } from '../chooser';
 import { drawStructure } from '../structpanel';
 import {
-  activationStrip, annotationStrip, depthRibbon, el, figures, holdHeight, link, num, panel,
+  activationStrip, annotationStrip, depthRibbon, el, figures, holdHeight, howto, link, num, panel,
   redrawStrips, row, table, uniprotLink,
 } from '../ui';
 
@@ -38,11 +38,28 @@ export async function renderConcept(d: Data, name: string, host: HTMLElement): P
   );
 
   const feats = c.feats ?? [];
-  const { root, body } = table(
-    ['Latent', 'F1 per domain', 'Precision', 'Recall per residue', 'Peak layer', 'Depth'],
-    [0, 5],
+  p.append(
+    howto(
+      'Each row is one latent that pairs with this concept. The rows start with the highest F1 ' +
+        'per domain. Click a column header to sort by it, a second time to reverse, and a third ' +
+        'time for this order.',
+    ),
   );
-  for (const [fid, f1, prec, rec] of feats) {
+  // Recall per domain sits beside precision, because F1 per domain is made of those two. Recall
+  // per residue comes after it, so the two recalls can be read against each other.
+  const { root, body } = table(
+    [
+      'Latent',
+      'F1 per domain',
+      'Precision',
+      'Recall per domain',
+      'Recall per residue',
+      'Peak layer',
+      'Depth',
+    ],
+    [0, 6],
+  );
+  for (const [fid, f1, prec, rec, recd] of feats) {
     const f = d.featureById.get(fid);
     body.append(
       row(
@@ -50,57 +67,30 @@ export async function renderConcept(d: Data, name: string, host: HTMLElement): P
           link(`/latent/${fid}`, `f/${fid}`, 'mono'),
           f1.toFixed(3),
           prec.toFixed(3),
+          recd === undefined ? '—' : recd.toFixed(3),
           rec.toFixed(3),
           f ? String(f.pk) : '—',
           f ? depthRibbon(d.depthOf(fid).norm) : '—',
         ],
-        [0, 5],
+        [0, 6],
         // The ribbon holds no text, so it sorts by the layer it peaks at.
-        [fid, f1, prec, rec, f?.pk, f?.pk],
+        [fid, f1, prec, recd, rec, f?.pk, f?.pk],
       ),
     );
   }
   const scroll = el('div', 'tbl-scroll');
   scroll.append(root);
   p.append(scroll);
-  p.append(
-    el(
-      'p',
-      'small muted',
-      'The rows start with the highest F1 per domain. Click a column header to sort by it, a ' +
-        'second time to reverse, and a third time for this order.',
-    ),
-  );
-
-  // The page used to state, for every concept with more than one latent, that precision is high
-  // and recall per residue is low. That is true of this crosscoder in general, and false for 43
-  // of the 149 multi-latent concepts, so it is counted here and not asserted.
-  if (feats.length > 1) {
-    const split = feats.filter(([, , prec, rec]) => prec >= 0.5 && rec < 0.5).length;
-    const best = feats.reduce((a, b) => (b[3] > a[3] ? b : a));
-    p.append(
-      el(
-        'p',
-        'small muted',
-        (split > feats.length / 2
-          ? `${split} of these ${feats.length} latents are right more than half the time they ` +
-            'fire, and each still reads less than half of the region. That is one concept split ' +
-            'across latents.'
-          : `${split} of these ${feats.length} latents have a high precision and a low recall ` +
-            'per residue. The others do not, so read the two columns for each latent.') +
-          ` The latent that reads the most of the region is f/${best[0]}, at ` +
-          `${Math.round(best[3] * 100)}% of the annotated residues.`,
-      ),
-    );
-  }
   views.append(p);
 
   // ---- evidence -------------------------------------------------------
-  const ev = panel(
-    'Evidence',
-    'Which part of the region each latent reads',
-    'One row for each latent, on a protein that carries the annotation. Amber is the latent’s ' +
-      'activation at that residue. The teal row is where Swiss-Prot annotates the concept.',
+  const ev = panel('Evidence', 'Which part of the region each latent reads');
+  ev.append(
+    howto(
+      'Pick a protein that carries the concept with the controls below. Each row is one latent ' +
+        'on that protein, in the order of the table above. Amber is how hard the latent fires ' +
+        'at a residue. The teal row is where Swiss-Prot annotates the concept.',
+    ),
   );
   const all = c.po ? d.carriersOf(c) : [];
   const firingAll = d.latentsFiringOn(c);
@@ -210,14 +200,6 @@ async function drawEvidence(
   }
   host.append(rows);
   redrawStrips(rows);
-  host.append(
-    el(
-      'p',
-      'small muted',
-      'The latent rows are in the same order as the table above, which is F1 per domain, ' +
-        'highest first.',
-    ),
-  );
 
   if (ranges.length) {
     let covered = 0;
