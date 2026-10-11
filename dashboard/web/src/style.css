@@ -282,6 +282,9 @@ h3.sub {
 /* The latent map. */
 .dmap { margin-top: 6px; }
 .dmap-box { position: relative; width: 100%; }
+/* The plots take the focus on a click, so that Escape reaches them. A mouse click shows no ring. */
+.dmap-box:focus, .split-box:focus { outline: none; }
+.dmap-box:focus-visible, .split-box:focus-visible { outline: 2px solid var(--accent); }
 .dmap-box canvas { display: block; width: 100%; border-radius: 1px; }
 
 /* The search in the header, present on every page. */
@@ -537,7 +540,15 @@ h3.sub {
   text-decoration: none; font-size: 0.9rem;
 }
 .splitopen:hover { background: var(--accent-soft); }
-.split-box { position: relative; margin-top: 8px; }
+.split-box { position: relative; margin-top: 4px; }
+/* One line above the Splitting plot that says how to zoom, or which part is shown. It keeps its
+   height in both states, so the plot does not move when a zoom starts or ends. */
+.split-tools {
+  min-height: 1.7em; display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 6px;
+  line-height: 1.7;
+}
+.split-tools strong { color: var(--ink); }
+.split-tools .linkish { margin-top: 0; }
 .splitsvg .dots { transition: opacity 120ms linear; }
 .splitsvg.dim .dots { opacity: 0.25; }
 

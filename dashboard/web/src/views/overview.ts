@@ -308,8 +308,9 @@ function splitPanel(d: Data, famOrder: FamilyOrder): SplitHandle {
   p.append(
     howto(
       'Every dot is one latent paired with one concept. Point at a concept name beside the plot ' +
-        'to light up its latents, and click the name to keep them lit. The arrow after a name ' +
-        'opens the concept page. Point at a dot to see its latent, and click the dot to open it.',
+        'to light up its latents. Click the name to keep them lit, and then only its dots answer ' +
+        'the pointer. The arrow after a name opens the concept page. Point at a dot to see its ' +
+        'latent, and click the dot to open it. Drag a rectangle on the plot to zoom in.',
     ),
     tabs.root,
     stats,
@@ -469,8 +470,8 @@ function splitList(multi: Concept[], fam: string, scatter: ScatterHandle): HTMLE
     name.setAttribute('aria-pressed', 'false');
     name.append(el('span', 'nm', show(c.c)), el('span', 'n', String(c.nf)));
     name.title = 'Point to light up its latents. Click to keep them lit.';
-    const light = () => scatter.light(c.c);
-    const restore = () => scatter.light(pinned);
+    const light = () => scatter.preview(c.c);
+    const restore = () => scatter.preview(null);
     name.addEventListener('mouseenter', light);
     name.addEventListener('focus', light);
     name.addEventListener('mouseleave', restore);
@@ -478,7 +479,7 @@ function splitList(multi: Concept[], fam: string, scatter: ScatterHandle): HTMLE
     name.addEventListener('click', () => {
       pinned = pinned === c.c ? null : c.c;
       for (const b of names) b.setAttribute('aria-pressed', String(b === name && pinned !== null));
-      scatter.light(pinned);
+      scatter.pin(pinned);
     });
     names.push(name);
     const open = link(`/concept/${encodeURIComponent(c.c)}`, '→', 'splitopen');
@@ -512,10 +513,38 @@ function svgNode(
 
 interface ScatterHandle {
   root: HTMLElement;
-  /** Light up the latents of one concept and dim the rest. null lights nothing. */
-  light(concept: string | null): void;
+  /** Light up one concept while its name is under the pointer. null shows the pinned one again. */
+  preview(concept: string | null): void;
+  /** Keep one concept lit, and let only its dots answer the pointer. null lets every dot answer. */
+  pin(concept: string | null): void;
 }
 
+type Span = [number, number];
+/** A part of the plot: recall per residue across, precision up. */
+interface Area {
+  x: Span;
+  y: Span;
+}
+
+/** About four round tick values over a linear range. */
+function linearTicks([lo, hi]: Span): { values: number[]; decimals: number } {
+  const raw = (hi - lo) / 4;
+  const k = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 5, 10].map((m) => m * k).find((v) => v >= raw)!;
+  const values: number[] = [];
+  for (let v = Math.ceil(lo / step - 1e-9) * step; v <= hi + 1e-9; v += step) {
+    values.push(Math.round(v / step) * step);
+  }
+  return { values, decimals: Math.max(1, -Math.floor(Math.log10(step))) };
+}
+
+/**
+ * The scatter of every pair, with a zoom.
+ *
+ * Many pairs of one concept sit within a few pixels of each other at the left edge, so a
+ * rectangle zooms into the part of the plot it encloses. The zooms form a stack, and the back
+ * links and the Escape key go back one step.
+ */
 function splitScatter(pairs: Pair[], family: string): ScatterHandle {
   const W = 640;
   const H = 280;
@@ -532,37 +561,8 @@ function splitScatter(pairs: Pair[], family: string): ScatterHandle {
   svg.style.display = 'block';
   const add = (t: string, a: Record<string, string | number>, text?: string) =>
     svgNode(svg, t, a, text);
-  const X = (r: number) => PL + iw * r;
-  const Y = (p: number) => PT + ih - ih * p;
-  for (const g of [0, 0.5, 1]) {
-    add('line', { x1: PL, y1: Y(g), x2: W - PR, y2: Y(g), stroke: 'var(--line)' });
-    add(
-      'text',
-      { x: PL - 6, y: Y(g) + 3, 'text-anchor': 'end', fill: 'var(--muted)', 'font-size': 9 },
-      g.toFixed(1),
-    );
-    add('line', { x1: X(g), y1: PT, x2: X(g), y2: PT + ih, stroke: 'var(--line)' });
-    add(
-      'text',
-      { x: X(g), y: H - PB + 13, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 9 },
-      g.toFixed(1),
-    );
-  }
+  const axes = add('g', {});
   const dots = add('g', { class: 'dots' });
-  // Out of family first, so a dot in the family is never hidden under a muted one.
-  for (const pass of [false, true]) {
-    for (const q of pairs) {
-      const mine = !family || q.fam === family;
-      if (mine !== pass) continue;
-      svgNode(dots, 'circle', {
-        cx: X(q.rec).toFixed(1),
-        cy: Y(q.prec).toFixed(1),
-        r: pass ? 2 : 1.7,
-        fill: pass ? 'var(--signal)' : 'var(--line-strong)',
-        'fill-opacity': pass ? 0.4 : 0.3,
-      });
-    }
-  }
   const lit = add('g', {});
   // The other pairs of the latent under the pointer, ringed with a dashed line.
   const siblings = add('g', {});
@@ -573,9 +573,13 @@ function splitScatter(pairs: Pair[], family: string): ScatterHandle {
     'stroke-width': 1.2,
     visibility: 'hidden',
   });
-  // A latent with two concepts has two dots, one for each pair.
-  const byLatent = new Map<number, number[]>();
-  pairs.forEach((q, i) => byLatent.set(q.fid, [...(byLatent.get(q.fid) ?? []), i]));
+  const brush = add('rect', {
+    fill: 'var(--ink)',
+    'fill-opacity': 0.06,
+    stroke: 'var(--ink)',
+    'stroke-dasharray': '3 3',
+    visibility: 'hidden',
+  });
   add(
     'text',
     { x: PL + iw / 2, y: H - 4, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 9 },
@@ -588,12 +592,127 @@ function splitScatter(pairs: Pair[], family: string): ScatterHandle {
   );
   rot.setAttribute('transform', `rotate(-90 11 ${PT + ih / 2})`);
 
+  // A small margin around 0 and 1, so that the many dots at precision 1.0 and at recall 0 sit
+  // inside the plot and not on its edge, where a rectangle cannot start.
+  const whole: Area = { x: [-0.02, 1.02], y: [-0.02, 1.02] };
+  const zooms: Area[] = [whole];
+  const area = (): Area => zooms[zooms.length - 1];
+  const X = (r: number) => PL + (iw * (r - area().x[0])) / (area().x[1] - area().x[0]);
+  const Y = (p: number) => PT + ih - (ih * (p - area().y[0])) / (area().y[1] - area().y[0]);
+  const invX = (x: number) => area().x[0] + ((x - PL) / iw) * (area().x[1] - area().x[0]);
+  const invY = (y: number) => area().y[0] + ((PT + ih - y) / ih) * (area().y[1] - area().y[0]);
+  const inArea = (q: Pair, a = area()) =>
+    q.rec >= a.x[0] && q.rec <= a.x[1] && q.prec >= a.y[0] && q.prec <= a.y[1];
+
+  // A latent with two concepts has two dots, one for each pair.
+  const byLatent = new Map<number, number[]>();
+  pairs.forEach((q, i) => byLatent.set(q.fid, [...(byLatent.get(q.fid) ?? []), i]));
+
   const box = el('div', 'split-box');
+  // The zoom line sits above the plot and always holds one line of text, so the plot does not
+  // move when a zoom starts or ends.
+  const tools = el('div', 'split-tools small muted');
   const readout = el('div', 'dmap-readout');
   box.append(svg, readout);
 
-  let litConcept: string | null = null;
+  let previewed: string | null = null;
+  let pinned: string | null = null;
   let hovered = -1;
+  const litConcept = () => previewed ?? pinned;
+
+  function render(): void {
+    axes.textContent = '';
+    const a = area();
+    const xt = linearTicks(a.x);
+    const yt = linearTicks(a.y);
+    for (const g of yt.values) {
+      svgNode(axes, 'line', { x1: PL, y1: Y(g), x2: W - PR, y2: Y(g), stroke: 'var(--line)' });
+      svgNode(
+        axes,
+        'text',
+        { x: PL - 6, y: Y(g) + 3, 'text-anchor': 'end', fill: 'var(--muted)', 'font-size': 9 },
+        g.toFixed(yt.decimals),
+      );
+    }
+    for (const g of xt.values) {
+      svgNode(axes, 'line', { x1: X(g), y1: PT, x2: X(g), y2: PT + ih, stroke: 'var(--line)' });
+      svgNode(
+        axes,
+        'text',
+        { x: X(g), y: H - PB + 13, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 9 },
+        g.toFixed(xt.decimals),
+      );
+    }
+    dots.textContent = '';
+    // Out of family first, so a dot in the family is never hidden under a muted one.
+    for (const pass of [false, true]) {
+      for (const q of pairs) {
+        const mine = !family || q.fam === family;
+        if (mine !== pass || !inArea(q)) continue;
+        svgNode(dots, 'circle', {
+          cx: X(q.rec).toFixed(1),
+          cy: Y(q.prec).toFixed(1),
+          r: pass ? 2 : 1.7,
+          fill: pass ? 'var(--signal)' : 'var(--line-strong)',
+          'fill-opacity': pass ? 0.4 : 0.3,
+        });
+      }
+    }
+    drawLit();
+    setHover(-1);
+    writeTools();
+  }
+
+  function drawLit(): void {
+    const concept = litConcept();
+    lit.textContent = '';
+    svg.classList.toggle('dim', concept !== null);
+    if (concept === null) return;
+    for (const q of pairs) {
+      if (q.concept !== concept || !inArea(q)) continue;
+      svgNode(lit, 'circle', {
+        cx: X(q.rec).toFixed(1),
+        cy: Y(q.prec).toFixed(1),
+        r: 3.4,
+        fill: 'var(--accent)',
+        stroke: 'var(--surface)',
+        'stroke-width': 0.8,
+      });
+    }
+  }
+
+  function writeTools(): void {
+    tools.textContent = '';
+    if (zooms.length === 1) {
+      tools.append('Drag a rectangle on the plot to zoom in.');
+      return;
+    }
+    const a = area();
+    // The margin of the whole plot runs past 0 and 1, and no value lies there.
+    const v = (u: number, digits: number) => Math.min(1, Math.max(0, u)).toFixed(digits);
+    tools.append(
+      el('strong', undefined, 'Zoomed in.'),
+      ` Recall ${v(a.x[0], 3)} to ${v(a.x[1], 3)}, precision ${v(a.y[0], 2)} to ${v(a.y[1], 2)}. `,
+    );
+    const back = el(
+      'button',
+      'linkish',
+      zooms.length > 2 ? 'back one step' : 'back to the whole plot',
+    );
+    back.addEventListener('click', () => goBack(1));
+    tools.append(back);
+    if (zooms.length > 2) {
+      const all = el('button', 'linkish', 'back to the whole plot');
+      all.addEventListener('click', () => goBack(zooms.length - 1));
+      tools.append(' ', all);
+    }
+  }
+
+  function goBack(steps: number): void {
+    zooms.length = Math.max(1, zooms.length - steps);
+    render();
+    box.focus({ preventScroll: true });
+  }
 
   function writeReadout(): void {
     readout.textContent = '';
@@ -620,68 +739,27 @@ function splitScatter(pairs: Pair[], family: string): ScatterHandle {
       }
       return;
     }
-    if (litConcept === null) return;
-    const mine = pairs.filter((q) => q.concept === litConcept);
+    const concept = litConcept();
+    if (concept === null) return;
+    const mine = pairs.filter((q) => q.concept === concept);
+    const here = mine.filter((q) => inArea(q)).length;
     readout.append(
-      `${show(litConcept)}: ${mine.length} latents, median precision ` +
+      `${show(concept)}: ${mine.length} latents, median precision ` +
         `${median(mine.map((q) => q.prec)).toFixed(2)}, median recall per residue ` +
-        `${median(mine.map((q) => q.rec)).toFixed(3)}`,
+        `${median(mine.map((q) => q.rec)).toFixed(3)}` +
+        (zooms.length > 1 ? `. ${here} of them are in this zoom.` : ''),
     );
   }
 
-  function light(concept: string | null): void {
-    litConcept = concept;
-    lit.textContent = '';
-    svg.classList.toggle('dim', concept !== null);
-    if (concept !== null) {
-      for (const q of pairs) {
-        if (q.concept !== concept) continue;
-        svgNode(lit, 'circle', {
-          cx: X(q.rec).toFixed(1),
-          cy: Y(q.prec).toFixed(1),
-          r: 3.4,
-          fill: 'var(--accent)',
-          stroke: 'var(--surface)',
-          'stroke-width': 0.8,
-        });
-      }
-    }
-    writeReadout();
-  }
-
-  /** The pair under the pointer, or -1. The radius is in plot units, about 10 px on screen. */
-  function pairAt(e: MouseEvent): number {
-    const m = svg.getScreenCTM();
-    if (!m) return -1;
-    const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
-    let best = -1;
-    let bestD = 36;
-    pairs.forEach((q, i) => {
-      const dx = X(q.rec) - pt.x;
-      const dy = Y(q.prec) - pt.y;
-      const dd = dx * dx + dy * dy;
-      if (dd < bestD) {
-        bestD = dd;
-        best = i;
-      }
-    });
-    return best;
-  }
-
-  svg.addEventListener('mousemove', (e) => {
-    const i = pairAt(e);
-    if (i === hovered) return;
+  function setHover(i: number): void {
     hovered = i;
-    svg.style.cursor = i >= 0 ? 'pointer' : 'default';
-    if (i >= 0) {
-      ring.setAttribute('cx', X(pairs[i].rec).toFixed(1));
-      ring.setAttribute('cy', Y(pairs[i].prec).toFixed(1));
-    }
     ring.setAttribute('visibility', i >= 0 ? 'visible' : 'hidden');
     siblings.textContent = '';
     if (i >= 0) {
+      ring.setAttribute('cx', X(pairs[i].rec).toFixed(1));
+      ring.setAttribute('cy', Y(pairs[i].prec).toFixed(1));
       for (const j of byLatent.get(pairs[i].fid) ?? []) {
-        if (j === i) continue;
+        if (j === i || !inArea(pairs[j])) continue;
         svgNode(siblings, 'circle', {
           cx: X(pairs[j].rec).toFixed(1),
           cy: Y(pairs[j].prec).toFixed(1),
@@ -694,22 +772,118 @@ function splitScatter(pairs: Pair[], family: string): ScatterHandle {
       }
     }
     writeReadout();
+  }
+
+  /** The pointer in the units of the viewBox. */
+  function toPlot(e: MouseEvent): { x: number; y: number } | null {
+    const m = svg.getScreenCTM();
+    if (!m) return null;
+    const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
+    return { x: pt.x, y: pt.y };
+  }
+
+  const insidePlot = (p: { x: number; y: number }) =>
+    p.x >= PL && p.x <= W - PR && p.y >= PT && p.y <= PT + ih;
+  const clamp = (p: { x: number; y: number }) => ({
+    x: Math.min(Math.max(p.x, PL), W - PR),
+    y: Math.min(Math.max(p.y, PT), PT + ih),
+  });
+
+  /**
+   * The pair under the pointer, or -1. The radius is in plot units, about 10 px on screen. With
+   * a pinned concept, only its pairs answer, so a reader can step through one concept's dots
+   * without the dots of other concepts in the way.
+   */
+  function pairAt(p: { x: number; y: number }): number {
+    let best = -1;
+    let bestD = 36;
+    pairs.forEach((q, i) => {
+      if (pinned !== null && q.concept !== pinned) return;
+      if (!inArea(q)) return;
+      const dx = X(q.rec) - p.x;
+      const dy = Y(q.prec) - p.y;
+      const dd = dx * dx + dy * dy;
+      if (dd < bestD) {
+        bestD = dd;
+        best = i;
+      }
+    });
+    return best;
+  }
+
+  let dragFrom: { x: number; y: number } | null = null;
+
+  function onDragMove(e: MouseEvent): void {
+    const p = toPlot(e);
+    if (!dragFrom || !p) return;
+    const to = clamp(p);
+    brush.setAttribute('x', String(Math.min(dragFrom.x, to.x)));
+    brush.setAttribute('y', String(Math.min(dragFrom.y, to.y)));
+    brush.setAttribute('width', String(Math.abs(to.x - dragFrom.x)));
+    brush.setAttribute('height', String(Math.abs(to.y - dragFrom.y)));
+    brush.setAttribute('visibility', 'visible');
+  }
+
+  function onDragEnd(e: MouseEvent): void {
+    removeEventListener('mousemove', onDragMove);
+    removeEventListener('mouseup', onDragEnd);
+    brush.setAttribute('visibility', 'hidden');
+    const p = toPlot(e);
+    const from = dragFrom;
+    dragFrom = null;
+    if (!from || !p) return;
+    const to = clamp(p);
+    // A drag shorter than 4 plot units in both directions is a click, not a rectangle.
+    if (Math.abs(to.x - from.x) < 4 && Math.abs(to.y - from.y) < 4) {
+      const i = pairAt(from);
+      if (i >= 0) location.hash = `/latent/${pairs[i].fid}`;
+      return;
+    }
+    const next: Area = {
+      x: [invX(Math.min(from.x, to.x)), invX(Math.max(from.x, to.x))],
+      y: [invY(Math.max(from.y, to.y)), invY(Math.min(from.y, to.y))],
+    };
+    if (!pairs.some((q) => inArea(q, next))) {
+      readout.textContent = 'No dot is inside that rectangle.';
+      return;
+    }
+    zooms.push(next);
+    render();
+  }
+
+  svg.addEventListener('mousedown', (e) => {
+    const p = toPlot(e);
+    if (!p || !insidePlot(p)) return;
+    e.preventDefault();
+    box.focus({ preventScroll: true });
+    dragFrom = p;
+    addEventListener('mousemove', onDragMove);
+    addEventListener('mouseup', onDragEnd);
+  });
+
+  svg.addEventListener('mousemove', (e) => {
+    if (dragFrom) return;
+    const p = toPlot(e);
+    if (!p) return;
+    const i = insidePlot(p) ? pairAt(p) : -1;
+    svg.style.cursor = i >= 0 ? 'pointer' : insidePlot(p) ? 'crosshair' : 'default';
+    if (i !== hovered) setHover(i);
   });
   svg.addEventListener('mouseleave', () => {
-    hovered = -1;
-    ring.setAttribute('visibility', 'hidden');
-    siblings.textContent = '';
-    writeReadout();
+    if (!dragFrom) setHover(-1);
   });
-  svg.addEventListener('click', (e) => {
-    const i = pairAt(e);
-    if (i >= 0) location.hash = `/latent/${pairs[i].fid}`;
+
+  // Escape goes back one zoom. It listens on the plot, which takes the focus on a click, so that
+  // it does not also go back in the depth map.
+  box.tabIndex = 0;
+  box.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && zooms.length > 1) goBack(1);
   });
 
   // The corners are named under the plot and not inside it. Text inside a scatter sits on top
   // of the dots it is describing, and at 10 px over 1080 overlapping marks it cannot be read.
   const wrap = el('div');
-  wrap.append(box);
+  wrap.append(tools, box);
   const corners = el('dl', 'cornerkey');
   const put = (k: string, v: string) => {
     corners.append(el('dt', undefined, k));
@@ -719,5 +893,20 @@ function splitScatter(pairs: Pair[], family: string): ScatterHandle {
   put('top right', 'right when it fires, and reads all of the region.');
   put('bottom', 'wrong more often than right.');
   wrap.append(corners);
-  return { root: wrap, light };
+
+  render();
+  return {
+    root: wrap,
+    preview(concept) {
+      previewed = concept;
+      drawLit();
+      writeReadout();
+    },
+    pin(concept) {
+      pinned = concept;
+      previewed = null;
+      drawLit();
+      setHover(-1);
+    },
+  };
 }

@@ -126,9 +126,16 @@ export function depthMap(d: Data): DepthMapHandle {
   // The way out of a detail view sits beside the plot, not under the table below it.
   const backs = el('span', 'dmap-backs');
   const backOne = el('button', 'linkish dmap-back');
-  backOne.addEventListener('click', () => goBack());
+  // The back links hand the focus to the plot, so that Escape keeps working after a click on them.
+  backOne.addEventListener('click', () => {
+    goBack();
+    box.focus({ preventScroll: true });
+  });
   const backAll = el('button', 'linkish dmap-back', `back to all ${nLayers} layers`);
-  backAll.addEventListener('click', () => goBack(stack.length - 1));
+  backAll.addEventListener('click', () => {
+    goBack(stack.length - 1);
+    box.focus({ preventScroll: true });
+  });
   backs.append(backOne, backAll);
   head.append(caption, backs);
   root.append(head);
@@ -506,6 +513,7 @@ export function depthMap(d: Data): DepthMapHandle {
   }
 
   function refresh(): void {
+    const before = cv.getBoundingClientRect().top;
     hover = -1;
     hoverBar = -1;
     readout.textContent = '';
@@ -516,10 +524,17 @@ export function depthMap(d: Data): DepthMapHandle {
     writeBacks();
     draw();
     listView();
+    // Keep the plot where it was on screen. The texts above it change length with the view, and
+    // a plot that moves under the pointer right after a drag reads as a jump.
+    const shift = cv.getBoundingClientRect().top - before;
+    if (shift !== 0) scrollBy(0, shift);
   }
 
-  // Escape goes back one view, because a reader who zoomed in by clicking expects it.
-  addEventListener('keydown', (e) => {
+  // Escape goes back one view, because a reader who zoomed in by clicking expects it. It listens
+  // on the plot, which takes the focus on a click, so that it does not also go back in the
+  // Splitting plot.
+  box.tabIndex = 0;
+  box.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !isOverview()) goBack();
   });
 
@@ -741,6 +756,7 @@ export function depthMap(d: Data): DepthMapHandle {
     // under the plot is text.
     if (!inPlot(p.x, p.y)) return;
     e.preventDefault();
+    box.focus({ preventScroll: true });
     dragFrom = clampToPlot(p);
     dragTo = dragFrom;
     marquee.hidden = true;
@@ -788,7 +804,6 @@ export function depthMap(d: Data): DepthMapHandle {
       return;
     }
     open(next);
-    picked.scrollIntoView({ block: 'nearest' });
   });
 
   cv.addEventListener('mousemove', (e) => {

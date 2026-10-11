@@ -154,8 +154,10 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
       'latent ignores. The row below shows the amino-acid letters, one cell for each residue.',
   );
   const locChooser = el('div', 'chips');
+  // Which concept the teal marks show. A latent with one concept has nothing to pick.
+  const locMark = el('div', 'chips');
   const locBody = el('div');
-  locPanel.append(locChooser, locBody);
+  locPanel.append(locChooser, locMark, locBody);
   views.append(locPanel);
 
   const evPanel = panel(
@@ -200,13 +202,36 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
     );
   } else {
     let pending = 0;
+    let shownAcc = withTrack[0];
+    let marked = f.c;
+    const redraw = () => {
+      // Stepping is faster than a fetch, so a later pick must not be overwritten by an earlier
+      // one that finished after it.
+      const mine = ++pending;
+      const release = holdHeight(locBody);
+      void drawLocality(d, fid, marked, shownAcc, locBody, () => mine === pending).finally(
+        release,
+      );
+    };
+    if (paired.length > 1) {
+      locMark.append(el('span', 'small muted', 'mark the residues of:'));
+      const btns: HTMLButtonElement[] = [];
+      for (const x of paired) {
+        const b = el('button', undefined, x.concept.c.replace('_', ' · '));
+        b.addEventListener('click', () => {
+          marked = x.concept.c;
+          btns.forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
+          redraw();
+        });
+        b.setAttribute('aria-pressed', String(x.concept.c === marked));
+        btns.push(b);
+        locMark.append(b);
+      }
+    }
     locChooser.append(
       stepper(withTrack, 'protein', (acc) => {
-        // Stepping is faster than a fetch, so a later pick must not be overwritten by an earlier
-        // one that finished after it.
-        const mine = ++pending;
-        const release = holdHeight(locBody);
-        void drawLocality(d, f, fid, acc, locBody, () => mine === pending).finally(release);
+        shownAcc = acc;
+        redraw();
       }),
     );
   }
@@ -674,10 +699,16 @@ function selectivityPlot(d: Data, self: Feature): HTMLElement {
   return wrap;
 }
 
+/**
+ * One protein, residue by residue, with the residues of the `marked` concept in teal.
+ *
+ * `marked` is one of the concepts the latent pairs with, the best one unless the reader picked
+ * another. It is undefined for a latent that pairs with none.
+ */
 async function drawLocality(
   d: Data,
-  f: Feature,
   fid: number,
+  marked: string | undefined,
   acc: string,
   host: HTMLElement,
   stillWanted: () => boolean,
@@ -699,22 +730,32 @@ async function drawLocality(
   );
   host.append(head);
 
-  // The teal band marks the concept this latent pairs with, so the reader can see at a glance
+  // The teal band marks one concept this latent pairs with, so the reader can see at a glance
   // whether the letters that fire are the annotated ones.
-  const ci = f.c ? d.columnOf(f.c) : null;
-  const ranges = ci !== null ? info.c[String(ci)] ?? [] : [];
-  const pairs = d.pairsOf(fid);
-  if (f.c && ranges.length > 0) {
+  const rangesOf = (name: string): [number, number][] => {
+    const ci = d.columnOf(name);
+    return ci !== null ? info.c[String(ci)] ?? [] : [];
+  };
+  const ranges = marked ? rangesOf(marked) : [];
+  const show = (name: string) => name.replace('_', ' · ');
+  // The other concepts of this latent that Swiss-Prot annotates on this protein, so a reader
+  // whose marked concept is absent here knows which one to pick instead.
+  const elsewhere = d
+    .pairsOf(fid)
+    .map((x) => x.concept.c)
+    .filter((name) => name !== marked && rangesOf(name).length > 0);
+  const hint =
+    elsewhere.length > 0
+      ? ` Swiss-Prot annotates ${elsewhere.map(show).join(' and ')} on this protein. Pick ` +
+        `${elsewhere.length === 1 ? 'it' : 'one'} above to mark ` +
+        `${elsewhere.length === 1 ? 'it' : 'those residues'} instead.`
+      : '';
+  if (marked && ranges.length > 0) {
     host.append(
       el(
         'p',
         'small muted',
-        `The teal marks under the top bar show where Swiss-Prot annotates ` +
-          `${f.c.replace('_', ' · ')}` +
-          (pairs.length > 1
-            ? `, the best of the ${pairs.length} concepts this latent pairs with. The view ` +
-              'marks only that one.'
-            : '.'),
+        `The teal marks under the top bar show where Swiss-Prot annotates ${show(marked)}.` + hint,
       ),
     );
   }
@@ -722,17 +763,9 @@ async function drawLocality(
   const loc = localityView(info.s, acts, ranges);
   host.append(loc.root);
   loc.mount();
-  if (f.c && ranges.length === 0) {
+  if (marked && ranges.length === 0) {
     host.append(
-      el(
-        'p',
-        'small muted',
-        `Swiss-Prot does not annotate ${f.c.replace('_', ' · ')} on ${acc}.` +
-          (pairs.length > 1
-            ? ` That is the best of the ${pairs.length} concepts this latent pairs with, and ` +
-              'the only one this view marks.'
-            : ''),
-      ),
+      el('p', 'small muted', `Swiss-Prot does not annotate ${show(marked)} on ${acc}.` + hint),
     );
   }
   // Pointing at a letter marks the same residue on the model, which is the reason both views are
