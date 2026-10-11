@@ -7,12 +7,13 @@
  */
 
 import { Data, type Concept } from '../data';
-import { localityView } from '../locality';
+import { LOCALITY_HOWTO, localityView, type LocalityHandle } from '../locality';
 import { proteinChooser, type ChooserSource } from '../chooser';
 import { drawStructure } from '../structpanel';
+import type { StructureHandle } from '../structure';
 import {
   activationStrip, annotationStrip, depthRibbon, el, figures, holdHeight, howto, link, num, panel,
-  redrawStrips, row, table, uniprotLink,
+  infoButton, pct, redrawStrips, row, table, uniprotLink,
 } from '../ui';
 
 export async function renderConcept(d: Data, name: string, host: HTMLElement): Promise<void> {
@@ -84,12 +85,17 @@ export async function renderConcept(d: Data, name: string, host: HTMLElement): P
   views.append(p);
 
   // ---- evidence -------------------------------------------------------
-  const ev = panel('Evidence', 'Which part of the region each latent reads');
+  // Two panels. The first compares every latent on one protein, the second reads one of them
+  // residue by residue. They were one panel of 1,515 px with 11 controls, and a reader could not
+  // tell which control belonged to which picture.
+  const ev = panel('Evidence', 'All latents on one protein');
+  ev.classList.add('evpanel');
   ev.append(
     howto(
-      'Pick a protein that carries the concept with the controls below. Each row is one latent ' +
-        'on that protein, in the order of the table above. Amber is how hard the latent fires ' +
-        'at a residue. The teal row is where Swiss-Prot annotates the concept.',
+      'Pick a protein that carries the concept. Each row is one latent on that protein, in the ' +
+        'order of the table above. Amber is how hard the latent fires at a residue, and teal is ' +
+        'where Swiss-Prot annotates the concept. Click a latent row to read it residue by ' +
+        'residue in the next panel.',
     ),
   );
   const all = c.po ? d.carriersOf(c) : [];
@@ -114,9 +120,21 @@ export async function renderConcept(d: Data, name: string, host: HTMLElement): P
   }
 
   const chooserHost = el('div');
-  const evBody = el('div');
-  ev.append(chooserHost, evBody);
-  views.append(ev); // in the document before the chooser draws, so the strips can measure
+  const stripHost = el('div');
+  ev.append(chooserHost, stripHost);
+
+  const res = panel('Residues', 'One latent, residue by residue');
+  res.classList.add('evpanel');
+  res.append(
+    howto(
+      'This panel reads the latent row you clicked in the panel above, on the same protein. ' +
+        LOCALITY_HOWTO,
+    ),
+  );
+  const resHost = el('div');
+  res.append(resHost);
+  // In the document before the chooser draws, so the strips can measure.
+  views.append(ev, res);
 
   // The global protein index of each kept carrier, to read a latent's ranking file against.
   const lo = c.po![0];
@@ -137,124 +155,184 @@ export async function renderConcept(d: Data, name: string, host: HTMLElement): P
 
   const firing = firingAll ? Uint8Array.from(keep.map((i) => firingAll[i])) : null;
 
+  // The latent the residue panel reads. It stays picked while the reader steps through proteins.
+  const picked: { row: Pick } = { row: feats[0][0] };
   let pending = 0;
   const chooser = proteinChooser({
     items: carriers,
-    label: 'carrier',
+    label: 'protein',
     sources,
     firing,
     nLatents: feats.length,
     onPick: (acc) => {
       const mine = ++pending;
-      const release = holdHeight(evBody);
-      void drawEvidence(d, c, acc, evBody, () => mine === pending).finally(release);
+      const releaseStrips = holdHeight(stripHost);
+      const releaseRes = holdHeight(resHost);
+      void drawEvidence(d, c, acc, stripHost, resHost, picked, () => mine === pending).finally(
+        () => {
+          releaseStrips();
+          releaseRes();
+        },
+      );
     },
   });
   chooserHost.append(chooser.root);
   chooser.mount();
 }
 
+/** A latent of the concept, or every latent together. */
+type Pick = number | 'all';
+
+/** The share of the annotated residues where an activation is above 0.3 of its maximum. */
+function readShare(values: Uint8Array, ranges: [number, number][]): number | null {
+  let covered = 0;
+  let total = 0;
+  for (const [a, b] of ranges) {
+    for (let i = a; i <= b; i++) {
+      total++;
+      if (values[i] > 76) covered++; // 0.3 of the latent maximum
+    }
+  }
+  return total ? (covered / total) * 100 : null;
+}
+
 async function drawEvidence(
   d: Data,
   c: Concept,
   acc: string,
-  host: HTMLElement,
+  stripHost: HTMLElement,
+  resHost: HTMLElement,
+  picked: { row: Pick },
   stillWanted: () => boolean,
 ): Promise<void> {
   const [info, track] = await Promise.all([d.protein(acc), d.track(acc)]);
   if (!stillWanted()) return;
-  host.textContent = '';
+  stripHost.textContent = '';
+  resHost.textContent = '';
   if (!info) {
-    host.append(el('p', 'warn', `This data tree holds no bundle for ${acc}.`));
+    stripHost.append(el('p', 'warn', `This data tree holds no bundle for ${acc}.`));
     return;
   }
 
-  const head = el('p', 'small');
-  head.append(
-    link(`/protein/${acc}`, acc, 'mono'),
-    ` — ${info.n}`,
-    el('span', 'muted', `  ${info.l} aa`),
-    '  ',
-    uniprotLink(acc),
-  );
-  host.append(head);
+  const proteinLine = () => {
+    const head = el('p', 'evhead');
+    head.append(
+      link(`/protein/${acc}`, acc, 'mono'),
+      ` ${info.n}`,
+      el('span', 'muted', `  ${info.l} aa`),
+      '  ',
+      uniprotLink(acc),
+    );
+    return head;
+  };
+  stripHost.append(proteinLine());
 
-  const rows = el('div', 'rows');
-  // Ground truth first, so the reader sees what the latents are measured against.
+  // Ground truth first, so the reader sees what the latents are measured against. Each row ends
+  // with how much of the annotated residues it reads here, which replaced three figures under
+  // the rows that said the same for all latents together.
+  const rows = el('div', 'rows rows3');
   const ci = d.columnOf(c.c);
   const ranges = ci !== null ? info.c[String(ci)] ?? [] : [];
-  rows.append(el('div', 'lab strong', 'Swiss-Prot'), annotationStrip(info.l, ranges));
-
-  const union = new Uint8Array(info.l);
-  const perLatent = new Map<number, Uint8Array>();
-  for (const [fid] of c.feats ?? []) {
-    const v = Data.activationOf(track, fid);
-    perLatent.set(fid, v);
-    for (let i = 0; i < v.length; i++) if (v[i] > union[i]) union[i] = v[i];
-    const lab = el('div', 'lab');
-    lab.append(link(`/latent/${fid}`, `f/${fid}`, 'mono'));
-    rows.append(lab, activationStrip(v));
-  }
-  if ((c.feats?.length ?? 0) > 1) {
-    rows.append(el('div', 'lab strong', `all ${c.feats!.length}`), activationStrip(union));
-  }
-  host.append(rows);
-  redrawStrips(rows);
-
-  if (ranges.length) {
-    let covered = 0;
-    let total = 0;
-    for (const [a, b] of ranges) {
-      for (let i = a; i <= b; i++) {
-        total++;
-        if (union[i] > 76) covered++; // 0.3 of the latent maximum
-      }
-    }
-    host.append(el('h3', 'sub', 'How much of the annotation these latents read'));
-    host.append(
-      figures([
-        [`${Math.round((covered / total) * 100)}%`, 'of the annotated residues'],
-        [String(total), 'annotated residues'],
-        [String(ranges.length), ranges.length === 1 ? 'annotated region' : 'annotated regions'],
-      ]),
+  const annotated = ranges.reduce((a, [x, y]) => a + y - x + 1, 0);
+  const swissEnd = el(
+    'div',
+    'end',
+    annotated
+      ? `${annotated} residues in ${ranges.length} region${ranges.length === 1 ? '' : 's'}`
+      : 'not annotated here',
+  );
+  if (annotated) {
+    swissEnd.append(
+      infoButton(
+        'reads',
+        'What "reads" means',
+        'The share of the annotated residues on this protein where the latent fires at more ' +
+          'than 0.3 of its own maximum. The last row counts a residue when any of the latents ' +
+          'fires there.',
+      ),
     );
   }
+  rows.append(el('div', 'lab strong', 'Swiss-Prot'), annotationStrip(info.l, ranges), swissEnd);
 
-  // The strips above compare the latents against each other. This reads one of them down to the
-  // residue, which is the question the strips cannot answer.
-  const zoomHead = el('div', 'chips');
-  const pick = el('select');
-  for (const [fid, f1] of c.feats ?? []) {
-    const o = el('option', undefined, `f/${fid}  ·  F1 ${f1.toFixed(3)}`);
-    o.value = String(fid);
-    pick.append(o);
+  const union = new Uint8Array(info.l);
+  const values = new Map<Pick, Uint8Array>();
+  const feats = c.feats ?? [];
+  for (const [fid] of feats) {
+    const v = Data.activationOf(track, fid);
+    values.set(fid, v);
+    for (let i = 0; i < v.length; i++) if (v[i] > union[i]) union[i] = v[i];
   }
-  const allOpt = el('option', undefined, `all ${c.feats?.length ?? 0} together`);
-  allOpt.value = 'all';
-  if ((c.feats?.length ?? 0) > 1) pick.append(allOpt);
-  host.append(el('h3', 'sub', 'Down to the residue'));
-  zoomHead.append(el('span', 'small muted', 'read this latent:'), pick);
-  host.append(zoomHead);
+  if (feats.length > 1) values.set('all', union);
 
-  const first = c.feats?.[0]?.[0];
-  const shown = first !== undefined ? perLatent.get(first)! : union;
-  const loc = localityView(info.s, shown, ranges);
-  host.append(loc.root);
+  const buttons = new Map<Pick, { button: HTMLButtonElement; strip: HTMLElement }>();
+  const addRow = (key: Pick, label: string, v: Uint8Array) => {
+    const button = el('button', 'rowpick', label);
+    button.type = 'button';
+    button.title = 'Read this row residue by residue in the next panel.';
+    const strip = activationStrip(v);
+    const share = readShare(v, ranges);
+    rows.append(
+      button,
+      strip,
+      el('div', 'end', share === null ? '' : `reads ${pct(share, 0)}`),
+    );
+    button.addEventListener('click', () => select(key));
+    buttons.set(key, { button, strip });
+  };
+  for (const [fid] of feats) addRow(fid, `f/${fid}`, values.get(fid)!);
+  if (feats.length > 1) addRow('all', `all ${feats.length}`, union);
+  stripHost.append(rows);
+  redrawStrips(rows);
+
+  // ---- the residue panel ----------------------------------------------
+  if (!values.has(picked.row)) picked.row = feats[0][0];
+  const resLine = el('p', 'evhead');
+  const writeResLine = () => {
+    resLine.textContent = '';
+    const k = picked.row;
+    resLine.append(
+      k === 'all'
+        ? `All ${feats.length} latents together`
+        : link(`/latent/${k}`, `f/${k}`, 'mono'),
+      ' on ',
+      link(`/protein/${acc}`, acc, 'mono'),
+      ` ${info.n}`,
+    );
+  };
+  writeResLine();
+  resHost.append(resLine);
+
+  const loc: LocalityHandle = localityView(info.s, values.get(picked.row)!, ranges, {
+    howto: false,
+  });
+  resHost.append(loc.root);
   loc.mount();
 
-  // The model, coloured by the same latent the letter row shows, marked where the pointer is.
-  const structure = await drawStructure(
-    d,
-    acc,
-    shown,
-    host,
-    first !== undefined ? `f/${first}` : 'all the latents together',
-  );
-  loc.onHover((i) => structure?.highlight(i === null ? null : i + 1));
+  const mark = () => {
+    for (const [k, x] of buttons) {
+      x.button.setAttribute('aria-pressed', String(k === picked.row));
+      x.strip.classList.toggle('sel', k === picked.row);
+    }
+  };
+  mark();
 
-  pick.addEventListener('change', () => {
-    const v = pick.value === 'all' ? union : perLatent.get(Number(pick.value))!;
+  let structure: StructureHandle | null = null;
+  function select(key: Pick): void {
+    picked.row = key;
+    mark();
+    writeResLine();
+    const v = values.get(key)!;
     loc.update(v, ranges);
     structure?.update(v);
-  });
+  }
+
+  // The model, coloured by the same latent the letter row shows, marked where the pointer is.
+  structure = await drawStructure(
+    d,
+    acc,
+    values.get(picked.row)!,
+    resHost,
+    'the latent row you clicked above',
+  );
+  loc.onHover((i) => structure?.highlight(i === null ? null : i + 1));
 }

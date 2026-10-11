@@ -16,13 +16,13 @@
 
 import { el } from './ui';
 
-/** A band of the ranked list, as a fraction from the top. */
+/** A band of the ranked list, as a fraction from the top, with the name the control shows. */
 const BANDS: [string, number, number][] = [
-  ['top', 0.0, 0.1],
-  ['upper', 0.1, 0.35],
-  ['middle', 0.35, 0.65],
-  ['lower', 0.65, 0.9],
-  ['bottom', 0.9, 1.0],
+  ['the top 10%', 0.0, 0.1],
+  ['10% to 35%', 0.1, 0.35],
+  ['35% to 65%', 0.35, 0.65],
+  ['65% to 90%', 0.65, 0.9],
+  ['the bottom 10%', 0.9, 1.0],
 ];
 
 export interface ChooserSource {
@@ -69,16 +69,17 @@ export function proteinChooser(opts: {
   let slice: number[] = [];
   let at = 0;
 
-  const rankRow = el('div', 'chips chooser-row');
-  const bandRow = el('div', 'chips chooser-row');
+  // One row for the whole control: where in the order, the step buttons, the order, and the part
+  // of it. It used to be three rows and a sentence, which was most of the text in its panel.
   const stepRow = el('div', 'chips chooser-row');
   const note = el('p', 'small muted chooser-note');
-  root.append(rankRow, bandRow, stepRow, note);
+  root.append(stepRow, note);
 
   // ---- which latent the ranking uses -----------------------------------
   const sourceSelect = el('select');
+  sourceSelect.title = 'Order the proteins by how hard this latent fires on them.';
   sources.forEach((s, i) => {
-    const o = el('option', undefined, s.label);
+    const o = el('option', undefined, `${s.label.split(' ')[0]} fires hardest first`);
     o.value = String(i);
     sourceSelect.append(o);
   });
@@ -107,36 +108,26 @@ export function proteinChooser(opts: {
     rebuild();
     pick(0);
   }
-  rankRow.append(
-    el('span', 'small muted', 'order the proteins by how hard this latent fires:'),
-    sourceSelect,
-  );
 
   // ---- which part of the ranking ---------------------------------------
-  const bandButtons: HTMLButtonElement[] = [];
-  bandRow.append(el('span', 'small muted', 'from the'));
-  const allBtn = el('button', undefined, 'whole range');
-  allBtn.addEventListener('click', () => {
-    band = -1;
+  const bandSelect = el('select');
+  bandSelect.title = 'Step through only this part of the order.';
+  const allOpt = el('option', undefined, `all ${items.length.toLocaleString('en-US')}`);
+  allOpt.value = '-1';
+  bandSelect.append(allOpt);
+  BANDS.forEach(([name], i) => {
+    const o = el('option', undefined, name);
+    o.value = String(i);
+    bandSelect.append(o);
+  });
+  bandSelect.addEventListener('change', () => {
+    band = Number(bandSelect.value);
     rebuild();
     pick(0);
-  });
-  bandButtons.push(allBtn);
-  bandRow.append(allBtn);
-  BANDS.forEach(([name], i) => {
-    const b = el('button', undefined, name);
-    b.addEventListener('click', () => {
-      band = i;
-      rebuild();
-      pick(0);
-    });
-    bandButtons.push(b);
-    bandRow.append(b);
   });
 
   const pos = el('span', 'small muted');
   const name = el('span', 'mono step-name');
-  const value = el('span', 'small chooser-value');
   const prev = el('button', undefined, '‹');
   prev.title = 'previous';
   prev.addEventListener('click', () => pick(at - 1));
@@ -145,7 +136,17 @@ export function proteinChooser(opts: {
   next.addEventListener('click', () => pick(at + 1));
   const rand = el('button', undefined, 'random');
   rand.addEventListener('click', () => pick(Math.floor(Math.random() * slice.length)));
-  stepRow.append(pos, prev, name, next, rand, value);
+  stepRow.append(
+    pos,
+    prev,
+    name,
+    next,
+    rand,
+    el('span', 'small muted chooser-label', 'order:'),
+    sourceSelect,
+    el('span', 'small muted chooser-label', 'part:'),
+    bandSelect,
+  );
 
   function rebuild(): void {
     const s = sources[source];
@@ -164,14 +165,12 @@ export function proteinChooser(opts: {
       const b = Math.max(a + 1, Math.ceil(hi * order.length));
       slice = order.slice(a, Math.min(order.length, b));
     }
-    bandButtons.forEach((b, i) => b.setAttribute('aria-pressed', String(i - 1 === band)));
   }
 
   function pick(i: number): void {
     if (slice.length === 0) {
       pos.textContent = 'no protein passes this filter';
       name.textContent = '';
-      value.textContent = '';
       note.textContent = '';
       return;
     }
@@ -180,16 +179,11 @@ export function proteinChooser(opts: {
     const s = sources[source];
     pos.textContent = `${label} ${at + 1} of ${slice.length.toLocaleString('en-US')}`;
     name.textContent = items[idx];
-    value.textContent = s.values
-      ? `${s.label.split(' ')[0]} fires at ${s.format(s.values[idx])} here`
-      : '';
+    // One sentence: the number the order uses, and how many latents fire here.
     note.textContent =
-      `Ordered by how hard ${s.label.split(' ')[0]} fires, strongest first. ` +
-      (band < 0
-        ? `The whole range of ${items.length.toLocaleString('en-US')} carriers.`
-        : `The ${BANDS[band][0]} of the range, of ${items.length.toLocaleString('en-US')} carriers.`) +
+      (s.values ? `${s.label.split(' ')[0]} fires at ${s.format(s.values[idx])} here. ` : '') +
       (firing && firing.length === items.length
-        ? ` ${firing[idx]} of the ${nLatents} latents fire on this one.`
+        ? `${firing[idx]} of the ${nLatents} latents fire on this protein.`
         : '');
     opts.onPick(items[idx]);
   }

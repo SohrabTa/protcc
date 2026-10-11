@@ -585,3 +585,30 @@ h3.sub {
   .splitlist { min-height: 0; }
   .splitlist-inner { position: static; max-height: 300px; }
 }
+
+/* The two evidence panels of the concept page. Three text sizes and nothing under 14 px: the
+   how-to box, the text and labels, and the headings. They had nine sizes from 11.8 px up. */
+.evpanel .small, .evpanel .loc-readout, .evpanel .loc-key, .evpanel .rows .lab,
+.evpanel .chips button, .evpanel select, .evpanel .step-name, .evpanel h3.sub,
+.evpanel .stat .k, .evpanel .chooser-note { font-size: 0.875rem; }
+.evhead { margin: 12px 0 6px; font-size: 0.95rem; color: var(--ink-2); }
+.evhead .mono { font-size: 0.875rem; }
+.chooser-label { margin-left: 10px; }
+/* Label, strip, and how much of the annotation the row reads. */
+.rows.rows3 { grid-template-columns: 92px 1fr auto; gap: 4px 10px; }
+.rows .end {
+  font-size: 0.875rem; color: var(--ink-2); white-space: nowrap; min-width: 10ch;
+  display: flex; align-items: center; gap: 2px;
+}
+/* A latent row is a button: it picks the latent the residue panel reads. */
+.rowpick {
+  font-family: 'IBM Plex Mono', monospace; font-size: 0.875rem; text-align: right;
+  background: none; border: 1px solid transparent; border-radius: 3px; color: var(--accent);
+  padding: 1px 6px; cursor: pointer;
+}
+.rowpick:hover { border-color: var(--line-strong); }
+.rowpick:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.rowpick[aria-pressed='true'] {
+  background: var(--accent-soft); border-color: var(--accent); color: var(--ink);
+}
+.strip.sel { outline: 2px solid var(--accent); outline-offset: 1px; }
