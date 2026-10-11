@@ -221,6 +221,13 @@ const BY_KEY: Record<string, { slug: string; short: string }> = {
       'one, the button after the name opens the others. "Nothing named it" means that no ' +
       'concept clears the pairing cut for this latent.',
   },
+  'mean cover': {
+    slug: 'covers',
+    short:
+      'The share of a protein’s residues where this latent is active, as the mean over ' +
+      'the proteins it fires on. A latent that reads a short motif covers a few percent. In the ' +
+      'view of one layer, this value is the axis across.',
+  },
   'best pair f1': {
     slug: 'f1-per-domain',
     short:

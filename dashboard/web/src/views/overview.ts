@@ -292,23 +292,28 @@ function splitPanel(d: Data, famOrder: FamilyOrder): SplitHandle {
   const p = panel(
     'Splitting',
     'One concept, several latents',
-    'A concept is rarely one latent. A group of latents detects most concepts.',
+    'A concept is rarely one latent. Most found concepts pair with a group of latents. The ' +
+      'plot shows each pair of a latent and a concept: how often the latent is right when it ' +
+      'fires, and how much of the annotated region it reads.',
   );
   const tabs = familyTabs(d, famOrder, '', (key) => setFamily(key));
   const stats = el('div');
-  const list = el('div', 'splitlist');
+  // The names sit beside the plot and not above it. Above it, a long list pushed the plot out of
+  // view, and a reader who points at a name has to see the plot at the same time.
+  const grid = el('div', 'splitgrid');
   const plot = el('div');
+  const list = el('div', 'splitlist');
+  grid.append(plot, list);
   const note = el('p', 'small muted');
   p.append(
     howto(
-      'Every dot is one latent paired with one concept. Point at a concept name above the plot ' +
+      'Every dot is one latent paired with one concept. Point at a concept name beside the plot ' +
         'to light up its latents, and click the name to keep them lit. The arrow after a name ' +
         'opens the concept page. Point at a dot to see its latent, and click the dot to open it.',
     ),
     tabs.root,
     stats,
-    list,
-    plot,
+    grid,
     note,
   );
 
@@ -359,7 +364,7 @@ function splitPanel(d: Data, famOrder: FamilyOrder): SplitHandle {
             title: 'The most split concept',
             short:
               `The largest number of latents that pair with one concept${ofFam}. It is the ` +
-              'first name in the list above the plot.',
+              'first name in the list beside the plot.',
           },
         ],
         [
@@ -411,7 +416,9 @@ function splitPanel(d: Data, famOrder: FamilyOrder): SplitHandle {
     list.append(splitList(multi, fam, scatter));
 
     note.textContent =
-      (fam ? `The amber dots pair with a concept of ${fam}, and the grey dots with another. ` : '') +
+      (fam
+        ? `The amber dots pair with a concept of ${fam}, and the grey dots with another. `
+        : '') +
       'A crosscoder that had learned whole concepts would fill the top right corner. A latent ' +
       'there is right when it fires and also reads the whole region. This one fills the top ' +
       'left.';
@@ -421,19 +428,20 @@ function splitPanel(d: Data, famOrder: FamilyOrder): SplitHandle {
   return { root: p, setFamily };
 }
 
-/** How many names the list shows before "show all". Two lines at the usual width. */
-const SPLIT_SHOWN = 14;
-
 /**
  * The concepts with more than one latent, most latents first, as names that light up the plot.
  *
  * A name is a button, not a link: pointing at it or clicking it only changes the plot, so a
  * reader who wanted to look does not land on another page. The concept page is behind the
- * arrow after the name, which is a separate target.
+ * arrow after the name, which is a separate target. All names are in a box that scrolls beside
+ * the plot, and a filter finds one by name.
  */
 function splitList(multi: Concept[], fam: string, scatter: ScatterHandle): HTMLElement {
-  const root = el('div');
-  if (multi.length === 0) return root;
+  const root = el('div', 'splitlist-inner');
+  if (multi.length === 0) {
+    root.append(el('p', 'small muted', 'No concept here pairs with more than one latent.'));
+    return root;
+  }
   const sorted = [...multi].sort((a, b) => b.nf - a.nf);
   root.append(
     el(
@@ -441,21 +449,25 @@ function splitList(multi: Concept[], fam: string, scatter: ScatterHandle): HTMLE
       'small muted splitlist-head',
       `${sorted.length} concept${sorted.length === 1 ? '' : 's'}` +
         (fam ? ` of ${fam}` : '') +
-        ' pair with more than one latent. The number is how many.',
+        ' with more than one latent. The number is how many.',
     ),
   );
-  const chips = el('div', 'splitchips');
-  root.append(chips);
+  const filter = el('input');
+  filter.type = 'search';
+  filter.placeholder = 'Filter the names';
+  root.append(filter);
+  const rows = el('div', 'splitrows');
+  root.append(rows);
 
   let pinned: string | null = null;
   const names: HTMLButtonElement[] = [];
-  sorted.forEach((c, i) => {
-    const item = el('span', 'splitchip');
-    item.hidden = i >= SPLIT_SHOWN;
+  const items: { item: HTMLElement; key: string }[] = [];
+  for (const c of sorted) {
+    const item = el('div', 'splitchip');
     const name = el('button', 'splitname');
     name.type = 'button';
     name.setAttribute('aria-pressed', 'false');
-    name.append(show(c.c), el('span', 'n', String(c.nf)));
+    name.append(el('span', 'nm', show(c.c)), el('span', 'n', String(c.nf)));
     name.title = 'Point to light up its latents. Click to keep them lit.';
     const light = () => scatter.light(c.c);
     const restore = () => scatter.light(pinned);
@@ -473,22 +485,13 @@ function splitList(multi: Concept[], fam: string, scatter: ScatterHandle): HTMLE
     open.title = `Open the page of ${show(c.c)}`;
     open.setAttribute('aria-label', `Open the page of ${show(c.c)}`);
     item.append(name, open);
-    chips.append(item);
-  });
-
-  if (sorted.length > SPLIT_SHOWN) {
-    const more = el('button', 'linkish', `show all ${sorted.length}`);
-    more.type = 'button';
-    let open = false;
-    more.addEventListener('click', () => {
-      open = !open;
-      chips.querySelectorAll<HTMLElement>('.splitchip').forEach((x, i) => {
-        x.hidden = !open && i >= SPLIT_SHOWN;
-      });
-      more.textContent = open ? `show the first ${SPLIT_SHOWN}` : `show all ${sorted.length}`;
-    });
-    root.append(more);
+    rows.append(item);
+    items.push({ item, key: show(c.c).toLowerCase() });
   }
+  filter.addEventListener('input', () => {
+    const q = filter.value.trim().toLowerCase();
+    for (const x of items) x.item.hidden = q !== '' && !x.key.includes(q);
+  });
   return root;
 }
 
@@ -561,6 +564,8 @@ function splitScatter(pairs: Pair[], family: string): ScatterHandle {
     }
   }
   const lit = add('g', {});
+  // The other pairs of the latent under the pointer, ringed with a dashed line.
+  const siblings = add('g', {});
   const ring = add('circle', {
     r: 4.5,
     fill: 'none',
@@ -568,6 +573,9 @@ function splitScatter(pairs: Pair[], family: string): ScatterHandle {
     'stroke-width': 1.2,
     visibility: 'hidden',
   });
+  // A latent with two concepts has two dots, one for each pair.
+  const byLatent = new Map<number, number[]>();
+  pairs.forEach((q, i) => byLatent.set(q.fid, [...(byLatent.get(q.fid) ?? []), i]));
   add(
     'text',
     { x: PL + iw / 2, y: H - 4, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 9 },
@@ -591,11 +599,25 @@ function splitScatter(pairs: Pair[], family: string): ScatterHandle {
     readout.textContent = '';
     if (hovered >= 0) {
       const q = pairs[hovered];
+      const others = (byLatent.get(q.fid) ?? []).filter((i) => i !== hovered);
       readout.append(
         el('span', 'mono', `f/${q.fid}`),
         `  ${show(q.concept)}  precision ${q.prec.toFixed(2)}  ` +
           `recall per residue ${q.rec.toFixed(3)}`,
       );
+      if (others.length) {
+        readout.append(
+          el(
+            'span',
+            'readout-more',
+            `This latent also pairs with ` +
+              `${others.map((i) => show(pairs[i].concept)).join(' and ')}. ` +
+              (others.length === 1
+                ? 'The dashed ring marks that pair.'
+                : 'The dashed rings mark those pairs.'),
+          ),
+        );
+      }
       return;
     }
     if (litConcept === null) return;
@@ -656,11 +678,27 @@ function splitScatter(pairs: Pair[], family: string): ScatterHandle {
       ring.setAttribute('cy', Y(pairs[i].prec).toFixed(1));
     }
     ring.setAttribute('visibility', i >= 0 ? 'visible' : 'hidden');
+    siblings.textContent = '';
+    if (i >= 0) {
+      for (const j of byLatent.get(pairs[i].fid) ?? []) {
+        if (j === i) continue;
+        svgNode(siblings, 'circle', {
+          cx: X(pairs[j].rec).toFixed(1),
+          cy: Y(pairs[j].prec).toFixed(1),
+          r: 5,
+          fill: 'none',
+          stroke: 'var(--ink)',
+          'stroke-width': 1.2,
+          'stroke-dasharray': '2 2',
+        });
+      }
+    }
     writeReadout();
   });
   svg.addEventListener('mouseleave', () => {
     hovered = -1;
     ring.setAttribute('visibility', 'hidden');
+    siblings.textContent = '';
     writeReadout();
   });
   svg.addEventListener('click', (e) => {
