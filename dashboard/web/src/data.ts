@@ -74,6 +74,14 @@ export interface Feature {
   f1?: number;
 }
 
+/** One concept that a latent pairs with, and the scores of that pair. */
+export interface LatentPair {
+  concept: Concept;
+  f1: number; // F1 per domain
+  prec: number;
+  rec: number; // recall per residue
+}
+
 /** The proteins one latent fires on, strongest first. */
 export interface Ranking {
   protein: Uint32Array; // global protein index
@@ -126,6 +134,7 @@ export class Data {
   /** latent index -> its row in `features`, since dead latents are absent. */
   featureById = new Map<number, Feature>();
   conceptByName = new Map<string, Concept>();
+  private pairsByLatent = new Map<number, LatentPair[]>();
   /** depth curves, both [n_latents][n_layers] scaled 0 to 255. */
   depthNorm!: Uint8Array;
   depthCos!: Uint8Array;
@@ -184,6 +193,14 @@ export class Data {
     this.features = features;
     for (const f of features) this.featureById.set(f.f, f);
     for (const c of concepts) this.conceptByName.set(c.c, c);
+    for (const c of concepts) {
+      for (const [fid, f1, prec, rec] of c.feats ?? []) {
+        const list = this.pairsByLatent.get(fid) ?? [];
+        list.push({ concept: c, f1, prec, rec });
+        this.pairsByLatent.set(fid, list);
+      }
+    }
+    for (const list of this.pairsByLatent.values()) list.sort((a, b) => b.f1 - a.f1);
 
     const dv = new DataView(depthBuf);
     check(dv, MAGIC.depth, 'depth.bin');
@@ -375,6 +392,16 @@ export class Data {
    * for. It is false for every protein in a full tree, and it is how a tree built from a subset
    * of the 208 shards reports what it does not have.
    */
+  /**
+   * Every concept this latent pairs with, highest F1 per domain first. Empty when none does.
+   *
+   * The first entry is the concept in `Feature.c`. A latent pairs with at most three concepts in
+   * this release, and 58 of the 1020 paired latents pair with more than one.
+   */
+  pairsOf(fid: number): LatentPair[] {
+    return this.pairsByLatent.get(fid) ?? [];
+  }
+
   hasTrack(acc: string): boolean {
     const s = this.proteinShard.get(acc);
     return s !== undefined && s >= 0;

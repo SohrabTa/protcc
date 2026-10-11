@@ -12,6 +12,7 @@
  */
 
 import type { Data } from './data';
+import { bestConceptLabel } from './pairs';
 import { el } from './ui';
 
 const MAX = 8;
@@ -43,7 +44,11 @@ export function mountJump(d: Data, host: HTMLElement): void {
       hits.push({
         label: `f/${fid}`,
         hash: `/feature/${fid}`,
-        note: f ? (f.c ? f.c.replace('_', ' · ') : 'no concept pairs with it') : 'dead latent',
+        note: !f
+          ? 'dead latent'
+          : f.c
+            ? `best concept ${bestConceptLabel(d, fid)}`
+            : 'no concept pairs with it',
       });
       return;
     }

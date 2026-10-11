@@ -24,12 +24,21 @@
  */
 
 import type { Data, Feature } from './data';
+import { bestConceptLabel, pairCells } from './pairs';
 import { cssVar, el, howto, link, num, row, table, type Header } from './ui';
 
 const PL = 46;
 const PR = 14;
 const BAND = 40; // the top strip that carries the paired share
-const PT = 26 + BAND;
+const BAND_GAP = 10; // between the bars and the top line of the plot
+const PT = 22 + BAND + BAND_GAP;
+// The layer view has no bars, so its plot starts near the top of the canvas. With the full-view
+// top it had 66 px of empty canvas between the caption and the plot.
+const PT_ZOOM = 14;
+// The highest and the lowest dots sit this far inside the top and bottom lines, so that a
+// rectangle drawn inside the plot can enclose every latent. 141 latents fire on almost every
+// protein, and without the inset they sat on the top line itself.
+const INSET = 6;
 const PB = 34;
 const H = 340;
 const DOT = 2.4;
@@ -211,10 +220,13 @@ export function depthMap(d: Data): DepthMapHandle {
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     c.clearRect(0, 0, w, H);
 
+    const top = plotTop();
     const iw = w - PL - PR;
-    const ih = H - PT - PB;
+    const ih = H - top - PB;
     const X = (layer: number) => PL + (iw * (layer - 0.5)) / nLayers;
-    const Y = (np: number) => PT + ih - ih * (Math.log10(Math.max(1, np)) / Math.log10(maxProteins));
+    const span = ih - 2 * INSET;
+    const Y = (np: number) =>
+      top + INSET + span - span * (Math.log10(Math.max(1, np)) / Math.log10(maxProteins));
 
     c.strokeStyle = cssVar('--line');
     c.fillStyle = cssVar('--muted');
@@ -292,7 +304,7 @@ export function depthMap(d: Data): DepthMapHandle {
     // This was a line inside 22 px, and at that height a range of 0% to 21.7% looked flat. Bars
     // on a taller band show the arch: the share climbs to 21.7% at layer 10, dips through the
     // crowded middle, rises again to 18.7% at layer 19, and collapses to 1.7% at layer 23.
-    const top = bandTop();
+    const barsTop = bandTop();
     const maxShare = Math.max(...liveByLayer.map((n, i) => (n ? shareByLayer[i] / n : 0)), 0.01);
     const bw = Math.max(2, (iw / nLayers) * 0.62);
     for (let l = 0; l < nLayers; l++) {
@@ -304,14 +316,14 @@ export function depthMap(d: Data): DepthMapHandle {
       const wide = on ? bw + 6 : bw;
       c.fillStyle = cssVar('--accent');
       c.globalAlpha = s === 0 ? 0.2 : on ? 1 : hoverBar > 0 ? 0.4 : 0.85;
-      c.fillRect(X(l + 1) - wide / 2, top + BAND - h, wide, Math.max(0.8, h));
+      c.fillRect(X(l + 1) - wide / 2, barsTop + BAND - h, wide, Math.max(0.8, h));
       if (on) {
         c.globalAlpha = 1;
         c.fillStyle = cssVar('--ink');
         c.font = "600 10px 'IBM Plex Mono', ui-monospace, monospace";
         c.textAlign = 'center';
         c.textBaseline = 'bottom';
-        c.fillText(`${(s * 100).toFixed(1)}%`, X(l + 1), top + BAND - h - 2);
+        c.fillText(`${(s * 100).toFixed(1)}%`, X(l + 1), barsTop + BAND - h - 2);
       }
     }
     c.globalAlpha = 1;
@@ -319,8 +331,8 @@ export function depthMap(d: Data): DepthMapHandle {
     c.font = "9px 'IBM Plex Mono', ui-monospace, monospace";
     c.textAlign = 'right';
     c.textBaseline = 'middle';
-    c.fillText(`${(maxShare * 100).toFixed(0)}%`, PL - 6, top + 4);
-    c.fillText('0%', PL - 6, top + BAND);
+    c.fillText(`${(maxShare * 100).toFixed(0)}%`, PL - 6, barsTop + 4);
+    c.fillText('0%', PL - 6, barsTop + BAND);
 
     c.fillStyle = cssVar('--muted');
     c.textAlign = 'center';
@@ -331,7 +343,7 @@ export function depthMap(d: Data): DepthMapHandle {
     }
     c.fillText('encoder layer the latent writes hardest into', PL + iw / 2, H - PB + 21);
     c.save();
-    c.translate(11, PT + ih / 2);
+    c.translate(11, top + ih / 2);
     c.rotate(-Math.PI / 2);
     c.textBaseline = 'middle';
     c.fillText('proteins it fires on', 0, 0);
@@ -362,7 +374,8 @@ export function depthMap(d: Data): DepthMapHandle {
    *
    * 1598 latents peak at layer 16, and in the full view they share one column 40 px wide. Here
    * the same latents get the whole plot, so each one can be pointed at. The spread comes from
-   * the latent id, so a dot keeps its place between redraws.
+   * the latent id, so a dot keeps its place between redraws. The position across means nothing,
+   * and the axis text says so.
    */
   function drawZoom(
     c: CanvasRenderingContext2D,
@@ -400,31 +413,35 @@ export function depthMap(d: Data): DepthMapHandle {
     c.fillText(
       `layer ${layer}: ${num(mine.length)} latents, ${num(mine.filter((f) => f.c).length)} named`,
       PL + iw / 2,
-      H - PB + 12,
+      H - PB + 6,
+    );
+    c.fillText(
+      'across: no meaning. Each latent has a fixed place, so that the dots do not overlap.',
+      PL + iw / 2,
+      H - PB + 19,
     );
     c.save();
-    c.translate(11, PT + ih / 2);
+    c.translate(11, plotTop() + ih / 2);
     c.rotate(-Math.PI / 2);
     c.textBaseline = 'middle';
     c.fillText('proteins it fires on', 0, 0);
     c.restore();
   }
 
-  /** The top edge of the bars. */
-  function bandTop(): number {
-    return PT - BAND - 4;
+  /** The top line of the plot in the view on screen. */
+  function plotTop(): number {
+    return zoomLayer === null ? PT : PT_ZOOM;
   }
 
-  /**
-   * Inside the plot, between its top and bottom lines. The brush and the click live here.
-   *
-   * `slack` lets a rectangle start a few pixels outside. 141 latents fire on almost every protein
-   * and sit on the top line, and a reader can only enclose them by starting just above it. 3 px
-   * is less than the gap to the bars, so a drag on a bar still does nothing.
-   */
-  function inPlot(x: number, y: number, slack = 0): boolean {
+  /** The top edge of the bars. */
+  function bandTop(): number {
+    return PT - BAND - BAND_GAP;
+  }
+
+  /** Inside the plot, between its top and bottom lines. The brush and the click live here. */
+  function inPlot(x: number, y: number): boolean {
     const w = Math.max(1, Math.round(box.clientWidth));
-    return x >= PL - slack && x <= w - PR + slack && y >= PT - slack && y <= H - PB + slack;
+    return x >= PL && x <= w - PR && y >= plotTop() && y <= H - PB;
   }
 
   /** The point moved to the nearest place inside the plot, so a rectangle never leaves it. */
@@ -432,7 +449,7 @@ export function depthMap(d: Data): DepthMapHandle {
     const w = Math.max(1, Math.round(box.clientWidth));
     return {
       x: Math.min(Math.max(p.x, PL), w - PR),
-      y: Math.min(Math.max(p.y, PT), H - PB),
+      y: Math.min(Math.max(p.y, plotTop()), H - PB),
     };
   }
 
@@ -492,7 +509,7 @@ export function depthMap(d: Data): DepthMapHandle {
           'other paired latents, then the rest. '
         : 'The rows start with the latents that pair with a concept, then the rest. ') +
         'Inside each group, the latent that fires on the most proteins comes first. Click a ' +
-        'column header to sort by it.',
+        'column header to sort by it, a second time to reverse, and a third time for this order.',
     );
   }
 
@@ -523,24 +540,25 @@ export function depthMap(d: Data): DepthMapHandle {
   function latentTable(list: Feature[], showLayer: boolean): HTMLElement {
     const headers: Header[] = [
       'Latent',
-      ['Concept', 'paired concept'],
+      ['Best concept', 'paired concept'],
+      ['F1 per domain', 'best pair f1'],
       ...(showLayer ? ['Peak layer'] : []),
       ['Proteins', 'proteins it fires on'],
     ];
     const { root: t, body } = table(headers, [0, 1]);
     for (const f of list) {
+      const pc = pairCells(d, f.f);
       body.append(
         row(
           [
             link(`/latent/${f.f}`, `f/${f.f}`, 'mono'),
-            f.c
-              ? link(`/concept/${encodeURIComponent(f.c)}`, f.c.replace('_', ' · '))
-              : (el('span', 'muted', 'nothing named it') as Node),
+            pc.concept,
+            pc.f1,
             ...(showLayer ? [String(f.pk)] : []),
             num(f.np),
           ],
           [0, 1],
-          [f.f, f.c ? f.c.toLowerCase() : 'zzz', ...(showLayer ? [f.pk] : []), f.np],
+          [f.f, pc.conceptKey, pc.f1Key, ...(showLayer ? [f.pk] : []), f.np],
         ),
       );
     }
@@ -587,7 +605,7 @@ export function depthMap(d: Data): DepthMapHandle {
     const p = at(e);
     // Outside the plot there is nothing to select: the bars answer a hover, and the axis text
     // under the plot is text.
-    if (!inPlot(p.x, p.y, 3)) return;
+    if (!inPlot(p.x, p.y)) return;
     e.preventDefault();
     dragFrom = clampToPlot(p);
     dragTo = dragFrom;
@@ -687,7 +705,7 @@ export function depthMap(d: Data): DepthMapHandle {
     const fam = f?.c ? d.conceptByName.get(f.c)?.fam || 'unassigned' : '';
     readout.textContent = f
       ? `f/${f.f}  peak layer ${f.pk}  ${num(f.np)} proteins  ` +
-        `${f.c!.replace('_', ' · ')}  ${fam}`
+        `best concept ${bestConceptLabel(d, f.f)}  ${fam}`
       : '';
     draw();
   });

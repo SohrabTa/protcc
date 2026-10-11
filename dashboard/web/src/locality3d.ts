@@ -21,6 +21,7 @@
  */
 
 import type { Data, Feature } from './data';
+import { bestConceptLabel } from './pairs';
 import { cssVar, el, figures, num } from './ui';
 
 /** Below this the firing residues are close along the chain, against the protein's own spread. */
@@ -237,7 +238,7 @@ export function latentLocalityPlot(d: Data, self?: Feature): HTMLElement {
     hit.setAttribute('cursor', 'pointer');
     readout.textContent = '';
     const id = el('span', 'mono', `f/${p.f.f}`);
-    const what = p.f.c ? p.f.c.replace('_', ' · ') : 'nothing named it';
+    const what = bestConceptLabel(d, p.f.f);
     readout.append(
       id,
       ` ${what} · ${SHAPE_SHORT[shapeOf(p.seq, p.space)]} · ` +

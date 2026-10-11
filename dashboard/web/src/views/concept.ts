@@ -67,8 +67,8 @@ export async function renderConcept(d: Data, name: string, host: HTMLElement): P
     el(
       'p',
       'small muted',
-      'The rows are in the default order, which is F1 per domain, highest first. Click a column ' +
-        'header to sort by it.',
+      'The rows start with the highest F1 per domain. Click a column header to sort by it, a ' +
+        'second time to reverse, and a third time for this order.',
     ),
   );
 

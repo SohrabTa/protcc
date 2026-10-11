@@ -94,16 +94,17 @@ export const METRIC_INFO: MetricInfo[] = [
     section: 'one-dictionary',
     title: 'Peak layer',
     short:
-      'A latent adds a vector to all 24 encoder layers. The peak layer is the one where that ' +
-      'vector is longest, after the correction for layer scale.',
+      'A latent adds its own vector to each of the 24 encoder layers, and the vectors differ in ' +
+      'length. The peak layer is the layer where the vector is longest, after the correction ' +
+      'for layer scale.',
   },
   {
     slug: 'depth',
     section: 'one-dictionary',
     title: 'Depth',
     short:
-      'The length of that added vector at each of the 24 layers, drawn as a bar row. The peak ' +
-      'layer is the tallest bar.',
+      'The length of the vector that the latent adds to each of the 24 layers, drawn as a row ' +
+      'of bars. The peak layer is the tallest bar.',
   },
   {
     slug: 'cosine-similarity',
@@ -216,9 +217,15 @@ const BY_KEY: Record<string, { slug: string; short: string }> = {
   'paired concept': {
     slug: 'concept',
     short:
-      'The concept this latent pairs with. When it pairs with more than one, this is the one ' +
-      'with the highest F1 per domain. "Nothing named it" means that no concept clears the ' +
-      'pairing cut for this latent.',
+      'The concept this latent pairs with best, by F1 per domain. When it pairs with more than ' +
+      'one, the button after the name opens the others. "Nothing named it" means that no ' +
+      'concept clears the pairing cut for this latent.',
+  },
+  'best pair f1': {
+    slug: 'f1-per-domain',
+    short:
+      'The F1 per domain of this latent with its best concept. A latent pairs with a concept ' +
+      'when this score is more than 0.5 on the held-out set.',
   },
 };
 

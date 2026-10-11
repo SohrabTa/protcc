@@ -39,6 +39,8 @@
 }
 
 * { box-sizing: border-box; }
+/* A class that sets `display` would otherwise show an element the code hid. */
+[hidden] { display: none !important; }
 body {
   margin: 0;
   background: var(--ground);
@@ -512,3 +514,37 @@ h3.sub {
 
 /* A link that leaves the dashboard. The arrow says so before the click does. */
 .extlink::after { content: ' \2197'; font-size: 0.85em; }
+
+/* The Splitting list: a concept name lights up its latents, and only the arrow opens a page. */
+.splitlist { margin-top: 12px; }
+.splitlist-head { margin: 0 0 6px; }
+.splitchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.splitchip {
+  display: inline-flex; align-items: stretch; border: 1px solid var(--line); border-radius: 3px;
+  background: var(--surface-2);
+}
+.splitchip:hover, .splitchip:focus-within { border-color: var(--accent); }
+.splitname {
+  font: inherit; font-size: 0.86rem; color: var(--ink-2); background: none; border: 0;
+  padding: 3px 6px 3px 9px; cursor: pointer; text-align: left;
+}
+.splitname .n {
+  font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; color: var(--muted); margin-left: 7px;
+}
+.splitname:hover, .splitname:focus-visible { color: var(--ink); outline: none; }
+.splitname[aria-pressed='true'] { background: var(--accent-soft); color: var(--ink); }
+.splitopen {
+  display: flex; align-items: center; padding: 0 8px; border-left: 1px solid var(--line);
+  text-decoration: none; font-size: 0.9rem;
+}
+.splitopen:hover { background: var(--accent-soft); }
+.split-box { position: relative; margin-top: 8px; }
+.splitsvg .dots { transition: opacity 120ms linear; }
+.splitsvg.dim .dots { opacity: 0.25; }
+
+/* The best concept of a latent, and the others behind a button. */
+.paircell { display: block; }
+.pairmore { margin: 0 0 0 8px; font-size: 0.8rem; padding: 0; }
+.subpairs { width: auto; margin: 3px 0 1px; font-size: 0.85rem; }
+.subpairs td { border: 0; padding: 1px 14px 1px 0; text-align: left; }
+.subpairs td.mono { text-align: right; color: var(--ink-2); }

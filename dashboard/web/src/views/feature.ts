@@ -38,15 +38,8 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
   const views = el('div', 'views');
   host.append(views);
 
-  // Every concept this latent pairs with, not only the best one. 58 of the 1020 paired latents
-  // pair with more than one concept, and three of them with three.
-  const paired: { concept: Concept; f1: number; prec: number; rec: number }[] = [];
-  for (const c of d.concepts) {
-    for (const [g, f1, prec, rec] of c.feats ?? []) {
-      if (g === fid) paired.push({ concept: c, f1, prec, rec });
-    }
-  }
-  paired.sort((a, b) => b.f1 - a.f1);
+  // Every concept this latent pairs with, not only the best one.
+  const paired = d.pairsOf(fid);
 
   const p = panel('Latent', `f/${fid}`);
   const lede = el('p', 'lede');
@@ -264,6 +257,7 @@ function drawProteinList(
   host: HTMLElement,
 ): void {
   let band = -1;
+  const pairCount = d.pairsOf(fid).length;
   const carrierFilter: 'any' | 'yes' | 'no' = 'any';
   let page = 0;
 
@@ -320,7 +314,14 @@ function drawProteinList(
         ? 'No protein passes this filter.'
         : `${num(keep.length)} of ${num(rank.protein.length)} proteins pass. ` +
           `Showing ${page * PAGE + 1} to ${Math.min(keep.length, (page + 1) * PAGE)}, ` +
-          'in the default order, which is peak activation, strongest first.';
+          'in the default order, which is peak activation, strongest first.' +
+          (concept
+            ? ` Annotated says whether Swiss-Prot annotates ${concept.c.replace('_', ' · ')} ` +
+              'on the protein' +
+              (pairCount > 1
+                ? `. That is the best of the ${pairCount} concepts this latent pairs with.`
+                : '.')
+            : '');
 
     tableHost.textContent = '';
     if (keep.length) {
@@ -702,13 +703,36 @@ async function drawLocality(
   // whether the letters that fire are the annotated ones.
   const ci = f.c ? d.columnOf(f.c) : null;
   const ranges = ci !== null ? info.c[String(ci)] ?? [] : [];
+  const pairs = d.pairsOf(fid);
+  if (f.c && ranges.length > 0) {
+    host.append(
+      el(
+        'p',
+        'small muted',
+        `The teal marks under the top bar show where Swiss-Prot annotates ` +
+          `${f.c.replace('_', ' · ')}` +
+          (pairs.length > 1
+            ? `, the best of the ${pairs.length} concepts this latent pairs with. The view ` +
+              'marks only that one.'
+            : '.'),
+      ),
+    );
+  }
   const acts = Data.activationOf(track, fid);
   const loc = localityView(info.s, acts, ranges);
   host.append(loc.root);
   loc.mount();
   if (f.c && ranges.length === 0) {
     host.append(
-      el('p', 'small muted', `Swiss-Prot does not annotate ${f.c.replace('_', ' · ')} on ${acc}.`),
+      el(
+        'p',
+        'small muted',
+        `Swiss-Prot does not annotate ${f.c.replace('_', ' · ')} on ${acc}.` +
+          (pairs.length > 1
+            ? ` That is the best of the ${pairs.length} concepts this latent pairs with, and ` +
+              'the only one this view marks.'
+            : ''),
+      ),
     );
   }
   // Pointing at a letter marks the same residue on the model, which is the reason both views are

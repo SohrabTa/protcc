@@ -6,6 +6,7 @@
  */
 
 import { Data } from '../data';
+import { pairCells } from '../pairs';
 import { drawStructure } from '../structpanel';
 import {
   activationStrip, annotationStrip, el, figures, link, num, panel, pct, redrawStrips, row, table,
@@ -69,28 +70,37 @@ export async function renderProtein(d: Data, acc: string, host: HTMLElement): Pr
       'small muted',
       `The table holds the ${shownRows} paired latents that cover the most of this protein. ` +
         'It answers what else the crosscoder reads here, beside the annotation you came for. ' +
-        'The rows are in the default order, which is how much of the protein the latent covers. ' +
-        'Click a column header to sort by it.',
+        'The rows start with the latent that covers the most of the protein. Click a column ' +
+        'header to sort by it, a second time to reverse, and a third time for this order.',
     ),
   );
 
   const { root, body } = table(
-    ['Latent', 'Concept', 'Covers', 'Peak here', 'Peak layer'],
+    [
+      'Latent',
+      ['Best concept', 'paired concept'],
+      ['F1 per domain', 'best pair f1'],
+      'Covers',
+      'Peak here',
+      'Peak layer',
+    ],
     [0, 1],
   );
   for (const [fid, n] of withConcept.slice(0, 25)) {
     const f = d.featureById.get(fid)!;
+    const pc = pairCells(d, fid);
     body.append(
       row(
         [
           link(`/latent/${fid}`, `f/${fid}`, 'mono'),
-          link(`/concept/${encodeURIComponent(f.c!)}`, f.c!.replace('_', ' · ')),
+          pc.concept,
+          pc.f1,
           pct((n / info.l) * 100, 0),
           ((peaks.get(fid) ?? 0) / 255).toFixed(2),
           String(f.pk),
         ],
         [0, 1],
-        [fid, f.c!.replace('_', ' · ').toLowerCase(), n / info.l, peaks.get(fid) ?? 0, f.pk],
+        [fid, pc.conceptKey, pc.f1Key, n / info.l, peaks.get(fid) ?? 0, f.pk],
       ),
     );
   }

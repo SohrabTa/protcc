@@ -36,7 +36,8 @@ export function renderOverview(d: Data, host: HTMLElement): void {
     howto(
       'Pick a family chip to show one family, or type in the filter box. The filter searches ' +
         'all families, whichever chip is picked. The rows start with the best F1, highest ' +
-        'first. Click a column header to sort by it.',
+        'first. Click a column header to sort by it, a second time to reverse, and a third ' +
+        'time for this order.',
     ),
   );
   // Every panel on this page starts on all families and has its own chips. All families is 187
@@ -159,9 +160,10 @@ export function renderOverview(d: Data, host: HTMLElement): void {
   // Where the latents live in the encoder, and which of them anything named.
   const depthPanel = panel(
     'Depth',
-    'What it names lives in the middle of the encoder',
-    'Each latent adds a vector to all 24 encoder layers. The length of that vector is how much ' +
-      'the latent changes that layer. The peak layer is the layer where the vector is longest.',
+    'Where the latents peak, and how many of them pair with a concept',
+    'A latent adds its own vector to each of the 24 encoder layers. The vectors differ from ' +
+      'layer to layer in direction and in length. The length at a layer is how much the latent ' +
+      'changes that layer. The peak layer is the layer where the vector is longest.',
   );
   const map = depthMap(d);
   // The two plots start on all families, so nothing in them is hidden until a reader asks.
@@ -243,15 +245,15 @@ function familyTabs(
 }
 
 /**
- * The second finding: the crosscoder almost never learns one concept as one feature.
+ * The second finding: the crosscoder almost never learns one concept as one latent.
  *
- * The scatter is the evidence rather than a decoration. Every dot is one latent paired with one
- * concept, placed by how much of the annotated region it covers against how often it is right
- * when it fires. A model that learned whole concepts would fill the top right. This one fills
- * the top left, which is many precise latents each reading part of a region.
+ * Every dot is one pair of a latent and a concept, placed by how much of the annotated region the
+ * latent covers against how often it is right when it fires. A concept with 62 latents has 62
+ * dots. The list above the plot names the concepts with more than one latent, and pointing at a
+ * name lights up its dots, which is what ties the count of latents to the plot.
  *
- * The corners are labelled and a sketch sits beside the plot, because a dot at (0.09, 0.54) says
- * nothing to a reader who has not been told what the two axes buy.
+ * The corners are named under the plot, because a dot at (0.09, 0.54) says nothing to a reader
+ * who has not been told what the two axes buy.
  */
 interface SplitHandle {
   root: HTMLElement;
@@ -268,6 +270,15 @@ interface Pair {
   recd?: number;
 }
 
+const show = (name: string) => name.replace('_', ' · ');
+
+function median(xs: number[]): number {
+  if (xs.length === 0) return 0;
+  const a = [...xs].sort((x, y) => x - y);
+  const m = a.length >> 1;
+  return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+}
+
 function splitPanel(d: Data, famOrder: FamilyOrder): SplitHandle {
   const pairs: Pair[] = [];
   for (const c of d.concepts) {
@@ -277,12 +288,6 @@ function splitPanel(d: Data, famOrder: FamilyOrder): SplitHandle {
       pairs.push({ fid, concept: c.c, fam, prec, rec, recd });
     }
   }
-  const med = (xs: number[]) => {
-    if (xs.length === 0) return 0;
-    const a = [...xs].sort((x, y) => x - y);
-    const m = a.length >> 1;
-    return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
-  };
 
   const p = panel(
     'Splitting',
@@ -291,19 +296,20 @@ function splitPanel(d: Data, famOrder: FamilyOrder): SplitHandle {
   );
   const tabs = familyTabs(d, famOrder, '', (key) => setFamily(key));
   const stats = el('div');
+  const list = el('div', 'splitlist');
   const plot = el('div');
   const note = el('p', 'small muted');
-  const links = el('p', 'small muted');
   p.append(
     howto(
-      'Every dot is one latent paired with one concept. Pick a family chip to count only that ' +
-        'family and to color its dots amber. Point at a dot to see its latent and its concept.',
+      'Every dot is one latent paired with one concept. Point at a concept name above the plot ' +
+        'to light up its latents, and click the name to keep them lit. The arrow after a name ' +
+        'opens the concept page. Point at a dot to see its latent, and click the dot to open it.',
     ),
     tabs.root,
     stats,
+    list,
     plot,
     note,
-    links,
   );
 
   function setFamily(fam: string): void {
@@ -311,7 +317,6 @@ function splitPanel(d: Data, famOrder: FamilyOrder): SplitHandle {
     const found = d.concepts.filter((c) => c.nf > 0 && (!fam || (c.fam || 'unassigned') === fam));
     const multi = found.filter((c) => c.nf >= 2);
     const mine = fam ? pairs.filter((x) => x.fam === fam) : pairs;
-    const most = [...multi].sort((a, b) => b.nf - a.nf).slice(0, 6);
 
     // Every figure says how it is counted, because "3.5 latents" and "0.035" mean nothing to a
     // reader who does not know what was counted and over what.
@@ -319,7 +324,7 @@ function splitPanel(d: Data, famOrder: FamilyOrder): SplitHandle {
     const pairsIn = (n: number) =>
       `A pair is one latent and one concept it pairs with. The value is the middle one over ` +
       (fam ? `the ${num(n)} pairs${ofFam}.` : `all ${num(n)} pairs.`);
-    const recRes = med(mine.map((x) => x.rec));
+    const recRes = median(mine.map((x) => x.rec));
     const withDom = mine.filter((x) => x.recd !== undefined);
     stats.textContent = '';
     stats.append(
@@ -337,7 +342,7 @@ function splitPanel(d: Data, famOrder: FamilyOrder): SplitHandle {
           },
         ],
         [
-          String(med(found.map((c) => c.nf))),
+          String(median(found.map((c) => c.nf))),
           'latents for the median found concept',
           {
             title: 'Latents for the median found concept',
@@ -353,12 +358,12 @@ function splitPanel(d: Data, famOrder: FamilyOrder): SplitHandle {
           {
             title: 'The most split concept',
             short:
-              `The largest number of latents that pair with one concept${ofFam}. The line ` +
-              'under the plot names the concepts with the most latents.',
+              `The largest number of latents that pair with one concept${ofFam}. It is the ` +
+              'first name in the list above the plot.',
           },
         ],
         [
-          med(mine.map((x) => x.prec)).toFixed(2),
+          median(mine.map((x) => x.prec)).toFixed(2),
           'median precision of a pair',
           {
             title: 'Median precision of a pair',
@@ -383,7 +388,7 @@ function splitPanel(d: Data, famOrder: FamilyOrder): SplitHandle {
         ],
         ...(withDom.length
           ? ([[
-              med(withDom.map((x) => x.recd!)).toFixed(3),
+              median(withDom.map((x) => x.recd!)).toFixed(3),
               'median recall per domain',
               {
                 title: 'Median recall per domain',
@@ -399,31 +404,92 @@ function splitPanel(d: Data, famOrder: FamilyOrder): SplitHandle {
       ]),
     );
 
+    const scatter = splitScatter(pairs, fam);
     plot.textContent = '';
-    plot.append(splitScatter(pairs, fam));
+    plot.append(scatter.root);
+    list.textContent = '';
+    list.append(splitList(multi, fam, scatter));
 
     note.textContent =
       (fam ? `The amber dots pair with a concept of ${fam}, and the grey dots with another. ` : '') +
       'A crosscoder that had learned whole concepts would fill the top right corner. A latent ' +
       'there is right when it fires and also reads the whole region. This one fills the top ' +
       'left.';
-
-    links.textContent = '';
-    if (most.length) {
-      links.append(fam ? `The most split in ${fam}: ` : 'The most split: ');
-      most.forEach((c, i) => {
-        if (i) links.append(' · ');
-        links.append(
-          // The full name, not the part after the underscore. `Zinc finger_any` is a roll-up over
-          // a whole Swiss-Prot field, and its tail alone reads as "any".
-          link(`/concept/${encodeURIComponent(c.c)}`, `${c.c.replace('_', ' · ')} (${c.nf})`),
-        );
-      });
-    }
   }
 
   setFamily('');
   return { root: p, setFamily };
+}
+
+/** How many names the list shows before "show all". Two lines at the usual width. */
+const SPLIT_SHOWN = 14;
+
+/**
+ * The concepts with more than one latent, most latents first, as names that light up the plot.
+ *
+ * A name is a button, not a link: pointing at it or clicking it only changes the plot, so a
+ * reader who wanted to look does not land on another page. The concept page is behind the
+ * arrow after the name, which is a separate target.
+ */
+function splitList(multi: Concept[], fam: string, scatter: ScatterHandle): HTMLElement {
+  const root = el('div');
+  if (multi.length === 0) return root;
+  const sorted = [...multi].sort((a, b) => b.nf - a.nf);
+  root.append(
+    el(
+      'p',
+      'small muted splitlist-head',
+      `${sorted.length} concept${sorted.length === 1 ? '' : 's'}` +
+        (fam ? ` of ${fam}` : '') +
+        ' pair with more than one latent. The number is how many.',
+    ),
+  );
+  const chips = el('div', 'splitchips');
+  root.append(chips);
+
+  let pinned: string | null = null;
+  const names: HTMLButtonElement[] = [];
+  sorted.forEach((c, i) => {
+    const item = el('span', 'splitchip');
+    item.hidden = i >= SPLIT_SHOWN;
+    const name = el('button', 'splitname');
+    name.type = 'button';
+    name.setAttribute('aria-pressed', 'false');
+    name.append(show(c.c), el('span', 'n', String(c.nf)));
+    name.title = 'Point to light up its latents. Click to keep them lit.';
+    const light = () => scatter.light(c.c);
+    const restore = () => scatter.light(pinned);
+    name.addEventListener('mouseenter', light);
+    name.addEventListener('focus', light);
+    name.addEventListener('mouseleave', restore);
+    name.addEventListener('blur', restore);
+    name.addEventListener('click', () => {
+      pinned = pinned === c.c ? null : c.c;
+      for (const b of names) b.setAttribute('aria-pressed', String(b === name && pinned !== null));
+      scatter.light(pinned);
+    });
+    names.push(name);
+    const open = link(`/concept/${encodeURIComponent(c.c)}`, '→', 'splitopen');
+    open.title = `Open the page of ${show(c.c)}`;
+    open.setAttribute('aria-label', `Open the page of ${show(c.c)}`);
+    item.append(name, open);
+    chips.append(item);
+  });
+
+  if (sorted.length > SPLIT_SHOWN) {
+    const more = el('button', 'linkish', `show all ${sorted.length}`);
+    more.type = 'button';
+    let open = false;
+    more.addEventListener('click', () => {
+      open = !open;
+      chips.querySelectorAll<HTMLElement>('.splitchip').forEach((x, i) => {
+        x.hidden = !open && i >= SPLIT_SHOWN;
+      });
+      more.textContent = open ? `show the first ${SPLIT_SHOWN}` : `show all ${sorted.length}`;
+    });
+    root.append(more);
+  }
+  return root;
 }
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -441,7 +507,13 @@ function svgNode(
   return n;
 }
 
-function splitScatter(pairs: Pair[], family: string): HTMLElement {
+interface ScatterHandle {
+  root: HTMLElement;
+  /** Light up the latents of one concept and dim the rest. null lights nothing. */
+  light(concept: string | null): void;
+}
+
+function splitScatter(pairs: Pair[], family: string): ScatterHandle {
   const W = 640;
   const H = 280;
   const PL = 46;
@@ -453,6 +525,7 @@ function splitScatter(pairs: Pair[], family: string): HTMLElement {
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   svg.setAttribute('width', '100%');
+  svg.classList.add('splitsvg');
   svg.style.display = 'block';
   const add = (t: string, a: Record<string, string | number>, text?: string) =>
     svgNode(svg, t, a, text);
@@ -472,23 +545,29 @@ function splitScatter(pairs: Pair[], family: string): HTMLElement {
       g.toFixed(1),
     );
   }
+  const dots = add('g', { class: 'dots' });
   // Out of family first, so a dot in the family is never hidden under a muted one.
   for (const pass of [false, true]) {
     for (const q of pairs) {
       const mine = !family || q.fam === family;
       if (mine !== pass) continue;
-      const dot = add('circle', {
+      svgNode(dots, 'circle', {
         cx: X(q.rec).toFixed(1),
         cy: Y(q.prec).toFixed(1),
         r: pass ? 2 : 1.7,
         fill: pass ? 'var(--signal)' : 'var(--line-strong)',
         'fill-opacity': pass ? 0.4 : 0.3,
       });
-      const t = document.createElementNS(NS, 'title');
-      t.textContent = `f/${q.fid}  ${q.concept.replace('_', ' · ')}  ${q.fam}`;
-      dot.append(t);
     }
   }
+  const lit = add('g', {});
+  const ring = add('circle', {
+    r: 4.5,
+    fill: 'none',
+    stroke: 'var(--ink)',
+    'stroke-width': 1.2,
+    visibility: 'hidden',
+  });
   add(
     'text',
     { x: PL + iw / 2, y: H - 4, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 9 },
@@ -500,10 +579,99 @@ function splitScatter(pairs: Pair[], family: string): HTMLElement {
     'precision: how often it is right when it fires',
   );
   rot.setAttribute('transform', `rotate(-90 11 ${PT + ih / 2})`);
+
+  const box = el('div', 'split-box');
+  const readout = el('div', 'dmap-readout');
+  box.append(svg, readout);
+
+  let litConcept: string | null = null;
+  let hovered = -1;
+
+  function writeReadout(): void {
+    readout.textContent = '';
+    if (hovered >= 0) {
+      const q = pairs[hovered];
+      readout.append(
+        el('span', 'mono', `f/${q.fid}`),
+        `  ${show(q.concept)}  precision ${q.prec.toFixed(2)}  ` +
+          `recall per residue ${q.rec.toFixed(3)}`,
+      );
+      return;
+    }
+    if (litConcept === null) return;
+    const mine = pairs.filter((q) => q.concept === litConcept);
+    readout.append(
+      `${show(litConcept)}: ${mine.length} latents, median precision ` +
+        `${median(mine.map((q) => q.prec)).toFixed(2)}, median recall per residue ` +
+        `${median(mine.map((q) => q.rec)).toFixed(3)}`,
+    );
+  }
+
+  function light(concept: string | null): void {
+    litConcept = concept;
+    lit.textContent = '';
+    svg.classList.toggle('dim', concept !== null);
+    if (concept !== null) {
+      for (const q of pairs) {
+        if (q.concept !== concept) continue;
+        svgNode(lit, 'circle', {
+          cx: X(q.rec).toFixed(1),
+          cy: Y(q.prec).toFixed(1),
+          r: 3.4,
+          fill: 'var(--accent)',
+          stroke: 'var(--surface)',
+          'stroke-width': 0.8,
+        });
+      }
+    }
+    writeReadout();
+  }
+
+  /** The pair under the pointer, or -1. The radius is in plot units, about 10 px on screen. */
+  function pairAt(e: MouseEvent): number {
+    const m = svg.getScreenCTM();
+    if (!m) return -1;
+    const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
+    let best = -1;
+    let bestD = 36;
+    pairs.forEach((q, i) => {
+      const dx = X(q.rec) - pt.x;
+      const dy = Y(q.prec) - pt.y;
+      const dd = dx * dx + dy * dy;
+      if (dd < bestD) {
+        bestD = dd;
+        best = i;
+      }
+    });
+    return best;
+  }
+
+  svg.addEventListener('mousemove', (e) => {
+    const i = pairAt(e);
+    if (i === hovered) return;
+    hovered = i;
+    svg.style.cursor = i >= 0 ? 'pointer' : 'default';
+    if (i >= 0) {
+      ring.setAttribute('cx', X(pairs[i].rec).toFixed(1));
+      ring.setAttribute('cy', Y(pairs[i].prec).toFixed(1));
+    }
+    ring.setAttribute('visibility', i >= 0 ? 'visible' : 'hidden');
+    writeReadout();
+  });
+  svg.addEventListener('mouseleave', () => {
+    hovered = -1;
+    ring.setAttribute('visibility', 'hidden');
+    writeReadout();
+  });
+  svg.addEventListener('click', (e) => {
+    const i = pairAt(e);
+    if (i >= 0) location.hash = `/latent/${pairs[i].fid}`;
+  });
+
   // The corners are named under the plot and not inside it. Text inside a scatter sits on top
   // of the dots it is describing, and at 10 px over 1080 overlapping marks it cannot be read.
   const wrap = el('div');
-  wrap.append(svg);
+  wrap.append(box);
   const corners = el('dl', 'cornerkey');
   const put = (k: string, v: string) => {
     corners.append(el('dt', undefined, k));
@@ -513,5 +681,5 @@ function splitScatter(pairs: Pair[], family: string): HTMLElement {
   put('top right', 'right when it fires, and reads all of the region.');
   put('bottom', 'wrong more often than right.');
   wrap.append(corners);
-  return wrap;
+  return { root: wrap, light };
 }
