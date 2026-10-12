@@ -7,8 +7,9 @@
  */
 
 import { Data, type Concept } from '../data';
-import { LOCALITY_HOWTO, localityView, type LocalityHandle } from '../locality';
+import { localityHowto, localityView, type LocalityHandle } from '../locality';
 import { proteinChooser, type ChooserSource } from '../chooser';
+import { conceptName } from '../pairs';
 import { drawStructure } from '../structpanel';
 import type { StructureHandle } from '../structure';
 import {
@@ -128,7 +129,7 @@ export async function renderConcept(d: Data, name: string, host: HTMLElement): P
   res.append(
     howto(
       'This panel reads the latent row you clicked in the panel above, on the same protein. ' +
-        LOCALITY_HOWTO,
+        localityHowto(true),
     ),
   );
   const resHost = el('div');
@@ -148,7 +149,9 @@ export async function renderConcept(d: Data, name: string, host: HTMLElement): P
       const byIndex = new Map<number, number>();
       for (let i = 0; i < rank.protein.length; i++) byIndex.set(rank.protein[i], rank.value[i]);
       const out = new Float32Array(globalIndex.length);
-      for (let i = 0; i < globalIndex.length; i++) out[i] = (byIndex.get(globalIndex[i]) ?? 0) / 255;
+      for (let i = 0; i < globalIndex.length; i++) {
+        out[i] = (byIndex.get(globalIndex[i]) ?? 0) / 255;
+      }
       return out;
     },
   }));
@@ -303,7 +306,7 @@ async function drawEvidence(
   resHost.append(resLine);
 
   const loc: LocalityHandle = localityView(info.s, values.get(picked.row)!, ranges, {
-    howto: false,
+    marks: { name: conceptName(c.c) },
   });
   resHost.append(loc.root);
   loc.mount();
@@ -327,12 +330,9 @@ async function drawEvidence(
   }
 
   // The model, coloured by the same latent the letter row shows, marked where the pointer is.
-  structure = await drawStructure(
-    d,
-    acc,
-    values.get(picked.row)!,
-    resHost,
-    'the latent row you clicked above',
-  );
+  structure = await drawStructure(d, acc, values.get(picked.row)!, resHost, {
+    coloredBy: 'the latent you clicked above',
+    letters: true,
+  });
   loc.onHover((i) => structure?.highlight(i === null ? null : i + 1));
 }

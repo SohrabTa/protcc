@@ -11,7 +11,16 @@
 
 import type { Data } from './data';
 import { loadBackbone, structureView, type StructureHandle } from './structure';
-import { el, num } from './ui';
+import { el, howto, num } from './ui';
+
+export interface StructureOptions {
+  /** What colours the model, for example "f/2358". */
+  coloredBy: string;
+  /** Why the page picked that latent, when the reader did not. */
+  why?: string;
+  /** True when a letter row above marks its residue on the model. */
+  letters?: boolean;
+}
 
 let live: StructureHandle | null = null;
 
@@ -24,8 +33,7 @@ export async function drawStructure(
   acc: string,
   acts: Uint8Array,
   host: HTMLElement,
-  coloredBy: string,
-  why?: string,
+  opts: StructureOptions,
 ): Promise<StructureHandle | null> {
   live?.destroy();
   live = null;
@@ -65,13 +73,20 @@ export async function drawStructure(
     return null;
   }
 
-  note.textContent =
-    `Coloured by ${coloredBy}, on the same scale as the strips and the letters.` +
-    (why ? ` ${why}` : '');
+  const help = howto(
+    'The model is the AlphaFold prediction for this protein. ' +
+      `The colour is how hard ${opts.coloredBy} fires on each residue, on the same scale as ` +
+      'the strips and the letters. ' +
+      (opts.why ? `${opts.why} ` : '') +
+      'Drag to turn the model, and scroll on it to zoom.' +
+      (opts.letters ? ' Point at a letter in the row above to mark its residue with a ball.' : ''),
+  );
+  note.replaceWith(help);
 
   try {
     live = await structureView(bb, acts, box);
   } catch (err) {
+    help.replaceWith(note);
     note.textContent = `The viewer failed to start. ${String(err)}`;
     wrap.remove();
     return null;

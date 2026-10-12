@@ -456,6 +456,9 @@ h3.sub {
   background: var(--accent-soft); border-left: 3px solid var(--accent);
   border-radius: 0 3px 3px 0; color: var(--ink); font-size: 0.95rem;
 }
+/* One sentence on each line: a reader finds the step they need without reading the paragraph. */
+.howto-line { display: block; }
+.howto-line + .howto-line { margin-top: 3px; }
 
 /* The corners of the splitting scatter, named under it rather than drawn on top of the dots. */
 .cornerkey {
@@ -612,3 +615,40 @@ h3.sub {
   background: var(--accent-soft); border-color: var(--accent); color: var(--ink);
 }
 .strip.sel { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* The number of a concept among the concepts of one latent. Teal, because teal is Swiss-Prot. */
+.cbadge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 1.35em; height: 1.35em; padding: 0 3px; border-radius: 999px;
+  background: var(--accent); color: var(--surface); font-size: 0.78rem; font-weight: 600;
+  line-height: 1; vertical-align: 1px; font-family: 'IBM Plex Mono', monospace;
+}
+.cbadge + .cbadge { margin-left: 3px; }
+.cname { display: inline-flex; align-items: baseline; gap: 6px; }
+
+/* The latent page. */
+.loc-ann-note { margin: 3px 0 8px; }
+.cbadge-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 6px 0 0; }
+.evsum { margin: 10px 0 0; max-width: 105ch; }
+.evsum .cbadge { margin-right: 2px; }
+.evtable { margin-top: 4px; }
+.evtable th { text-align: left; padding-right: 16px; }
+.evtable th.evconcept { text-transform: none; letter-spacing: 0; font-size: 0.875rem;
+  font-family: 'Source Sans 3', sans-serif; font-weight: 600; color: var(--ink-2);
+  white-space: normal; }
+.evtable td { text-align: left; padding-right: 16px; }
+.evtable td.evlabel { font-family: 'IBM Plex Mono', monospace; white-space: nowrap; }
+.evtable td:nth-child(2) { text-align: right; }
+.evbar { display: flex; align-items: center; gap: 10px; }
+.evtrack {
+  position: relative; flex: 1; min-width: 80px; height: 12px; overflow: hidden;
+  background: var(--line); border-radius: 2px;
+}
+.evtrack i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); }
+.evshare { min-width: 12ch; text-align: right; white-space: nowrap; }
+.loc3d-layout {
+  display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 8px 28px;
+  align-items: start; margin-top: 10px;
+}
+@media (max-width: 900px) { .loc3d-layout { grid-template-columns: 1fr; } }
+.loc3d-layout .cornerkey { margin-top: 12px; }

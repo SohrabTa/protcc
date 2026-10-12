@@ -80,6 +80,7 @@ export interface LatentPair {
   f1: number; // F1 per domain
   prec: number;
   rec: number; // recall per residue
+  recd?: number; // recall per domain, absent in a tree built before stage 4 wrote it
 }
 
 /** The proteins one latent fires on, strongest first. */
@@ -194,9 +195,9 @@ export class Data {
     for (const f of features) this.featureById.set(f.f, f);
     for (const c of concepts) this.conceptByName.set(c.c, c);
     for (const c of concepts) {
-      for (const [fid, f1, prec, rec] of c.feats ?? []) {
+      for (const [fid, f1, prec, rec, recd] of c.feats ?? []) {
         const list = this.pairsByLatent.get(fid) ?? [];
-        list.push({ concept: c, f1, prec, rec });
+        list.push({ concept: c, f1, prec, rec, recd });
         this.pairsByLatent.set(fid, list);
       }
     }

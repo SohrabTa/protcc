@@ -29,7 +29,7 @@
 
 import type { Data, Feature } from './data';
 import { bestConceptLabel, pairCells } from './pairs';
-import { cssVar, el, howto, link, num, pct, row, table, type Header } from './ui';
+import { cssVar, el, howto, link, num, pct, row, setHowto, table, type Header } from './ui';
 
 const PL = 46;
 const PR = 14;
@@ -558,7 +558,7 @@ export function depthMap(d: Data): DepthMapHandle {
     if (v.axis === 'cover') {
       return (
         `Layer ${v.layer}, latents that cover ${coverText(10 ** v.x[0])} to ` +
-        `${coverText(10 ** v.x[1])} of a protein and ${proteins}`
+        `${coverText(10 ** v.x[1])} of a protein on average and ${proteins}`
       );
     }
     const layers = shown.map((f) => f.pk);
@@ -594,7 +594,8 @@ export function depthMap(d: Data): DepthMapHandle {
       caption.append(
         el('strong', 'dmap-where', `Layer ${v.layer} alone.`),
         ` ${num(shown.length)} latents peak here, and ${num(paired)} of them pair with a ` +
-          'concept. Across is now the share of a protein each latent covers when it fires.' +
+          'concept. Across is now the share of a protein that each latent covers, as the mean ' +
+          'over the proteins it fires on.' +
           colour,
       );
       return;
@@ -611,17 +612,23 @@ export function depthMap(d: Data): DepthMapHandle {
   function writeHowto(): void {
     const v = view();
     if (isOverview()) {
-      help.textContent =
+      setHowto(
+        help,
         'Point at an amber dot to see its latent, and click the dot to open it. Click ' +
         'anywhere else inside the plot to open that layer alone. Drag a rectangle inside the ' +
-        'plot to zoom into it and to list its latents. Point at a blue bar to see its share.';
+        'plot to zoom into it and to list its latents. Point at a blue bar to see its share.',
+      );
       return;
     }
-    help.textContent =
+    setHowto(
+      help,
       'Point at a dot to see its latent, and click the dot to open it. ' +
-      (v.axis === 'layer' ? 'Click anywhere else inside the plot to open that layer alone. ' : '') +
-      'Drag a rectangle inside the plot to zoom in more. Use the Escape key or the back link ' +
-      'to go back one step.';
+        (v.axis === 'layer'
+          ? 'Click anywhere else inside the plot to open that layer alone. '
+          : '') +
+        'Drag a rectangle inside the plot to zoom in more. Use the Escape key or the back link ' +
+        'to go back one step.',
+    );
   }
 
   function writeLegend(): void {
@@ -707,7 +714,7 @@ export function depthMap(d: Data): DepthMapHandle {
       ['Best concept', 'paired concept'],
       ['F1 per domain', 'best pair f1'],
       ...(showLayer ? ['Peak layer'] : []),
-      ['Covers', 'mean cover'],
+      ['Mean cover', 'mean cover'],
       ['Proteins', 'proteins it fires on'],
     ];
     const { root: t, body } = table(headers, [0, 1]);
@@ -835,7 +842,7 @@ export function depthMap(d: Data): DepthMapHandle {
     // pointing at one wants to know which family it belongs to.
     const fam = f?.c ? d.conceptByName.get(f.c)?.fam || 'unassigned' : '';
     readout.textContent = f
-      ? `f/${f.f}  peak layer ${f.pk}  ${num(f.np)} proteins  covers ${pct(f.pw)}  ` +
+      ? `f/${f.f}  peak layer ${f.pk}  ${num(f.np)} proteins  mean cover ${pct(f.pw)}  ` +
         (f.c ? `best concept ${bestConceptLabel(d, f.f)}  ${fam}` : 'nothing named it')
       : '';
     draw();

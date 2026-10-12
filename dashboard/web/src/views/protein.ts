@@ -200,17 +200,13 @@ export async function renderProtein(d: Data, acc: string, host: HTMLElement): Pr
   const best = withConcept[0]?.[0] ?? ranked[0]?.[0];
   if (best !== undefined) {
     const named = withConcept[0]?.[0] === best;
-    await drawStructure(
-      d,
-      acc,
-      Data.activationOf(track, best),
-      views,
-      `f/${best}`,
-      named
+    await drawStructure(d, acc, Data.activationOf(track, best), views, {
+      coloredBy: `f/${best}`,
+      why: named
         ? `Of the latents that fire on ${acc} and pair with a concept, this one fires on the ` +
           'most residues of it.'
         : `No latent that fires on ${acc} pairs with a concept, so this is the latent that ` +
           'fires on the most residues of it.',
-    );
+    });
   }
 }

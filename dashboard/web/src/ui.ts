@@ -427,7 +427,20 @@ export function figures(
  * scroll past a plot to learn how to use the plot has already tried it and given up.
  */
 export function howto(text: string): HTMLElement {
-  return el('p', 'howto', text);
+  const box = el('p', 'howto');
+  setHowto(box, text);
+  return box;
+}
+
+/** A sentence ends at a stop that a space and a capital, a digit, or a quote come after. */
+const SENTENCE_BREAK = /(?<=[.?!])\s+(?=[A-Z0-9"'“(])/;
+
+/** Replace the text of a how-to box. Each sentence goes on its own line. */
+export function setHowto(box: HTMLElement, text: string): void {
+  box.textContent = '';
+  for (const sentence of text.trim().split(SENTENCE_BREAK)) {
+    box.append(el('span', 'howto-line', sentence));
+  }
 }
 
 export function panel(eyebrow: string, title: string, lede?: string): HTMLElement {
@@ -482,7 +495,7 @@ export function stepper(
 
   const go = (next: number) => {
     i = (next + items.length) % items.length;
-    pos.textContent = `${label} ${i + 1} of ${items.length}`;
+    pos.textContent = `${label} ${num(i + 1)} of ${num(items.length)}`;
     name.textContent = items[i];
     onPick(items[i], i);
   };

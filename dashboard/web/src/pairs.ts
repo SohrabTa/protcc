@@ -9,7 +9,21 @@
 import type { Data } from './data';
 import { el, link } from './ui';
 
-const show = (name: string) => name.replace('_', ' · ');
+/** A concept name as the site prints it: "Domain_CN hydrolase" is "Domain · CN hydrolase". */
+export const conceptName = (name: string) => name.replace('_', ' · ');
+const show = conceptName;
+
+/**
+ * Which of a latent's concepts a mark means: 1 for its best by F1 per domain, then 2 and 3.
+ *
+ * Only a latent with more than one concept needs it. The latent page puts it before each concept
+ * name and wherever a protein or a row has to say which of the concepts it is about.
+ */
+export function conceptBadge(index: number, name: string): HTMLElement {
+  const badge = el('span', 'cbadge', String(index + 1));
+  badge.title = show(name);
+  return badge;
+}
 
 /** The two cells a latent row needs, and the values they sort by. */
 export interface PairCells {

@@ -121,8 +121,8 @@ export function latentLocalityPlot(d: Data, self?: Feature): HTMLElement {
   for (let g = 0; g <= hi + 0.001; g += 0.5) {
     add('line', { x1: X(g), y1: PT, x2: X(g), y2: PT + ih, stroke: 'var(--line)' });
     add('line', { x1: PL, y1: Y(g), x2: PL + iw, y2: Y(g), stroke: 'var(--line)' });
-    label(X(g), H - PB + 13, 'middle', 9, 'var(--muted)', g.toFixed(1));
-    label(PL - 6, Y(g) + 3, 'end', 9, 'var(--muted)', g.toFixed(1));
+    label(X(g), H - PB + 14, 'middle', 10, 'var(--muted)', g.toFixed(1));
+    label(PL - 6, Y(g) + 3, 'end', 10, 'var(--muted)', g.toFixed(1));
   }
 
   const placed: Point[] = [];
@@ -146,15 +146,15 @@ export function latentLocalityPlot(d: Data, self?: Feature): HTMLElement {
   // The three regions named where they are, because a reader should not have to hold a rule about
   // 0.7 in their head to read the plot.
   label(
-    (PL + X(SEQ_LOCAL)) / 2, PT + 13, 'middle', 9.5, 'var(--ink-2)',
+    (PL + X(SEQ_LOCAL)) / 2, PT + 13, 'middle', 10.5, 'var(--ink-2)',
     `one stretch of the chain, ${num(counts.stretch)}`,
   );
   label(
-    PL + iw - 5, Y(0) - 7, 'end', 9.5, 'var(--accent)',
+    PL + iw - 5, Y(0) - 7, 'end', 10.5, 'var(--accent)',
     `one site in the fold, ${num(counts['fold-site'])}`,
   );
   label(
-    PL + iw - 5, PT + 13, 'end', 9.5, 'var(--ink-2)',
+    PL + iw - 5, PT + 13, 'end', 10.5, 'var(--ink-2)',
     `no single place, ${num(counts.neither)}`,
   );
 
@@ -170,18 +170,19 @@ export function latentLocalityPlot(d: Data, self?: Feature): HTMLElement {
   // Both axes carry the same three parts: what the number is, what the low end means, and what
   // the high end means.
   label(
-    PL + iw / 2, H - 18, 'middle', 9.5, 'var(--muted)',
+    PL + iw / 2, H - 18, 'middle', 10.5, 'var(--muted)',
     'how far apart along the chain, over the whole protein',
   );
-  label(PL, H - 6, 'start', 8.5, 'var(--muted)', '0, next to each other');
-  label(PL + iw, H - 6, 'end', 8.5, 'var(--muted)', '1, as far apart as the protein');
+  label(PL, H - 6, 'start', 9.5, 'var(--muted)', '0, next to each other');
+  label(PL + iw, H - 6, 'end', 9.5, 'var(--muted)', '1, as far apart as the protein');
   const yTitle = label(
-    14, PT + ih / 2, 'middle', 9.5, 'var(--muted)', 'how far apart in space, over the whole protein',
+    14, PT + ih / 2, 'middle', 10.5, 'var(--muted)',
+    'how far apart in space, over the whole protein',
   );
   yTitle.setAttribute('transform', `rotate(-90 14 ${PT + ih / 2})`);
-  const yLow = label(28, PT + ih, 'start', 8.5, 'var(--muted)', '0, one point in space');
+  const yLow = label(28, PT + ih, 'start', 9.5, 'var(--muted)', '0, one point in space');
   yLow.setAttribute('transform', `rotate(-90 28 ${PT + ih})`);
-  const yHigh = label(28, PT, 'end', 8.5, 'var(--muted)', '1, the whole fold');
+  const yHigh = label(28, PT, 'end', 9.5, 'var(--muted)', '1, the whole fold');
   yHigh.setAttribute('transform', `rotate(-90 28 ${PT})`);
 
   // ---- the pointer -----------------------------------------------------
@@ -194,10 +195,17 @@ export function latentLocalityPlot(d: Data, self?: Feature): HTMLElement {
     x: PL, y: PT, width: iw, height: ih, fill: 'transparent', cursor: 'crosshair',
   });
 
+  // The plot on the left and what it says on the right, so the plot can be wide enough to read
+  // in a full-width panel without being taller than the screen.
+  const layout = el('div', 'loc3d-layout');
+  const plotSide = el('div');
+  const textSide = el('div');
+  layout.append(plotSide, textSide);
+  wrap.append(layout);
   const box = el('div', 'loc3d-box');
   const readout = el('div', 'loc3d-readout');
   box.append(svg, readout);
-  wrap.append(box);
+  plotSide.append(box);
 
   let held = -1;
   const at = (e: MouseEvent): number => {
@@ -256,7 +264,7 @@ export function latentLocalityPlot(d: Data, self?: Feature): HTMLElement {
 
   if (mine) {
     const shape = shapeOf(mine.seq, mine.space);
-    wrap.append(
+    textSide.append(
       figures(
         [
           [mine.seq.toFixed(2), 'spread along the chain'],
@@ -284,7 +292,7 @@ export function latentLocalityPlot(d: Data, self?: Feature): HTMLElement {
     legend.append(item);
   }
   legend.append(el('span', 'loc-key', 'point at a dot to name it, click it to open it'));
-  wrap.append(legend);
+  plotSide.append(legend);
 
   const key = el('dl', 'cornerkey');
   const put = (k: string, v: string) => {
@@ -306,8 +314,8 @@ export function latentLocalityPlot(d: Data, self?: Feature): HTMLElement {
     'The firing residues are far apart both ways. The latent reads no single place on the ' +
       'proteins measured.',
   );
-  wrap.append(key);
-  wrap.append(
+  textSide.append(key);
+  textSide.append(
     el(
       'p',
       'small muted',

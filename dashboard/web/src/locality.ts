@@ -13,13 +13,29 @@
  */
 
 import { AA_CLASSES, classOf, enrichment } from './chemistry';
-import { cssVar, el, figures, howto, inkOn, rampRGB } from './ui';
+import { cssVar, el, figures, inkOn, rampRGB } from './ui';
 
-/** How to read and move the residue view. A panel that leaves out the box can quote it. */
-export const LOCALITY_HOWTO =
-  'The top bar is the whole protein, at one pixel for each group of residues. The row under it ' +
-  'shows the amino-acid letters, one cell for each residue. Click the top bar to move the ' +
-  'letters, or scroll the letters.';
+/**
+ * How to read and move the residue view, for the how-to box of the panel that holds it.
+ * `teal` is false when no concept is marked, because then there are no teal marks to explain.
+ */
+export function localityHowto(teal: boolean): string {
+  return (
+    'The top bar is the whole protein. The stronger the amber, the harder the latent fires ' +
+    'there. ' +
+    (teal ? 'The teal marks under the top bar show where Swiss-Prot annotates the concept. ' : '') +
+    'The row under the top bar has one cell for each residue: the letter, the chemical class, ' +
+    'and a bar for the activation. ' +
+    'Click or drag on the top bar to move the row, or scroll the row. ' +
+    'Point at a letter to read its values and to mark the residue on the 3D model.'
+  );
+}
+
+/** The concept whose residues the teal marks show, and a sentence to add after its note. */
+export interface Marks {
+  name: string;
+  extra?: string;
+}
 
 const CELL = 9; // px per residue in the letter row
 const ANN_H = 6;
@@ -58,22 +74,20 @@ export interface LocalityHandle {
 }
 
 /**
- * `howto: false` leaves out the how-to box, for a panel whose own how-to already says how to
- * read the view.
+ * `marks` names the concept of the teal marks in a line under them, which also says so when the
+ * protein has none. The panel that holds the view explains it, with `localityHowto`.
  */
 export function localityView(
   seq: string,
   values: Uint8Array,
   ranges: [number, number][],
-  opts: { howto?: boolean } = {},
+  opts: { marks?: Marks } = {},
 ): LocalityHandle {
   const n = Math.min(seq.length, values.length);
   let vals = values;
   let mask = annotationMask(n, ranges);
 
   const root = el('div', 'loc');
-  // How to read and move the view comes first, as on every panel of the site.
-  if (opts.howto !== false) root.append(howto(LOCALITY_HOWTO));
 
   // ---- the readout -----------------------------------------------------
   const head = el('div', 'loc-head');
@@ -87,8 +101,10 @@ export function localityView(
   const overCv = el('canvas');
   const marker = el('div', 'loc-window');
   const overAnn = el('div', 'strip strip-thin loc-over-ann');
+  const annNote = el('p', 'small muted loc-ann-note');
+  annNote.hidden = !opts.marks;
   over.append(overCv, marker);
-  root.append(over, overAnn);
+  root.append(over, overAnn, annNote);
 
   // ---- the letters -----------------------------------------------------
   const scroller = el('div', 'loc-zoom');
@@ -132,9 +148,9 @@ export function localityView(
         el(
           'p',
           'small muted',
-          'This latent fires on fewer than 20 residues of this protein. A chemical share over ' +
-            'so few residues moves by more than 5 points for each one, so there is no count ' +
-            'worth printing.',
+          'This latent fires on fewer than 20 residues of this protein. With so few residues, ' +
+            'one residue more or less changes each share by more than 5 points. Thus the box ' +
+            'shows no shares.',
         ),
       );
       return;
@@ -196,6 +212,12 @@ export function localityView(
       i.style.width = `${Math.max(0.4, ((b - a + 1) / n) * 100)}%`;
       overAnn.append(i);
     }
+    if (!opts.marks) return;
+    const { name, extra } = opts.marks;
+    annNote.textContent =
+      (ranges.length > 0
+        ? `Teal: where Swiss-Prot annotates ${name}.`
+        : `Swiss-Prot does not annotate ${name} on this protein.`) + (extra ? ` ${extra}` : '');
   }
 
   function drawZoom(): void {
