@@ -131,7 +131,9 @@ def api(method: str, path: str, body: dict | None = None) -> dict | list:
 
 
 def route_interface(address: str) -> str:
-    """The interface that the routing table gives for `address`, from route (macOS) or ip (Linux)."""
+    """The interface that the routing table gives for `address`, from route (macOS) or ip (Linux).
+
+    An empty string means that the table has no route for it."""
     if sys.platform == "darwin":
         family = "-inet6" if ":" in address else "-inet"
         out = subprocess.run(["route", "-n", "get", family, address],
@@ -141,7 +143,7 @@ def route_interface(address: str) -> str:
         out = subprocess.run(["ip", "route", "get", address],
                              capture_output=True, text=True, check=False).stdout
         found = re.search(r" dev (\S+)", out)
-    return found.group(1) if found else "unknown"
+    return found.group(1) if found else ""
 
 
 def check_route() -> None:
@@ -150,12 +152,16 @@ def check_route() -> None:
     curl is bound to the interface, so an upload cannot move to another one. The JSON calls follow
     the routing table, so this runs before each file: when a VPN or an exit node takes the route,
     the script stops, and it sends nothing another way.
+
+    An address with no route at all passes, because nothing can leave through another interface.
+    On 2026-10-13 the IPv6 route went away for a moment while the laptop changed its temporary
+    IPv6 address, and a stricter check stopped an upload of seven hours.
     """
     if not INTERFACE:
         return
     host = urllib.parse.urlparse(ZENODO).hostname
     addresses = {info[4][0] for info in socket.getaddrinfo(host, 443, proto=socket.IPPROTO_TCP)}
-    wrong = {a: i for a in sorted(addresses) if (i := route_interface(a)) != INTERFACE}
+    wrong = {a: i for a in sorted(addresses) if (i := route_interface(a)) not in (INTERFACE, "")}
     if wrong:
         raise ZenodoError(f"Not every address of {host} routes through {INTERFACE}: {wrong}")
 
