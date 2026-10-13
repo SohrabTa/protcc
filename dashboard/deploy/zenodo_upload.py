@@ -33,6 +33,10 @@ in the file that ZENODO_TOKEN_FILE names (~/.zenodo-token by default). The scrip
 it and never puts it on a command line, because a command line is visible to every user of the
 machine. ZENODO_URL selects another instance, for example https://sandbox.zenodo.org for a test.
 
+UPLOAD_INTERFACE, for example en14, keeps the upload on one network interface: curl is bound to
+it, and before each file the script makes sure that every address of Zenodo routes through it. A
+laptop with a VPN or a company tailnet thus never sends a private upload through that network.
+
 Reads
 -----
 <release>/data-release.json   the parts of the release and their checksums
@@ -52,10 +56,13 @@ import functools
 import hashlib
 import json
 import os
+import re
+import socket
 import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -65,6 +72,7 @@ TOKEN_FILE = Path(os.environ.get("ZENODO_TOKEN_FILE", Path.home() / ".zenodo-tok
 METADATA = Path(__file__).with_name("zenodo-metadata.json")
 PARALLEL = max(1, int(os.environ.get("PARALLEL", "1")))
 RETRIES = max(1, int(os.environ.get("RETRIES", "8")))
+INTERFACE = os.environ.get("UPLOAD_INTERFACE", "")
 
 
 class ZenodoError(Exception):
@@ -122,6 +130,36 @@ def api(method: str, path: str, body: dict | None = None) -> dict | list:
     raise AssertionError("unreachable")
 
 
+def route_interface(address: str) -> str:
+    """The interface that the routing table gives for `address`, from route (macOS) or ip (Linux)."""
+    if sys.platform == "darwin":
+        family = "-inet6" if ":" in address else "-inet"
+        out = subprocess.run(["route", "-n", "get", family, address],
+                             capture_output=True, text=True, check=False).stdout
+        found = re.search(r"interface: (\S+)", out)
+    else:
+        out = subprocess.run(["ip", "route", "get", address],
+                             capture_output=True, text=True, check=False).stdout
+        found = re.search(r" dev (\S+)", out)
+    return found.group(1) if found else "unknown"
+
+
+def check_route() -> None:
+    """With UPLOAD_INTERFACE, make sure that every address of Zenodo routes through it.
+
+    curl is bound to the interface, so an upload cannot move to another one. The JSON calls follow
+    the routing table, so this runs before each file: when a VPN or an exit node takes the route,
+    the script stops, and it sends nothing another way.
+    """
+    if not INTERFACE:
+        return
+    host = urllib.parse.urlparse(ZENODO).hostname
+    addresses = {info[4][0] for info in socket.getaddrinfo(host, 443, proto=socket.IPPROTO_TCP)}
+    wrong = {a: i for a in sorted(addresses) if (i := route_interface(a)) != INTERFACE}
+    if wrong:
+        raise ZenodoError(f"Not every address of {host} routes through {INTERFACE}: {wrong}")
+
+
 @functools.cache
 def md5(path: Path) -> str:
     """The files do not change during a run, so each file is read once."""
@@ -143,6 +181,7 @@ def put(bucket: str, path: Path) -> str:
     config = f'header = "Authorization: Bearer {token()}"\n'
     cmd = [
         "curl", "--fail-with-body", "--silent", "--show-error", "--config", "-",
+        *(["--interface", INTERFACE] if INTERFACE else []),
         "--upload-file", str(path), f"{bucket}/{path.name}", "--output", "/dev/null",
         "--write-out", "%{http_code} %{speed_upload}",
     ]
@@ -159,6 +198,7 @@ def upload(deposition_id: int, bucket: str, path: Path) -> str:
     """Put one file into the draft, with RETRIES attempts. Returns an error, or an empty string."""
     error = ""
     for attempt in range(1, RETRIES + 1):
+        check_route()
         error = put(bucket, path)
         if not error:
             return ""
@@ -226,6 +266,9 @@ def check(deposition_id: int, wanted: list[Path]) -> None:
 
 
 def run(a: argparse.Namespace) -> None:
+    check_route()
+    if INTERFACE:
+        say(f"Every address of Zenodo routes through {INTERFACE}, and curl is bound to it.")
     release_file = a.release / "data-release.json"
     release = json.loads(release_file.read_text())
     parts = [a.release / name for name in release["parts"]]

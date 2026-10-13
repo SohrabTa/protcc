@@ -73,7 +73,9 @@ python3 zenodo_upload.py ../data/release --new-version-of <record id>
 `zenodo_upload.py` needs a Zenodo token with the scopes `deposit:write` and `deposit:actions` in
 `~/.zenodo-token`. It makes a draft, uploads the parts, sets the metadata, and writes the draft id
 into `../data/release/data-release.json`. When an upload stops, run it again with
-`--draft <id>`, and it uploads only what is missing.
+`--draft <id>`, and it uploads only what is missing. On a laptop with a VPN or a company tailnet,
+set `UPLOAD_INTERFACE` to the interface of the home line, for example `UPLOAD_INTERFACE=en14`.
+Then the upload cannot go through the VPN or the tailnet.
 
 Examine the draft on zenodo.org. Then publish it. You cannot undo a publication.
 
