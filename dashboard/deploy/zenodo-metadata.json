@@ -1,0 +1,30 @@
+{
+  "metadata": {
+    "title": "ProtCC Latent Browser: data release for a sparse crosscoder over the ProtT5 encoder",
+    "upload_type": "dataset",
+    "creators": [
+      {
+        "name": "Tawana, Sohrab",
+        "affiliation": "Technical University of Munich"
+      }
+    ],
+    "description": "<p>Precomputed data for the ProtCC Latent Browser. The browser is a static web dashboard over a sparse crosscoder that reads the residual stream of all 24 encoder layers of ProtT5 (Rostlab/prot_t5_xl_uniref50) at once. The code that builds and serves the dashboard is at <a href=\"https://github.com/SohrabTa/protcc\">github.com/SohrabTa/protcc</a>. Its folder dashboard/deploy downloads this record and serves the site with docker compose.</p><p><strong>Contents.</strong> 33 gzipped tar archives unpack into one data tree of 423,258 files. The file data-release.json gives the sha256, the size and the file count of each archive.</p><ul><li>indexes.tar.gz: the index files that the site reads first (concepts, latents, depth profiles, locality, protein lookup) and 208 protein bundles.</li><li>feature.tar.gz: one ranking file for each of the 8,128 live latents. A ranking holds every protein that the latent fires on, with the peak activation and the share of the protein that the latent covers.</li><li>tracks-00.tar.gz to tracks-18.tar.gz: the per-residue activations of all latents, one file for each of the 207,463 proteins, in groups of two-character subfolders.</li><li>structures-00.tar.gz to structures-11.tar.gz: an AlphaFold model for 207,459 of the proteins, as gzipped mmCIF, grouped in the same way.</li></ul><p><strong>Model and proteins.</strong> The crosscoder is crosscoder_l8192_k32_bs512_full_uniref50 (8,192 latents, k = 32, JumpReLU at inference). The proteins are the reviewed UniProtKB/Swiss-Prot entries with UniProt annotation score 3 to 5, an AlphaFold model, and a length of at most 512 residues.</p><p><strong>Sources and changes.</strong> The concept annotations come from UniProtKB/Swiss-Prot (The UniProt Consortium, CC BY 4.0). The structures come from the AlphaFold Protein Structure Database (AlphaFold Data Copyright (2021) DeepMind Technologies Limited, CC BY 4.0; Jumper, J. et al. Highly accurate protein structure prediction with AlphaFold. Nature (2021)). We changed the structures as follows: most were decoded from the Foldcomp database afdb_swissprot (Kim, Mirdita and Steinegger, Bioinformatics 2023), which stores the models with a lossy torsion-angle encoding, and 5,353 were downloaded from EBI. All of them were reduced to the four backbone atoms N, CA, C and O of each residue. The B-factor column keeps the pLDDT. The predictions have varying levels of confidence.</p>",
+    "access_right": "open",
+    "license": "cc-by-4.0",
+    "keywords": [
+      "protein language model",
+      "ProtT5",
+      "sparse crosscoder",
+      "interpretability",
+      "Swiss-Prot",
+      "AlphaFold"
+    ],
+    "related_identifiers": [
+      {
+        "identifier": "https://github.com/SohrabTa/protcc",
+        "relation": "isSupplementTo",
+        "resource_type": "software"
+      }
+    ]
+  }
+}

@@ -1,12 +1,660 @@
 {
-  "release": "",
-  "zenodo_record": "",
+  "release": "2026-10-13",
+  "zenodo_record": "23335033",
   "source": "dashboard/deploy/make_release.sh",
-  "note": "Placeholder. Run make_release.sh on the built data tree, upload the four archives to one Zenodo record, then replace this file with the one it wrote and add the record id.",
   "expect": {
     "proteins": 207463,
     "structures": 207459
   },
-  "expect_files": [],
-  "parts": {}
+  "expect_files": [
+    "concept_columns.json",
+    "concept_coverage.bin",
+    "concept_coverage.json",
+    "concept_proteins.bin",
+    "concepts.json",
+    "depth.bin",
+    "features.json",
+    "latent_locality.bin",
+    "latent_locality.json",
+    "manifest.json",
+    "protein_lookup.json",
+    "structures_backfill.json",
+    "structures_from_ebi.txt"
+  ],
+  "parts": {
+    "indexes.tar.gz": {
+      "dir": "proteins",
+      "bytes": 58405208,
+      "files": 208,
+      "sha256": "827dfd46f2aa77bdc5ea3c561cfef85c3372b0722a0232554c641f5fa6424704"
+    },
+    "feature.tar.gz": {
+      "dir": "feature",
+      "bytes": 429827053,
+      "files": 8128,
+      "sha256": "d94cb53911a3095773631c3a5118f8c162e40256d8a41ee4f06c11ea5c8043d8"
+    },
+    "tracks-00.tar.gz": {
+      "dir": "tracks",
+      "members": [
+        "A0",
+        "A1",
+        "A2",
+        "A3"
+      ],
+      "bytes": 237239088,
+      "files": 11698,
+      "sha256": "7159ca2cc27463456f77ba15b71d287c7a4adffa8f52661fe144c6344b40672d"
+    },
+    "tracks-01.tar.gz": {
+      "dir": "tracks",
+      "members": [
+        "A4",
+        "A5",
+        "A6",
+        "A7"
+      ],
+      "bytes": 242833982,
+      "files": 11500,
+      "sha256": "9297af0047d75b7da3ce1642b1917c114debe4d40e85170435b81964e9519213"
+    },
+    "tracks-02.tar.gz": {
+      "dir": "tracks",
+      "members": [
+        "A8",
+        "A9",
+        "B0",
+        "B1"
+      ],
+      "bytes": 218774992,
+      "files": 10386,
+      "sha256": "efb9fa75acb02bc75caec6cc010e83de5256b509351dc82bfa83409dbd79a8be"
+    },
+    "tracks-03.tar.gz": {
+      "dir": "tracks",
+      "members": [
+        "B2",
+        "B3",
+        "B4",
+        "B5",
+        "B6",
+        "B7"
+      ],
+      "bytes": 225921836,
+      "files": 10874,
+      "sha256": "455cd8d41189da86465945f22b11eb81db21ef1f543c906d3d3b7246ba485b89"
+    },
+    "tracks-04.tar.gz": {
+      "dir": "tracks",
+      "members": [
+        "B8",
+        "B9",
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5",
+        "C6",
+        "C7",
+        "C8",
+        "C9",
+        "D0",
+        "D1",
+        "D2",
+        "D3",
+        "D4",
+        "D5",
+        "D6",
+        "D7",
+        "D8",
+        "D9",
+        "E0",
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "F0",
+        "F1",
+        "F2",
+        "F4",
+        "F5",
+        "F6",
+        "F7",
+        "F8",
+        "F9",
+        "G0",
+        "G1",
+        "G2",
+        "G3",
+        "G4",
+        "G5",
+        "G7",
+        "G8",
+        "G9",
+        "H0",
+        "H1",
+        "H2",
+        "H3",
+        "H6",
+        "H7",
+        "H8",
+        "H9",
+        "I0",
+        "I1",
+        "I2",
+        "I3",
+        "I4",
+        "I5",
+        "I6",
+        "I7",
+        "J0",
+        "J1",
+        "J2",
+        "J3",
+        "J4",
+        "J5",
+        "J7",
+        "J8"
+      ],
+      "bytes": 252812987,
+      "files": 12956,
+      "sha256": "132725867bad924512d2bf950afdfb99e570ad71da0a3510a084c57958175f85"
+    },
+    "tracks-05.tar.gz": {
+      "dir": "tracks",
+      "members": [
+        "J9",
+        "K0",
+        "K1",
+        "K2",
+        "K3",
+        "K4",
+        "K5",
+        "K6",
+        "K7",
+        "K8",
+        "K9",
+        "L0",
+        "L5",
+        "L7",
+        "L8",
+        "M0",
+        "M1",
+        "M2",
+        "M3",
+        "M4",
+        "M5",
+        "M7",
+        "M9",
+        "N0",
+        "N1",
+        "N4",
+        "O0",
+        "O1",
+        "O2",
+        "O3",
+        "O4",
+        "O5",
+        "O6",
+        "O7",
+        "O8",
+        "O9"
+      ],
+      "bytes": 188695721,
+      "files": 9712,
+      "sha256": "179e527cbb1c2d74b68737a34a5720f38e17b6b041a6fad722a1dd687b129ced"
+    },
+    "tracks-06.tar.gz": {
+      "dir": "tracks",
+      "members": [
+        "P0",
+        "P1"
+      ],
+      "bytes": 188347668,
+      "files": 12120,
+      "sha256": "6b576d8683fd94f41eb38109593b6ef858cb7d23f4e4f645bae6c7b3fce4db08"
+    },
+    "tracks-07.tar.gz": {
+      "dir": "tracks",
+      "members": [
+        "P2",
+        "P3",
+        "P4"
+      ],
+      "bytes": 229178773,
+      "files": 12149,
+      "sha256": "4bf82ed760f907bb42acb485455bd1c2e0fed597d663eacb734ae80b7e8ed962"
+    },
+    "tracks-08.tar.gz": {
+      "dir": "tracks",
+      "members": [
+        "P5",
+        "P6",
+        "P7",
+        "P8",
+        "P9"
+      ],
+      "bytes": 191507753,
+      "files": 11701,
+      "sha256": "fc1d60745c05c7d0d752fcc248c5e389ca4d663b963f845f72b133f6f1a7879d"
+    },
+    "tracks-09.tar.gz": {
+      "dir": "tracks",
+      "members": [
+        "Q0"
+      ],
+      "bytes": 171152129,
+      "files": 8397,
+      "sha256": "234219190adc80e0400721e7a2e94a654fc3b4e49ea19f90fcd9aff75c77bda2"
+    },
+    "tracks-10.tar.gz": {
+      "dir": "tracks",
+      "members": [
+        "Q1"
+      ],
+      "bytes": 142790012,
+      "files": 6966,
+      "sha256": "e4035b3435076dbd13bc7c0f97caa5ddb9298956a4c413a62f8c742fcb809b8a"
+    },
+    "tracks-11.tar.gz": {
+      "dir": "tracks",
+      "members": [
+        "Q2"
+      ],
+      "bytes": 141502185,
+      "files": 6948,
+      "sha256": "893c6129e9d09e4619d2d8f71c5db03bd6bb541326ccda423b33fa017d2a65c8"
+    },
+    "tracks-12.tar.gz": {
+      "dir": "tracks",
+      "members": [
+        "Q3",
+        "Q4"
+      ],
+      "bytes": 251650710,
+      "files": 12264,
+      "sha256": "0446b1f8eb33f7284fb97a567202f8264d1836ab9075a9ac14020e5089d99241"
+    },
+    "tracks-13.tar.gz": {
+      "dir": "tracks",
+      "members": [
+        "Q5"
+      ],
+      "bytes": 221323336,
+      "files": 10920,
+      "sha256": "8555f31cc1877bda59aeede94e862d146781f1fd025015fcd229e4f636f1c862"
+    },
+    "tracks-14.tar.gz": {
+      "dir": "tracks",
+      "members": [
+        "Q6"
+      ],
+      "bytes": 201646021,
+      "files": 9973,
+      "sha256": "a724e69167324006a2f30217bbbcd0a7a594cb89a35f3517ea695a6227b98067"
+    },
+    "tracks-15.tar.gz": {
+      "dir": "tracks",
+      "members": [
+        "Q7"
+      ],
+      "bytes": 140893241,
+      "files": 6966,
+      "sha256": "c135b950fa9448ece165086900e136bfcc07760fa9fa98ec24381b3cc73fabd1"
+    },
+    "tracks-16.tar.gz": {
+      "dir": "tracks",
+      "members": [
+        "Q8"
+      ],
+      "bytes": 344484766,
+      "files": 17097,
+      "sha256": "6546a6ff11083aa3f1f5da731b47cc840f1be78e1849977595ef94ee4623149d"
+    },
+    "tracks-17.tar.gz": {
+      "dir": "tracks",
+      "members": [
+        "Q9"
+      ],
+      "bytes": 475254957,
+      "files": 24435,
+      "sha256": "e439d8b1e961998c1760b7bfcc1a1264dcd9b78d053972fa50a04643e0544c99"
+    },
+    "tracks-18.tar.gz": {
+      "dir": "tracks",
+      "members": [
+        "R0",
+        "R4",
+        "R8",
+        "R9",
+        "S0",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "T0",
+        "T1",
+        "T2",
+        "U2",
+        "U3",
+        "U4",
+        "U5",
+        "U6",
+        "U9",
+        "V4",
+        "V5",
+        "V6",
+        "V7",
+        "V9",
+        "W0",
+        "W1",
+        "W2",
+        "W3",
+        "W4",
+        "W5",
+        "W6",
+        "W7",
+        "W8",
+        "X1",
+        "X2",
+        "X4",
+        "X5"
+      ],
+      "bytes": 7622472,
+      "files": 401,
+      "sha256": "56eb31fdcca4e4e5f29f1b9f47869390f142d6617eb099c9a9f9b46e2894b8fe"
+    },
+    "structures-00.tar.gz": {
+      "dir": "structures",
+      "members": [
+        "A0",
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5"
+      ],
+      "bytes": 356415799,
+      "files": 17805,
+      "sha256": "10a1648564ce34e1b1843d38c9e4734e0ce4a2ee7a7e2b4ae74bd09f61301874"
+    },
+    "structures-01.tar.gz": {
+      "dir": "structures",
+      "members": [
+        "A6",
+        "A7",
+        "A8",
+        "A9",
+        "B0",
+        "B1",
+        "B2"
+      ],
+      "bytes": 372470320,
+      "files": 18437,
+      "sha256": "82420c25065d1e431c42b2ba3f87d3df5c92751f351703e9da5f7f5d69b71124"
+    },
+    "structures-02.tar.gz": {
+      "dir": "structures",
+      "members": [
+        "B3",
+        "B4",
+        "B5",
+        "B6",
+        "B7",
+        "B8",
+        "B9",
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5",
+        "C6",
+        "C7",
+        "C8",
+        "C9",
+        "D0",
+        "D1",
+        "D2",
+        "D3",
+        "D4",
+        "D5",
+        "D6",
+        "D7",
+        "D8",
+        "D9",
+        "E0",
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "F0",
+        "F1",
+        "F2",
+        "F4",
+        "F5",
+        "F6",
+        "F7",
+        "F8",
+        "F9",
+        "G0",
+        "G1",
+        "G2",
+        "G3",
+        "G4",
+        "G5",
+        "G7",
+        "G8",
+        "G9"
+      ],
+      "bytes": 402371971,
+      "files": 20662,
+      "sha256": "6441403ffcd9f9e7ace662d6646cfd75b337fa2c063304c1b1fe406db60cd771"
+    },
+    "structures-03.tar.gz": {
+      "dir": "structures",
+      "members": [
+        "H0",
+        "H1",
+        "H2",
+        "H3",
+        "H6",
+        "H7",
+        "H8",
+        "H9",
+        "I0",
+        "I1",
+        "I2",
+        "I3",
+        "I4",
+        "I5",
+        "I6",
+        "I7",
+        "J0",
+        "J1",
+        "J2",
+        "J3",
+        "J4",
+        "J5",
+        "J7",
+        "J8",
+        "J9",
+        "K0",
+        "K1",
+        "K2",
+        "K3",
+        "K4",
+        "K5",
+        "K6",
+        "K7",
+        "K8",
+        "K9",
+        "L0",
+        "L5",
+        "L7",
+        "L8",
+        "M0",
+        "M1",
+        "M2",
+        "M3",
+        "M4",
+        "M5",
+        "M7",
+        "M9",
+        "N0",
+        "N1",
+        "N4",
+        "O0",
+        "O1",
+        "O2",
+        "O3",
+        "O4",
+        "O5",
+        "O6",
+        "O7",
+        "O8",
+        "O9",
+        "P0",
+        "P1"
+      ],
+      "bytes": 388238463,
+      "files": 22340,
+      "sha256": "2738ed07fbc020c1284320f81ec6ceb86b6e8ff8f7711a08b81314137d92c099"
+    },
+    "structures-04.tar.gz": {
+      "dir": "structures",
+      "members": [
+        "P2",
+        "P3",
+        "P4",
+        "P5",
+        "P6",
+        "P7",
+        "P8"
+      ],
+      "bytes": 383848576,
+      "files": 22007,
+      "sha256": "0e797aa18c2090d5650f8751a108fdc426a4685bf7572c37734ce8fdbe5086ce"
+    },
+    "structures-05.tar.gz": {
+      "dir": "structures",
+      "members": [
+        "P9",
+        "Q0",
+        "Q1"
+      ],
+      "bytes": 344176727,
+      "files": 17205,
+      "sha256": "56d6182305db35b46f39826dfa24474e9cba28084dd7e6e938b34e7387986f47"
+    },
+    "structures-06.tar.gz": {
+      "dir": "structures",
+      "members": [
+        "Q2",
+        "Q3",
+        "Q4"
+      ],
+      "bytes": 383291939,
+      "files": 19212,
+      "sha256": "5ed9b17e93ad68b6134c84f235af02186a7d64426ab595558eeebf479ae1ed10"
+    },
+    "structures-07.tar.gz": {
+      "dir": "structures",
+      "members": [
+        "Q5"
+      ],
+      "bytes": 219629913,
+      "files": 10920,
+      "sha256": "e1c51bce30ede8b9c4f7cdd99b72c65329dda532bb247725dec7d3c60e4d1f62"
+    },
+    "structures-08.tar.gz": {
+      "dir": "structures",
+      "members": [
+        "Q6",
+        "Q7"
+      ],
+      "bytes": 339612542,
+      "files": 16939,
+      "sha256": "6c2d2c1c1df7e8fd166c2cad705cedc8f098fa5f96ae06f9755fa746c3e25c83"
+    },
+    "structures-09.tar.gz": {
+      "dir": "structures",
+      "members": [
+        "Q8"
+      ],
+      "bytes": 341196605,
+      "files": 17097,
+      "sha256": "b3bc3eb73e6e643fd87b690331989629909959c396b60034b8166671bb3312cb"
+    },
+    "structures-10.tar.gz": {
+      "dir": "structures",
+      "members": [
+        "Q9"
+      ],
+      "bytes": 480121154,
+      "files": 24434,
+      "sha256": "2801224d3b3dced7a0ef0a17959a2588213f8ec4b273ef92a637a3e1e2f6b20d"
+    },
+    "structures-11.tar.gz": {
+      "dir": "structures",
+      "members": [
+        "R0",
+        "R4",
+        "R8",
+        "R9",
+        "S0",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "T0",
+        "T1",
+        "T2",
+        "U2",
+        "U3",
+        "U4",
+        "U5",
+        "U6",
+        "U9",
+        "V4",
+        "V5",
+        "V6",
+        "V7",
+        "V9",
+        "W0",
+        "W1",
+        "W2",
+        "W3",
+        "W4",
+        "W5",
+        "W6",
+        "W7",
+        "W8",
+        "X1",
+        "X2",
+        "X4",
+        "X5"
+      ],
+      "bytes": 8051607,
+      "files": 401,
+      "sha256": "bc6bb6d9fd28e60840070c93c9d4fe6801af31044df451b944899649aff97bb3"
+    }
+  }
 }

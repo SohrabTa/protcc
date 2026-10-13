@@ -1,114 +1,102 @@
-# Hosting the dashboard
+# Host the dashboard
 
-The dashboard is a static site. It has no backend, no database and no server code. Everything a
-reader sees is a file, so hosting it is two jobs: put the data tree on the host, then serve a
-folder. This folder does both with `docker compose`.
+The dashboard is a static site. It has no backend, no database and no server code. Each thing that
+a reader sees is a file, so hosting has two tasks: put the data tree on the host, then serve a
+folder. This folder does the two tasks with `docker compose`.
 
-```bash
-cp .env.example .env      # put the Zenodo record id in it
-docker compose up -d      # the first start downloads about 11.5 GB
-```
+To host the site, follow [RUNBOOK.md](RUNBOOK.md). It gives the steps, a check for each step,
+the operations, and what to do when a check fails. This README is for the maintainer of the
+data release.
 
-The site then answers on port 8080. Change `PORT` in `.env` to move it.
+## The files in this folder
 
-## What the two containers do
+| File | What it is |
+|---|---|
+| `RUNBOOK.md` | The steps for a host, for a person or for an agent |
+| `docker-compose.yml` | The two containers and the data volume |
+| `.env.example` | The settings of a host |
+| `data-release.json` | The release that a host fetches: the Zenodo record, and the size, file count and sha256 of each part |
+| `fetch/fetch_data.py` | The setup container. It puts the data tree into the volume, and it does nothing when the tree is current. |
+| `fetch/smoke_test.py` | The check of a running site, with the requests that a browser makes |
+| `web/` | The nginx image that builds the site and serves it |
+| `make_release.sh` | It packs a built data tree into the parts of a release. |
+| `zenodo_upload.py` | It uploads a release to a Zenodo draft, and publishes it only when you ask. |
+| `zenodo-metadata.json` | The title, creators, license and description of the Zenodo record |
+
+## How the two containers work
 
 | Container | What it is | When it runs |
 |---|---|---|
-| `fetch-data` | A Python script with no dependencies. It downloads four tar archives from Zenodo and unpacks them into a named volume. | On every `up`, and it exits at once when the data is already current. |
-| `web` | nginx over the built site. The data volume is mounted read-only under `/data`. | After `fetch-data` succeeds. |
+| `fetch-data` | A Python script with no dependencies. It downloads the parts from Zenodo and unpacks them into a named volume. | At each `up`. It stops at once when the data is current. |
+| `web` | nginx over the built site. The data volume is mounted read-only under `/data`. | After `fetch-data` stopped without an error |
 
-Compose waits with `condition: service_completed_successfully`, so the site never starts over a
-half-written data tree. A failed download leaves the old site running and the new one down.
+Compose waits with `condition: service_completed_successfully`. Thus the site never starts over a
+data tree that is half written. A failed download leaves the old site running and the new one
+down.
 
-## The first start, and every start after it
+The fetch is idempotent by checksum. Each unpacked part writes its sha256 into
+`/data/.release.json`. A later start compares that file with `data-release.json` and fetches only
+the parts whose checksum changed. When no part changed, the start takes less than 1 second.
 
-The first start downloads about 11.5 GB and unpacks 423,258 files. On a 100 Mbit line that is
-about 20 minutes, and the unpack is limited by the disk.
+## The parts of a release
 
-Every later start reads `/data/.release.json`, compares it against `data-release.json`, finds
-every part current and exits. Measured: under one second. So `docker compose up -d` after a
-reboot or an image update costs nothing.
+Zenodo gave one connection about 0.3 to 0.4 MB/s on 2026-10-13, from a home line and from the
+LRZ cluster. Parallel downloads add up: 8 together moved 3.72 MB/s from the Mac and 8.93 MB/s from
+LRZ. Parallel uploads do not: with 2 or 3 at the same time, one of them failed each time. Thus a
+release has many small parts. The fetch container downloads 8 of them at a time, and
+`zenodo_upload.py` uploads one at a time, with retries.
 
-A part is compared by its sha256, so a new data release replaces only the parts that changed.
-
-| Variable | What it does |
+| Part | Holds |
 |---|---|
-| `ZENODO_RECORD` | The record id. It overrides the one in `data-release.json`. |
-| `PORT` | The port the site answers on. 8080 by default. |
-| `FORCE=1` | Fetch every part again, whatever the marker says. |
-| `VERIFY=1` | Count the files of every part against the release. This is the check to run after a disk problem, because a tar that ends early leaves a tree that looks right. |
-| `BASE_URL` | Read the parts from somewhere else, for a mirror or for a test. |
+| `indexes.tar.gz` | The small files that the site reads first, and the 208 protein bundles |
+| `feature.tar.gz` | One ranking file for each of the 8,128 live latents |
+| `tracks-NN.tar.gz` | The per-residue activations, one file per protein, in groups of whole two-character subfolders of at most about 400 MB before compression |
+| `structures-NN.tar.gz` | The AlphaFold backbones, one gzipped mmCIF per protein, grouped in the same way |
 
-Examples:
+Each part is gzipped. We measured gzip -6 on one part of each kind on 2026-10-13. It shrank a part
+of the tracks to 0.600 of its size, the rankings to 0.448, and a part of the structures to 0.923. An
+upload moves about 0.3 MB/s, so each GB that compression saves is about one hour of upload.
+
+The release of 2026-10-13 has 33 parts and 423,258 files: 8.6 GB to download, and 12.4 GB on the
+disk after the unpack. Its largest part is `structures-10.tar.gz` with 480 MB. `make_release.sh`
+packed it in 6 min 45 s.
+
+## Publish a new data release
+
+Do this on the machine that holds the built tree, not on the server.
 
 ```bash
-VERIFY=1 docker compose up fetch-data     # check the tree, repair what is short
-FORCE=1 docker compose up fetch-data      # fetch everything again
-docker compose logs -f fetch-data         # watch a download
+./make_release.sh ../data/web ../data/release
+python3 zenodo_upload.py ../data/release --new-version-of <record id>
 ```
 
-## Disk
+`zenodo_upload.py` needs a Zenodo token with the scopes `deposit:write` and `deposit:actions` in
+`~/.zenodo-token`. It makes a draft, uploads the parts, sets the metadata, and writes the draft id
+into `../data/release/data-release.json`. When an upload stops, run it again with
+`--draft <id>`, and it uploads only what is missing.
 
-| | |
-|---|---:|
-| the volume, unpacked | about 11.5 GB |
-| downloaded during the first start | about 11.5 GB |
-| the two images | about 80 MB |
-
-Nothing else grows. The data tree is immutable for a release, and nginx writes no access log for
-`/data/`.
-
-## Publishing a new data release
-
-Run this where the built tree is, not on the server.
+Examine the draft on zenodo.org. Then publish it. You cannot undo a publication.
 
 ```bash
-./make_release.sh ../data/web /tmp/protcc-release
+python3 zenodo_upload.py ../data/release --draft <id> --publish
+cp ../data/release/data-release.json .
 ```
 
-It writes four archives and a `data-release.json`. Upload the four archives to one Zenodo record,
-put the record id into that file, and copy it here beside `docker-compose.yml`. The next
-`docker compose up -d` on any host picks up the change and fetches only the parts whose checksum
-moved.
+Commit `data-release.json`. The next `git pull && docker compose up -d` on a host fetches only the
+parts whose checksum changed.
 
-The four parts follow the shape of the tree:
+## Two rules in the nginx configuration
 
-| Part | Holds | About |
-|---|---|---:|
-| `indexes.tar.gz` | the small files the site reads first, and the 208 protein bundles | 110 MB |
-| `feature.tar` | one ranking file for each of the 8,128 live latents | 920 MB |
-| `tracks.tar` | the per-residue activations, one file per protein | 6.4 GB |
-| `structures.tar` | the AlphaFold backbones, one gzipped mmCIF per protein | 4.1 GB |
+A missing data file must answer 404. The routes of the site fall back to `index.html`, because the
+router uses the hash and a deep link must resolve. A fallback for all paths also catches
+`/data/…`, and a missing data file then answers 200 with HTML. The page then reports a parse
+error, and nobody looks for the missing file. Thus `/data/` has its own rule with
+`try_files $uri =404`.
 
-Only the index bundle is compressed. The other three are already binary or already gzipped, so
-compressing them costs an hour and saves almost nothing.
+A `.cif.gz` file goes out as `application/gzip`, never with `Content-Encoding: gzip`. The page
+unpacks these files itself. With the header, the browser would unpack them first, and the page
+would then try to unpack plain text.
 
-## Two rules in the nginx config that matter
-
-**A missing data file must answer 404.** The routes of the site fall back to `index.html`,
-because the router is hash-based and a deep link has to resolve. A blanket fallback also catches
-`/data/…`, and a missing data file then answers 200 with HTML. The page reports a parse error and
-nobody looks for the missing file. So `/data/` has its own rule with `try_files $uri =404`.
-
-**A `.cif.gz` is served as `application/gzip`, never with `Content-Encoding: gzip`.** The page
-decompresses those files itself. With the header, the browser would decompress them first and the
-page would then try to decompress plain text.
-
-## What this does not do
-
-The site loads three fonts from Google. That is the one request it makes to anything outside the
-host, and it is not needed for the site to work. Vendoring them is open work.
-
-There is no TLS here and no name. Put this behind whatever already terminates TLS on the host.
-The container answers plain HTTP on one port and holds no state beyond the data volume.
-
-## When something is wrong
-
-| What you see | What it is |
-|---|---|
-| `lists no parts` | `data-release.json` is still the placeholder. Publish a release first. |
-| `No Zenodo record id` | `ZENODO_RECORD` is empty and the release file carries no id. |
-| `checksum is …, the release says …` | The download was truncated or the record changed. The script retries three times, then exits non-zero and the web container does not start. |
-| `manifest counts.proteins is …` | The archives and `data-release.json` are from different builds. |
-| The site loads but every panel is empty | The data volume is not mounted. Check `docker compose config`. |
+The health check asks `127.0.0.1`, not `localhost`. In the nginx image, `localhost` resolves to
+`::1`, and nginx listens only on IPv4. With `localhost`, the check failed, and `web` was
+`unhealthy` while it served the site (measured on 2026-10-13).

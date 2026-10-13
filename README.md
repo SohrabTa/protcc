@@ -15,6 +15,12 @@ concepts by per-residue F1 following the InterPLM method.
 
 More folders follow as the paper's experiment code moves here.
 
+## Host the dashboard
+
+Follow [`dashboard/deploy/RUNBOOK.md`](dashboard/deploy/RUNBOOK.md). It has the steps for a person or
+for an agent: one `docker compose up -d`, with a check for each step. The data comes from a
+Zenodo record, and the site needs no GPU and no backend.
+
 ## What is not in here
 
 The training runs, the evaluation pipeline and the experiment write-ups live in the working tree

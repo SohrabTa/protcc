@@ -2,11 +2,12 @@
 #
 #   docker compose up -d
 #
-# The first start downloads about 11.5 GB from Zenodo and unpacks it into a named volume. Every
-# later start finds the data in place and goes straight to serving, because the fetch container
+# The first start downloads 8.6 GB from Zenodo and unpacks it into a named volume. Every later
+# start finds the data in place and goes straight to serving, because the fetch container
 # compares the release it wrote against the release it wants.
 #
-# Set ZENODO_RECORD in a .env file beside this one, or accept the id in data-release.json.
+# The Zenodo record id is in data-release.json. ZENODO_RECORD in a .env file overrides it.
+# RUNBOOK.md is the step-by-step guide for a host.
 
 name: protcc-dashboard
 
@@ -21,6 +22,8 @@ services:
       BASE_URL: ${BASE_URL:-}
       FORCE: ${FORCE:-0}
       VERIFY: ${VERIFY:-0}
+      PARALLEL: ${PARALLEL:-8}
+      RETRIES: ${RETRIES:-5}
     volumes:
       - dashboard-data:/data
       - ./data-release.json:/release/data-release.json:ro
@@ -35,12 +38,14 @@ services:
       fetch-data:
         condition: service_completed_successfully
     ports:
-      - "${PORT:-8080}:80"
+      # The loopback address by default, because the site belongs behind the reverse proxy of
+      # the host, which terminates TLS. BIND_ADDRESS=0.0.0.0 answers on every interface.
+      - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-8080}:80"
     volumes:
       - dashboard-data:/usr/share/nginx/html/data:ro
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/data/manifest.json"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/data/manifest.json"]
       interval: 30s
       timeout: 5s
       retries: 3

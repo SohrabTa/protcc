@@ -6,6 +6,8 @@ FROM python:3.12-alpine
 
 WORKDIR /app
 COPY fetch_data.py /app/fetch_data.py
+# The check of a running site, so that a host with no Python can run it on the compose network.
+COPY smoke_test.py /app/smoke_test.py
 
 # The release file is mounted, not copied, so a new release needs no rebuild of this image.
 VOLUME ["/data"]
