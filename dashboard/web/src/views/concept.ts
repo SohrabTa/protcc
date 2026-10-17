@@ -330,7 +330,7 @@ async function drawEvidence(
   }
 
   // The model, coloured by the same latent the letter row shows, marked where the pointer is.
-  structure = await drawStructure(d, acc, values.get(picked.row)!, resHost, {
+  structure = await drawStructure(d, acc, values.get(picked.row)!, loc.structSlot, {
     coloredBy: 'the latent you clicked above',
     letters: true,
   });

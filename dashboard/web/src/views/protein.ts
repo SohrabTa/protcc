@@ -6,7 +6,7 @@
  */
 
 import { Data } from '../data';
-import { pairCells } from '../pairs';
+import { conceptName, pairCells } from '../pairs';
 import { drawStructure } from '../structpanel';
 import {
   activationStrip, annotationStrip, el, figures, link, num, panel, pct, redrawStrips, row, table,
@@ -194,19 +194,60 @@ export async function renderProtein(d: Data, acc: string, host: HTMLElement): Pr
     );
   }
 
-  // The model is coloured by one latent, and the page picks it, so the panel says which one and
-  // why. A reader who does not know that reads the numbers beside the model as a fact about the
-  // protein, which they are not.
-  const best = withConcept[0]?.[0] ?? ranked[0]?.[0];
-  if (best !== undefined) {
-    const named = withConcept[0]?.[0] === best;
-    await drawStructure(d, acc, Data.activationOf(track, best), views, {
-      coloredBy: `f/${best}`,
-      why: named
-        ? `Of the latents that fire on ${acc} and pair with a concept, this one fires on the ` +
-          'most residues of it.'
-        : `No latent that fires on ${acc} pairs with a concept, so this is the latent that ` +
-          'fires on the most residues of it.',
+  // The model is coloured by one latent. The page picks the first one and says which and why,
+  // because a reader who does not know that reads the colour as a fact about the protein. The
+  // list beside the model lets the reader pick another latent from the table above.
+  const choices = (withConcept.length ? withConcept : ranked).slice(0, 10);
+  if (choices.length === 0) return;
+  const named = withConcept.length > 0;
+  const sp = panel(
+    'Structure',
+    'In three dimensions',
+    named
+      ? `The model starts coloured by f/${choices[0][0]}. Of the latents that fire on ${acc} and ` +
+          'pair with a concept, it fires on the most residues.'
+      : `No latent that fires on ${acc} pairs with a concept, so the model starts coloured by ` +
+          `f/${choices[0][0]}, the latent that fires on the most residues.`,
+  );
+  const pair = el('div', 'loc-pair');
+  const slot = el('div', 'loc-struct');
+  const side = el('div');
+  side.append(el('h3', 'sub', 'Colour the model by'));
+  const list = el('div', 'colorby');
+  side.append(list);
+  pair.append(slot, side);
+  sp.append(pair);
+  views.append(sp);
+
+  const buttons = choices.map(([fid, n]) => {
+    const b = el('button');
+    b.type = 'button';
+    const best = d.featureById.get(fid)?.c;
+    b.append(
+      el('span', 'mono', `f/${fid}`),
+      el('span', 'cb-concept', best ? conceptName(best) : 'no concept'),
+      el('span', 'cb-cover', pct((n / info.l) * 100, 0)),
+    );
+    b.title = `Colour the model by f/${fid}. It covers ${pct((n / info.l) * 100, 0)} of ${acc}.`;
+    list.append(b);
+    return { fid, b };
+  });
+  const press = (fid: number) => {
+    for (const x of buttons) x.b.setAttribute('aria-pressed', String(x.fid === fid));
+  };
+  press(choices[0][0]);
+  side.append(
+    el('p', 'small muted', 'The share is how much of the protein the latent covers.'),
+  );
+
+  const structure = await drawStructure(d, acc, Data.activationOf(track, choices[0][0]), slot, {
+    coloredBy: 'the latent picked on the right',
+    heading: false,
+  });
+  for (const { fid, b } of buttons) {
+    b.addEventListener('click', () => {
+      press(fid);
+      structure?.update(Data.activationOf(track, fid));
     });
   }
 }

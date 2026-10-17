@@ -20,6 +20,8 @@ export interface StructureOptions {
   why?: string;
   /** True when a letter row above marks its residue on the model. */
   letters?: boolean;
+  /** False when the panel title already says "In three dimensions". */
+  heading?: boolean;
 }
 
 let live: StructureHandle | null = null;
@@ -38,14 +40,15 @@ export async function drawStructure(
   live?.destroy();
   live = null;
 
-  const box = el('div', 'struct');
+  const box = el('div', 'struct square');
   const note = el('p', 'small muted', 'Reading the AlphaFold model…');
   // The model alone. A per-protein distance used to sit beside it. The Locality panel on the
   // latent page measures the same question over the 20 proteins the latent fires hardest on, so
   // the one-protein number repeated it with less evidence.
   const wrap = el('div', 'structwrap');
   wrap.append(box);
-  host.append(el('h3', 'sub', 'In three dimensions'), note, wrap);
+  if (opts.heading !== false) host.append(el('h3', 'sub', 'In three dimensions'));
+  host.append(note, wrap);
 
   let bb;
   try {

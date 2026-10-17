@@ -57,6 +57,8 @@ function annotationMask(length: number, ranges: [number, number][]): Uint8Array 
 
 export interface LocalityHandle {
   root: HTMLElement;
+  /** The empty square left of the chemistry count, for the 3D model of the same protein. */
+  structSlot: HTMLElement;
   /**
    * Draw. Call this once, after the root is in the document.
    *
@@ -115,9 +117,11 @@ export function localityView(
   scroller.append(spacer, zoomCv);
   root.append(scroller);
 
-  // The legend on the left, the chemistry count on the right. The coloured row invites the eye
-  // to judge which class the firing site prefers, and the eye judges it badly, so the count sits
-  // beside the picture rather than in a sentence under it.
+  // The legend under the letters. Under it, the 3D model on the left and the chemistry count on
+  // the right. The coloured row invites the eye to judge which class the firing site prefers,
+  // and the eye judges it badly, so the count sits beside the pictures rather than in a sentence.
+  // The model is square, because a protein is about as high as it is wide. A full-width box of
+  // 1100 x 340 px left two thirds of its width empty.
   const foot = el('div', 'loc-foot');
   const legend = el('div', 'loc-legend');
   for (const c of AA_CLASSES) {
@@ -128,14 +132,15 @@ export function localityView(
     item.title = c.letters.split('').join(' ');
     legend.append(item);
   }
-  const legendSide = el('div');
-  legendSide.append(legend);
   const chem = el('div', 'loc-chem');
   const chemHead = el('h3', 'sub', 'What the firing residues are made of');
   const chemSide = el('div');
   chemSide.append(chemHead, chem);
-  foot.append(legendSide, chemSide);
-  root.append(foot);
+  const structSlot = el('div', 'loc-struct');
+  const pair = el('div', 'loc-pair');
+  pair.append(structSlot, chemSide);
+  foot.append(legend);
+  root.append(foot, pair);
 
   /** What the residues under the firing site are, since the stripe alone invites a guess. */
   function describeChemistry(): void {
@@ -386,6 +391,7 @@ export function localityView(
 
   return {
     root,
+    structSlot,
     mount() {
       centerOnPeak();
       redraw();

@@ -728,7 +728,7 @@ async function drawLocality(
   // Pointing at a letter marks the same residue on the model, which is the reason both views are
   // on one page and not on two.
   loc.onHover((i) => currentStructure()?.highlight(i === null ? null : i + 1));
-  await drawStructure(d, acc, acts, host, { coloredBy: `f/${fid}`, letters: true });
+  await drawStructure(d, acc, acts, loc.structSlot, { coloredBy: `f/${fid}`, letters: true });
 }
 
 /**
