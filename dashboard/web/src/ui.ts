@@ -425,9 +425,13 @@ export function figures(
 /**
  * How to use a panel. It goes above the thing it explains, never under it: a reader who has to
  * scroll past a plot to learn how to use the plot has already tried it and given up.
+ *
+ * It is closed until the reader opens it. Open, the steps sat between the title and the plot on
+ * every panel and were the heaviest block on the page, so the eye read instructions before data.
  */
 export function howto(text: string): HTMLElement {
-  const box = el('p', 'howto');
+  const box = el('details', 'howto');
+  box.append(el('summary', undefined, 'How to read this'), el('div', 'howto-body'));
   setHowto(box, text);
   return box;
 }
@@ -437,9 +441,10 @@ const SENTENCE_BREAK = /(?<=[.?!])\s+(?=[A-Z0-9"'“(])/;
 
 /** Replace the text of a how-to box. Each sentence goes on its own line. */
 export function setHowto(box: HTMLElement, text: string): void {
-  box.textContent = '';
+  const body = box.querySelector<HTMLElement>('.howto-body') ?? box;
+  body.textContent = '';
   for (const sentence of text.trim().split(SENTENCE_BREAK)) {
-    box.append(el('span', 'howto-line', sentence));
+    body.append(el('span', 'howto-line', sentence));
   }
 }
 

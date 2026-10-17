@@ -39,11 +39,10 @@ function station(
   lines: string[],
 ): void {
   add(svg, 'text', {
-    x, y: 14, 'font-size': 10.5, fill: 'var(--muted)', 'letter-spacing': 1.2,
+    x, y: 14, 'font-size': 11, 'font-weight': 500, fill: 'var(--muted)',
   }, `${n} · ${head}`);
   add(svg, 'text', {
-    x, y: 136, 'font-size': 18, 'font-weight': 700, fill: 'var(--ink)',
-    'font-family': 'Archivo, sans-serif',
+    x, y: 136, 'font-size': 18, 'font-weight': 600, fill: 'var(--ink)',
   }, value);
   lines.forEach((t, i) => {
     add(svg, 'text', { x, y: 154 + i * 14, 'font-size': 11, fill: 'var(--muted)' }, t);
@@ -95,7 +94,7 @@ export function methodFigure(d: Data): HTMLElement {
       x: 14, y: 52 + i * 18, 'font-size': 13, fill: 'var(--ink-2)', 'font-family': mono,
     }, t);
   });
-  station(svg, 14, 1, 'A PROTEIN', num(d.manifest.counts.proteins), [
+  station(svg, 14, 1, 'A protein', num(d.manifest.counts.proteins), [
     'proteins of Swiss-Prot, read',
     'one residue at a time',
   ]);
@@ -107,13 +106,13 @@ export function methodFigure(d: Data): HTMLElement {
     const lit = i >= 4 && i <= 6;
     add(svg, 'rect', {
       x: 196, y: 26 + i * 10, width: 150, height: 7, rx: 1.5,
-      fill: lit ? 'var(--accent)' : 'var(--line-strong)', opacity: lit ? 0.85 : 0.5,
+      fill: lit ? 'var(--depth)' : 'var(--line-strong)', opacity: lit ? 0.85 : 0.5,
     });
   }
   add(svg, 'text', { x: 352, y: 33, 'font-size': 10, fill: 'var(--muted)' }, `layer ${h.layers}`);
-  add(svg, 'text', { x: 352, y: 81, 'font-size': 10, fill: 'var(--accent)' }, 'layers 15 to 19');
+  add(svg, 'text', { x: 352, y: 81, 'font-size': 10, fill: 'var(--depth)' }, 'layers 15 to 19');
   add(svg, 'text', { x: 352, y: 117, 'font-size': 10, fill: 'var(--muted)' }, 'layer 1');
-  station(svg, 196, 2, 'PROTT5, 24 ENCODER LAYERS', String(h.layers), [
+  station(svg, 196, 2, 'ProtT5, 24 encoder layers', String(h.layers), [
     'layers, and each one holds its own',
     'vector for every residue',
   ]);
@@ -123,7 +122,7 @@ export function methodFigure(d: Data): HTMLElement {
   // The fan in and the fan out are the point of the picture. One dictionary reads every layer
   // and writes back into every layer, which is what a stack of per-layer autoencoders cannot do.
   const fan = add(svg, 'g', {
-    stroke: 'var(--accent)', 'stroke-width': 0.7, opacity: 0.45, fill: 'none',
+    stroke: 'var(--depth)', 'stroke-width': 0.7, opacity: 0.45, fill: 'none',
   });
   [30, 50, 70, 90, 110].forEach((y, i) => {
     add(fan, 'path', { d: `M476 ${y} C 520 ${y}, 520 ${70 + i * 4}, 560 ${70 + i * 4}` });
@@ -158,7 +157,7 @@ export function methodFigure(d: Data): HTMLElement {
   add(svg, 'text', {
     x: 672, y: 155, 'font-size': 10, fill: 'var(--muted)', 'text-anchor': 'middle',
   }, 'all 24');
-  station(svg, 476, 3, 'ONE CROSSCODER READS ALL 24 AT ONCE', num(h.latents_alive), [
+  station(svg, 476, 3, 'One crosscoder reads all 24 at once', num(h.latents_alive), [
     `of ${num(h.latents_total)} latents ever fire. One latent`,
     'writes into every layer, so it has',
     'a depth profile.',
@@ -199,7 +198,7 @@ export function methodFigure(d: Data): HTMLElement {
     svg,
     746,
     4,
-    'SWISS-PROT NAMES WHAT A LATENT READS',
+    'Swiss-Prot names what a latent reads',
     `${h.concepts_identified} of ${h.concepts_total}`,
     [
       `concepts have a latent. ${num(h.features_paired)} latents pair, at`,

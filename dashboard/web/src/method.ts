@@ -115,7 +115,7 @@ function dictionaryPicture(): HTMLElement {
     }, i === 2 ? 'layer m' : `layer ${[24, 23, '', 2, 1][i]}`);
     svgNode(s, 'path', {
       d: `M438 ${y + 10} C 470 ${y + 10}, 470 90, 500 90`,
-      stroke: 'var(--accent)', 'stroke-width': 0.8, fill: 'none', opacity: 0.55,
+      stroke: 'var(--depth)', 'stroke-width': 0.8, fill: 'none', opacity: 0.55,
     });
     svgNode(s, 'path', {
       d: `M560 96 C 590 96, 590 ${y + 10}, 620 ${y + 10}`,

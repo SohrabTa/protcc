@@ -115,7 +115,7 @@ export function latentLocalityPlot(d: Data, self?: Feature): HTMLElement {
   });
   add('rect', {
     x: X(SEQ_LOCAL), y: Y(SPACE_LOCAL), width: X(hi) - X(SEQ_LOCAL), height: Y(0) - Y(SPACE_LOCAL),
-    fill: 'var(--accent)', 'fill-opacity': 0.1,
+    fill: 'var(--depth)', 'fill-opacity': 0.08,
   });
 
   for (let g = 0; g <= hi + 0.001; g += 0.5) {
@@ -150,7 +150,7 @@ export function latentLocalityPlot(d: Data, self?: Feature): HTMLElement {
     `one stretch of the chain, ${num(counts.stretch)}`,
   );
   label(
-    PL + iw - 5, Y(0) - 7, 'end', 10.5, 'var(--accent)',
+    PL + iw - 5, Y(0) - 7, 'end', 10.5, 'var(--depth)',
     `one site in the fold, ${num(counts['fold-site'])}`,
   );
   label(

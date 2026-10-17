@@ -116,6 +116,9 @@ export async function structureView(
   let vals = values;
   let marked: number | null = null;
   const paint = (): void => {
+    // A silent residue is grey, not the low end of the ramp. On a light page the low end is the
+    // page colour, and the chain would vanish where the latent does not fire.
+    const rest = cssVar('--struct-rest');
     viewer.setStyle(
       {},
       {
@@ -126,7 +129,8 @@ export async function structureView(
           colorfunc: (atom: { resi: number | string }) => {
             const i = Number(atom.resi) - 1;
             const v = Number.isFinite(i) ? vals[i] : undefined;
-            return `rgb(${rampRGB(v === undefined ? 0 : v / 255).join(',')})`;
+            if (v === undefined || v === 0) return rest;
+            return `rgb(${rampRGB(v / 255).join(',')})`;
           },
         },
       },

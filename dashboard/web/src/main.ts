@@ -33,6 +33,40 @@ function header(): void {
   }
 }
 
+/** The theme the reader picked last. Light is the default, as on a printed figure. */
+const THEME_KEY = 'protcc-theme';
+type Theme = 'light' | 'dark';
+
+function storedTheme(): Theme {
+  try {
+    return localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light';
+  } catch {
+    return 'light';
+  }
+}
+
+/** The canvases and the 3D model read the colours when they draw, so a switch draws the page again. */
+function mountThemeButton(): void {
+  const btn = document.getElementById('themebtn')!;
+  const apply = (theme: Theme): void => {
+    document.documentElement.dataset.theme = theme;
+    btn.textContent = theme === 'dark' ? 'Light' : 'Dark';
+    btn.title = `Change to the ${theme === 'dark' ? 'light' : 'dark'} theme`;
+  };
+  apply(storedTheme());
+  btn.addEventListener('click', () => {
+    const next: Theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    try {
+      localStorage.setItem(THEME_KEY, next);
+    } catch {
+      // Private windows refuse storage. The switch still holds for this visit.
+    }
+    apply(next);
+    header();
+    void route();
+  });
+}
+
 function setCrumbs(parts: (Node | string)[]): void {
   crumbs.textContent = '';
   crumbs.append(link('/', 'All concepts'));
@@ -45,6 +79,8 @@ function setCrumbs(parts: (Node | string)[]): void {
 async function route(): Promise<void> {
   const hash = location.hash.replace(/^#/, '') || '/';
   const [, kind, rest] = /^\/([^/]*)\/?(.*)$/.exec(hash) ?? [];
+  // The method picture is the front door. On a detail page it pushed the data 260 px down.
+  document.getElementById('figs')!.hidden = Boolean(kind);
   try {
     if (!kind) {
       setCrumbs([]);
@@ -87,6 +123,7 @@ async function route(): Promise<void> {
 }
 
 async function start(): Promise<void> {
+  mountThemeButton();
   app.append(el('p', 'loading', 'Loading the index…'));
   try {
     await data.load();

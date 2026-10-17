@@ -350,7 +350,7 @@ export function depthMap(d: Data): DepthMapHandle {
       // The bar under the pointer is wider and full strength, and the others step back, so the
       // one being read stands out without a second colour.
       const wide = on ? bw + 6 : bw;
-      c.fillStyle = cssVar('--accent');
+      c.fillStyle = cssVar('--depth');
       c.globalAlpha = s === 0 ? 0.2 : on ? 1 : hoverBar > 0 ? 0.4 : 0.85;
       c.fillRect(g.X(l + 1) - wide / 2, barsTop + BAND - h, wide, Math.max(0.8, h));
       if (on) {
@@ -645,7 +645,7 @@ export function depthMap(d: Data): DepthMapHandle {
     if (isOverview()) {
       items.push([
         'bars on top: the share of the latents that peak in that layer and pair',
-        cssVar('--accent'),
+        cssVar('--depth'),
       ]);
     }
     for (const [label, color] of items) {

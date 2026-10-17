@@ -849,7 +849,7 @@ function depthChart(d: Data, f: Feature): HTMLElement {
   const path = (vals: number[], map: (v: number) => number) =>
     vals.map((v, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(map(v)).toFixed(1)}`).join('');
   add('path', {
-    d: path(norm, (v) => v), fill: 'none', stroke: 'var(--accent)', 'stroke-width': 2,
+    d: path(norm, (v) => v), fill: 'none', stroke: 'var(--depth)', 'stroke-width': 2,
   });
   add('path', {
     d: path(cos, (v) => (v + 1) / 2), fill: 'none', stroke: 'var(--muted)',
@@ -872,7 +872,7 @@ function depthChart(d: Data, f: Feature): HTMLElement {
   const legend = el('div', 'loc-legend');
   const solid = el('span', 'loc-key');
   const sk = el('span', 'inlinekey');
-  sk.style.background = cssVar('--accent');
+  sk.style.background = cssVar('--depth');
   solid.append(sk, 'length of the vector');
   const dashed = el('span', 'loc-key');
   dashed.append(el('span', 'inlinekey dashed'), 'cosine to the peak layer');
