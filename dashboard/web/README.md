@@ -23,8 +23,59 @@ The data tree is never copied into the bundle: the full one is several gigabytes
 symlink to `../data/web`, which the precompute writes, and `npm run serve` links the same tree
 into `dist/`. A real deployment drops the `data/` folder next to `index.html`.
 
-The build is about 70 kB of JavaScript and 13 kB of CSS, with no runtime dependencies. 3Dmol is
-a separate 545 kB chunk that only a page with a structure fetches.
+The build is 140 kB of JavaScript and 25 kB of CSS (48 kB and 6 kB gzipped, `vite build` on
+2026-10-17), with no runtime dependencies. 3Dmol is a separate 545 kB chunk that only a page with
+a structure fetches.
+
+## The look
+
+The 2026-10-17 redesign removed what read as a generated interface: three type families,
+uppercase labels with wide spacing, a card with a shadow around every panel, and a teal box of
+instructions at the top of every panel. The model was the plain feature browsers of Anthropic
+(Transformer Circuits), sae_vis, and Distill.
+
+- One type family. IBM Plex Sans for text, IBM Plex Mono for sequences, accessions and numbers.
+- Panels are sections divided by a rule, not cards.
+- Each colour names one kind of data and nothing else: amber is activation, teal is a Swiss-Prot
+  annotation, slate (`--depth`) is depth in the encoder. Links, chips and focus rings are ink.
+  Before, teal was also the links, the help boxes and the depth line.
+- The how-to steps sit closed under "How to read this" (`howto` in `ui.ts`). Open, they were the
+  heaviest block of every panel, so the eye read instructions before data.
+- Dark is the default theme. The sun and moon switch in the header stores the choice in
+  `localStorage` under `protcc-theme`.
+- The method figure shows on the home page only.
+
+## The latent page
+
+The order follows the questions of a reader, as on the feature pages of Bricken et al. (2023) and
+sae_vis: what it is, what it fires on, the one protein in place, whether the concept holds when
+it fires weakly, depth and selectivity, locality, and the full protein list last.
+
+The header carries three numbers that every latent has (proteins it fires on, mean coverage, peak
+layer), so a latent with no concept is not a blank page.
+
+**Examples** come first: the 10 proteins it fires on most strongly, cut to 61 residues around the
+strongest residue, amber by activation, with a teal line under the residues of the best paired
+concept. The five peak ranges show weaker examples, taken at even steps through the range, so a
+link always shows the same rows and no seed is needed. A click on a row opens that protein in the
+residue panel. On f/6187 (Globin) the 0.2 to 0.4 range holds OHCU decarboxylases and adenylate
+cyclases, which is the thing the strongest examples alone never show.
+
+## The 3D model
+
+A 520 px square next to the chemistry count on the latent and concept pages, and next to a
+"Colour the model by" list on the protein page.
+
+- `zoomTo` in 3Dmol fits a sphere around the farthest atom into the height of the view, so a
+  model with one long tail sat small. `fillBox` in `structure.ts` measures the model on screen,
+  zooms until it fills 90% of the box, and pans it to the centre. P30323 went from about 130 of
+  300 px of height to about 93% of the box.
+- 3Dmol calls `preventDefault` on every wheel event over the model, so the page stopped scrolling
+  under the pointer. Measured on `#/latent/4673`: three wheel steps left `scrollY` at 2036.5 and
+  zoomed the model. A capture listener on the box (`passWheelToPage`) now lets a plain wheel
+  scroll the page, and Ctrl or Cmd with the wheel, or a pinch, zooms.
+- A residue the latent does not fire on is grey (`--struct-rest`), not the low end of the ramp,
+  because on a light page the low end is the page colour.
 
 ## Navigation
 
@@ -264,7 +315,13 @@ there is nothing to clamp, which is why the same click looked calm there and vio
 
 - **Fonts come from Google.** `index.html` links them, which is fine for development and wrong
   for an offline bundle. They have to be vendored as WOFF2 before the site can claim to run with
-  no network. Measured at 299 kB for every subset, far less for Latin alone.
+  no network. The 299 kB measured for every subset was for the earlier Archivo, Source Sans 3 and
+  Plex Mono. The Plex Sans and Plex Mono set is not measured.
+- **The examples cost a shard each.** Each example row reads the protein bundle shard of its
+  protein, so the first view of a latent page reads 11 shards, 5.6 MB before compression
+  (`performance.getEntriesByType('resource')` on `#/latent/4673`, 2026-10-17). It was one shard.
+  A small per-latent file from the precompute, with the 61-residue windows and their activations,
+  removes the cost.
 - **No per-residue counts over the whole evaluation set.** The chemistry count runs on one
   protein in the browser. A claim that a latent reads a chemical class needs the same count over
   every protein it fires on, which belongs in the precompute.
