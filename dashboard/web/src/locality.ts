@@ -8,7 +8,7 @@
  * marker on the overview says which part of the protein the letters are showing.
  *
  * The letter row draws only the residues on screen, into a canvas the width of the viewport.
- * A 5000-residue protein at 9 px per residue is 45,000 px wide, which is past the width limit
+ * A 5000-residue protein at 12 px per residue is 60,000 px wide, which is past the width limit
  * of a canvas in most browsers, so the full row cannot be one drawing.
  */
 
@@ -37,12 +37,12 @@ export interface Marks {
   extra?: string;
 }
 
-const CELL = 9; // px per residue in the letter row
+const CELL = 12; // px per residue in the letter row, wide enough for a 12 px letter
 const ANN_H = 6;
-const LET_H = 18;
+const LET_H = 20;
 const CHEM_H = 7;
 const BAR_H = 24;
-const TICK_H = 13;
+const TICK_H = 16;
 const ZOOM_H = ANN_H + LET_H + CHEM_H + BAR_H + TICK_H;
 const OVER_H = 26;
 
@@ -240,7 +240,7 @@ export function localityView(
 
     const first = Math.floor(left / CELL);
     const last = Math.min(n - 1, Math.ceil((left + vw) / CELL));
-    const mono = "11px 'IBM Plex Mono', ui-monospace, monospace";
+    const mono = "12px 'IBM Plex Mono', ui-monospace, monospace";
     const line = cssVar('--line');
     const accent = cssVar('--accent');
     const muted = cssVar('--muted');
@@ -288,7 +288,7 @@ export function localityView(
 
     // A tick every 10 residues, numbered every 50, both counted from 1 like Swiss-Prot.
     c.textBaseline = 'top';
-    c.font = "10px 'IBM Plex Mono', ui-monospace, monospace";
+    c.font = "12px 'IBM Plex Mono', ui-monospace, monospace";
     for (let i = first; i <= last; i++) {
       const num = i + 1;
       if (num % 10 !== 0) continue;

@@ -18,8 +18,8 @@ import { currentStructure, drawStructure } from '../structpanel';
 import { latentLocalityPlot } from '../locality3d';
 import { conceptBadge, conceptName } from '../pairs';
 import {
-  cssVar, el, figures, holdHeight, howto, infoButton, inkOn, link, num, panel, pct, rampRGB, row,
-  stepper, table, uniprotLink,
+  cssVar, el, figures, holdHeight, howto, infoButton, inkOn, link, num, panel, pct, proteinName,
+  rampRGB, row, stepper, table, uniprotLink,
 } from '../ui';
 
 /**
@@ -133,10 +133,13 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
   const spacePanel = panel('Locality', 'A stretch of the chain, or a site in the fold');
   spacePanel.append(
     howto(
-      'One dot for each live latent. A dot near the left fires on residues that are neighbours ' +
-        'in the chain. A dot near the bottom fires on residues that are together in space. ' +
-        'Both axes are divided by the same spread over the whole protein, so 1 is as far apart ' +
-        'as the protein itself. Point at a dot to name its latent, and click it to open it.',
+      'One dot for each live latent. Each axis is a ratio. Take the median distance between the ' +
+        'residues the latent fires on, and divide it by the median distance between two random ' +
+        'residues of the same protein. Across, the distance is counted along the chain in ' +
+        'residues. Up, it is measured in space, between the alpha carbons of the AlphaFold ' +
+        'model. 1 means that the firing residues are as far apart as random residues. Less ' +
+        'than 1 is closer together, and more than 1 is further apart. Point at a dot to name its ' +
+        'latent, and click it to open it.',
     ),
     latentLocalityPlot(d, f),
   );
@@ -168,13 +171,18 @@ function namedConcept(paired: LatentPair[], i: number, asLink: boolean): HTMLEle
 
 /** The concepts this latent pairs with, the scores of each pair, and three numbers about it. */
 function latentPanel(d: Data, f: Feature, paired: LatentPair[]): HTMLElement {
-  const p = panel('Latent', `f/${f.f}`);
+  // The title says what the latent reads, because a number alone names nothing.
+  const p = panel(
+    'Latent',
+    paired.length ? `f/${f.f}: ${conceptName(paired[0].concept.c)}` : `f/${f.f}`,
+  );
+  p.classList.add('pagehead');
   // The same three numbers on every latent, so that a latent with no concept still says what it is.
   p.append(
     figures([
       [num(f.np), `proteins it fires on, ${pct(f.pp, 2)} of ${num(d.manifest.counts.proteins)}`],
-      [pct(f.pw), 'of a protein it covers, as the mean'],
-      [`${f.pk} of ${d.nLayers}`, 'peak layer in the encoder'],
+      [pct(f.pw), 'mean coverage per protein'],
+      [`${f.pk} of ${d.nLayers}`, 'peak layer'],
     ]),
   );
   if (paired.length === 0) {
@@ -188,9 +196,10 @@ function latentPanel(d: Data, f: Feature, paired: LatentPair[]): HTMLElement {
       'p',
       'lede',
       (paired.length === 1
-        ? 'It pairs with one Swiss-Prot concept. '
-        : `It pairs with ${paired.length} Swiss-Prot concepts. Their numbers mark them on the ` +
-          'rest of this page. ') + 'Click a concept to see all its latents side by side.',
+        ? `It pairs with one Swiss-Prot concept, at F1 per domain ${paired[0].f1.toFixed(3)}. `
+        : `It pairs with ${paired.length} Swiss-Prot concepts. The title names the best one, ` +
+          'and their numbers mark them on the rest of this page. ') +
+        'Click a concept to see all its latents side by side.',
     ),
   );
   const { root, body } = table(
@@ -331,7 +340,7 @@ function drawProteinList(
         'Peak is the strongest it fires on the protein, as a share of its strongest anywhere. ' +
         'Pick a range of the peak to list only those proteins.' +
         (paired.length === 1
-          ? ` Annotated says whether Swiss-Prot annotates ${only} on the protein.`
+          ? ` A teal dot under Annotated means that Swiss-Prot annotates ${only} on the protein.`
           : '') +
         (paired.length > 1
           ? ` Annotated shows the number of each concept that Swiss-Prot annotates on the ` +
@@ -382,9 +391,16 @@ function drawProteinList(
   const pager = el('div', 'chips');
   host.append(status, tableHost, pager);
 
-  // The Annotated cell, and a key that sorts the best concept above the others.
+  // The Annotated cell, and a key that sorts the best concept above the others. A protein the
+  // annotation misses gets an empty cell, so the rows that carry it stand out.
   const annotatedCell = (i: number): [Node | string, number] => {
-    if (paired.length === 1) return annotated[0][i] ? ['yes', 1] : ['no', 0];
+    if (paired.length === 1) {
+      if (!annotated[0][i]) return ['', 0];
+      const dot = el('span', 'annmark');
+      dot.title = `Swiss-Prot annotates ${only} on this protein`;
+      dot.setAttribute('aria-label', 'yes');
+      return [dot, 1];
+    }
     const cell = el('span');
     let key = 0;
     paired.forEach((x, k) => {
@@ -392,10 +408,12 @@ function drawProteinList(
       cell.append(conceptBadge(k, x.concept.c));
       key += 2 ** (paired.length - 1 - k);
     });
-    return key ? [cell, key] : ['no', 0];
+    return key ? [cell, key] : ['', 0];
   };
 
+  let drawn = 0;
   function draw(): void {
+    const mine = ++drawn;
     const keep: number[] = [];
     for (let i = 0; i < rank.protein.length; i++) {
       if (picked < 0 || range[i] === picked) keep.push(i);
@@ -413,23 +431,29 @@ function drawProteinList(
 
     tableHost.textContent = '';
     const headers = paired.length
-      ? ['Protein', 'Peak', 'Covers', 'Annotated']
-      : ['Protein', 'Peak', 'Covers'];
-    const { root, body } = table(headers, [0]);
+      ? ['Protein', 'Name', 'Peak', 'Covers', 'Annotated']
+      : ['Protein', 'Name', 'Peak', 'Covers'];
+    const { root, body } = table(headers, [0, 1]);
     for (const i of keep.slice(page * PAGE, (page + 1) * PAGE)) {
       const acc = d.proteinIds[rank.protein[i]];
+      // The name lives in the protein's bundle, which loads on its own. The row does not wait.
+      const name = el('span', 'muted');
+      void d.protein(acc).then((info) => {
+        if (info && mine === drawn) name.replaceWith(proteinName(info.n));
+      });
       const cells: (Node | string)[] = [
         link(`/protein/${acc}`, acc, 'mono'),
+        name,
         (rank.value[i] / 255).toFixed(2),
         pct((rank.cover[i] / 255) * 100, 0),
       ];
-      const keys: (number | string | undefined)[] = [acc, rank.value[i], rank.cover[i]];
+      const keys: (number | string | undefined)[] = [acc, undefined, rank.value[i], rank.cover[i]];
       if (paired.length) {
         const [cell, key] = annotatedCell(i);
         cells.push(cell);
         keys.push(key);
       }
-      body.append(row(cells, [0], keys));
+      body.append(row(cells, [0, 1], keys));
     }
     const sc = el('div', 'tbl-scroll');
     sc.append(root);
@@ -655,7 +679,10 @@ function exampleRow(
   row_.type = 'button';
   row_.title = `${acc} ${name}. Click to read the whole protein below.`;
   const label = el('span', 'ex-label');
-  label.append(el('span', 'mono ex-acc', acc), el('span', 'ex-name', name));
+  const shortName = proteinName(name);
+  shortName.classList.add('ex-name');
+  shortName.removeAttribute('title');
+  label.append(el('span', 'mono ex-acc', acc), shortName);
   const letters = el('span', 'ex-seq mono');
   letters.append(el('span', 'ex-pos', String(start + 1)));
   for (let r = start; r < start + width; r++) {
@@ -697,7 +724,8 @@ async function drawLocality(
   const head = el('p', 'evhead');
   head.append(
     link(`/protein/${acc}`, acc, 'mono'),
-    ` ${info.n}`,
+    ' ',
+    proteinName(info.n),
     el('span', 'muted', `  ${info.l} aa  `),
     uniprotLink(acc),
   );
@@ -758,10 +786,10 @@ function drawEvidence(ranked: RankedProteins, paired: LatentPair[], host: HTMLEl
       'Each row holds the proteins where the peak of this latent falls in one range. ' +
         'The peak is the strongest it fires on a protein, as a share of its strongest anywhere. ' +
         'Each bar is all the proteins of its row. Teal is the share that Swiss-Prot annotates ' +
-        'with the concept, and grey is the rest. ' +
+        'with the concept, and gray is the rest. ' +
         'If the teal share stays high in the weak rows, the concept is there also when the ' +
         'latent fires weakly. ' +
-        'Grey only means that Swiss-Prot has no annotation of the concept on the protein.',
+        'Gray only means that Swiss-Prot has no annotation of the concept on the protein.',
     ),
   );
 
@@ -874,11 +902,11 @@ function barCell(hits: number, total: number): HTMLTableCellElement {
 function selectivityPlot(d: Data, self: Feature): HTMLElement {
   const W = 480;
   const H = 300;
-  const PL = 68;
+  const PL = 56;
   const PR = 14;
   const PT = 14;
-  const PB = 46;
-  const FONT = 11.5;
+  const PB = 48;
+  const FONT = 12;
   const iw = W - PL - PR;
   const ih = H - PT - PB;
   const ns = 'http://www.w3.org/2000/svg';
@@ -940,19 +968,14 @@ function selectivityPlot(d: Data, self: Feature): HTMLElement {
   add(
     'text',
     { x: PL + iw / 2, y: H - 6, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': FONT },
-    `share of the ${num(d.manifest.counts.proteins)} proteins it fires on`,
+    `Proteins it fires on, % of ${num(d.manifest.counts.proteins)}`,
   );
-  // Two lines, because one line is longer than the plot is high.
-  ['mean share of a protein it covers,', 'over the proteins it fires on'].forEach((t, i) => {
-    const x = 12 + i * 14;
-    const y = PT + ih / 2;
-    const rot = add(
-      'text',
-      { x, y, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': FONT },
-      t,
-    );
-    rot.setAttribute('transform', `rotate(-90 ${x} ${y})`);
-  });
+  const yTitle = add(
+    'text',
+    { x: 14, y: PT + ih / 2, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': FONT },
+    'Mean coverage per protein',
+  );
+  yTitle.setAttribute('transform', `rotate(-90 14 ${PT + ih / 2})`);
 
   const wrap = el('div');
   wrap.append(svg);
@@ -985,9 +1008,9 @@ function depthChart(d: Data, f: Feature): HTMLElement {
   const H = 230;
   const PL = 44;
   const PR = 44;
-  const PT = 20;
-  const PB = 40;
-  const FONT = 11.5;
+  const PT = 22;
+  const PB = 42;
+  const FONT = 12;
   const iw = W - PL - PR;
   const ih = H - PT - PB;
   const svg = document.createElementNS(ns, 'svg');
@@ -1034,14 +1057,14 @@ function depthChart(d: Data, f: Feature): HTMLElement {
   for (const l of [1, 6, 12, 18, 24]) {
     add('text', { x: X(l - 1), y: H - 22, 'text-anchor': 'middle', ...muted }, String(l));
   }
-  add('text', { x: PL + iw / 2, y: H - 4, 'text-anchor': 'middle', ...muted }, 'encoder layer');
+  add('text', { x: PL + iw / 2, y: H - 4, 'text-anchor': 'middle', ...muted }, 'Encoder layer');
   const side = (x: number, text: string) => {
     const y = PT + ih / 2;
     const t = add('text', { x, y, 'text-anchor': 'middle', ...muted }, text);
     t.setAttribute('transform', `rotate(-90 ${x} ${y})`);
   };
-  side(12, 'length');
-  side(W - 6, 'cosine');
+  side(12, 'Length');
+  side(W - 8, 'Cosine');
 
   const wrap = el('div');
   wrap.append(svg);

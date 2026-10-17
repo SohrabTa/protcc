@@ -5,7 +5,7 @@
  * the site gives. Across is the encoder layer the latent writes hardest into. Up is how many
  * proteins it fires on.
  *
- * The shape is the point. 4867 of the 8128 live latents, which is 59.9%, peak at layers 15 to
+ * The shape is the point. 4,867 of the 8,128 live latents, which is 59.9%, peak at layers 15 to
  * 19, against 20.8% for an even spread. The bars across the top are the share of each layer's
  * latents that a concept names.
  *
@@ -31,11 +31,11 @@ import type { Data, Feature } from './data';
 import { bestConceptLabel, pairCells } from './pairs';
 import { cssVar, el, howto, link, num, pct, row, setHowto, table, type Header } from './ui';
 
-const PL = 46;
+const PL = 60;
 const PR = 14;
-const BAND = 40; // the top strip that carries the paired share
+const BARS = 40; // the top strip that carries the paired share
 const BAND_GAP = 10; // between the bars and the top line of the plot
-const PT = 22 + BAND + BAND_GAP;
+const PT = 22 + BARS + BAND_GAP;
 // A zoomed view has no bars, so its plot starts near the top of the canvas. With the full-view
 // top it had 66 px of empty canvas between the caption and the plot.
 const PT_ZOOM = 14;
@@ -43,12 +43,38 @@ const PT_ZOOM = 14;
 // the plot can enclose every latent. 141 latents fire on almost every protein, and without the
 // inset they sat on the top line itself.
 const INSET = 6;
-const PB = 34;
-const H = 340;
+const PB = 46;
+const H = 360;
 const DOT = 2.4;
 const CELL = 4; // px per density cell
 
 type Range = [number, number];
+
+/** The axis text on the canvas: the ticks in mono and the axis titles in the text face. */
+const TICK_FONT = "12px 'IBM Plex Mono', ui-monospace, monospace";
+const TITLE_FONT = "13px 'IBM Plex Sans', ui-sans-serif, sans-serif";
+
+/** The layers where most latents peak. The landing page states it, and the caption measures it. */
+const BAND: [number, number] = [15, 19];
+
+/** The share of the live latents that peak inside the band, against an even spread. */
+export function peakBand(d: Data): {
+  from: number;
+  to: number;
+  count: number;
+  share: number;
+  even: number;
+} {
+  const [from, to] = BAND;
+  const count = d.features.filter((f) => f.pk >= from && f.pk <= to).length;
+  return {
+    from,
+    to,
+    count,
+    share: count / d.features.length,
+    even: (to - from + 1) / d.nLayers,
+  };
+}
 
 /**
  * One view of the plot. The ranges are in the units of the axes, not in pixels, so a resize
@@ -250,7 +276,7 @@ export function depthMap(d: Data): DepthMapHandle {
 
     c.strokeStyle = cssVar('--line');
     c.fillStyle = cssVar('--muted');
-    c.font = "9px 'IBM Plex Mono', ui-monospace, monospace";
+    c.font = TICK_FONT;
     c.textAlign = 'right';
     c.textBaseline = 'middle';
     for (const p of logTicks(v.y[0], v.y[1])) {
@@ -269,13 +295,13 @@ export function depthMap(d: Data): DepthMapHandle {
     drawXAxis(c, g, v);
 
     c.fillStyle = cssVar('--muted');
-    c.font = "9px 'IBM Plex Mono', ui-monospace, monospace";
+    c.font = TITLE_FONT;
     c.save();
-    c.translate(11, g.top + g.ih / 2);
+    c.translate(12, g.top + g.ih / 2);
     c.rotate(-Math.PI / 2);
     c.textAlign = 'center';
     c.textBaseline = 'middle';
-    c.fillText('proteins it fires on', 0, 0);
+    c.fillText('Proteins it fires on', 0, 0);
     c.restore();
 
     if (hover >= 0 && hover < targets.length) {
@@ -306,14 +332,16 @@ export function depthMap(d: Data): DepthMapHandle {
       grid[k]++;
       if (grid[k] > maxCell) maxCell = grid[k];
     }
-    const plain = cssVar('--line-strong');
+    // The muted ink and not the line color. On the dark ground the line color is so close to
+    // the page that a cell of one or two latents did not show.
+    const plain = cssVar('--muted');
     for (let gy = 0; gy < rows; gy++) {
       for (let gx = 0; gx < cols; gx++) {
         const n = grid[gy * cols + gx];
         if (!n) continue;
         // A square root rather than the raw count. The densest cell holds tens of latents and
         // the sparse ones hold one, and a linear scale makes everything but the core invisible.
-        c.globalAlpha = 0.16 + 0.74 * Math.sqrt(n / maxCell);
+        c.globalAlpha = 0.14 + 0.56 * Math.sqrt(n / maxCell);
         c.fillStyle = plain;
         c.fillRect(gx * CELL, gy * CELL, CELL, CELL);
       }
@@ -345,30 +373,30 @@ export function depthMap(d: Data): DepthMapHandle {
     const bw = Math.max(2, (g.iw / nLayers) * 0.62);
     for (let l = 0; l < nLayers; l++) {
       const s = liveByLayer[l] ? shareByLayer[l] / liveByLayer[l] : 0;
-      const h = BAND * (s / maxShare);
+      const h = BARS * (s / maxShare);
       const on = hoverBar === l + 1;
       // The bar under the pointer is wider and full strength, and the others step back, so the
       // one being read stands out without a second colour.
       const wide = on ? bw + 6 : bw;
       c.fillStyle = cssVar('--depth');
       c.globalAlpha = s === 0 ? 0.2 : on ? 1 : hoverBar > 0 ? 0.4 : 0.85;
-      c.fillRect(g.X(l + 1) - wide / 2, barsTop + BAND - h, wide, Math.max(0.8, h));
+      c.fillRect(g.X(l + 1) - wide / 2, barsTop + BARS - h, wide, Math.max(0.8, h));
       if (on) {
         c.globalAlpha = 1;
         c.fillStyle = cssVar('--ink');
-        c.font = "600 10px 'IBM Plex Mono', ui-monospace, monospace";
+        c.font = `600 ${TICK_FONT}`;
         c.textAlign = 'center';
         c.textBaseline = 'bottom';
-        c.fillText(`${(s * 100).toFixed(1)}%`, g.X(l + 1), barsTop + BAND - h - 2);
+        c.fillText(`${(s * 100).toFixed(1)}%`, g.X(l + 1), barsTop + BARS - h - 2);
       }
     }
     c.globalAlpha = 1;
     c.fillStyle = cssVar('--muted');
-    c.font = "9px 'IBM Plex Mono', ui-monospace, monospace";
+    c.font = TICK_FONT;
     c.textAlign = 'right';
     c.textBaseline = 'middle';
     c.fillText(`${(maxShare * 100).toFixed(0)}%`, PL - 6, barsTop + 4);
-    c.fillText('0%', PL - 6, barsTop + BAND);
+    c.fillText('0%', PL - 6, barsTop + BARS);
   }
 
   /** A zoomed view: every latent in it as a dot, because there are few enough to point at. */
@@ -413,7 +441,7 @@ export function depthMap(d: Data): DepthMapHandle {
 
   function drawXAxis(c: CanvasRenderingContext2D, g: ReturnType<typeof geometry>, v: View): void {
     c.fillStyle = cssVar('--muted');
-    c.font = "9px 'IBM Plex Mono', ui-monospace, monospace";
+    c.font = TICK_FONT;
     c.textAlign = 'center';
     c.textBaseline = 'top';
     if (v.axis === 'layer') {
@@ -426,22 +454,20 @@ export function depthMap(d: Data): DepthMapHandle {
           : (l - first) % step === 0;
         if (shown) c.fillText(String(l), g.X(l), H - PB + 8);
       }
-      c.fillText('encoder layer the latent writes hardest into', PL + g.iw / 2, H - PB + 21);
+      c.font = TITLE_FONT;
+      c.fillText('Peak layer: the layer the latent writes hardest into', PL + g.iw / 2, H - PB + 26);
       return;
     }
     for (const p of logTicks(v.x[0], v.x[1])) {
       c.fillText(coverText(p), g.X(Math.log10(p)), H - PB + 8);
     }
-    c.fillText(
-      'share of a protein it covers when it fires, the mean over the proteins it fires on',
-      PL + g.iw / 2,
-      H - PB + 21,
-    );
+    c.font = TITLE_FONT;
+    c.fillText('Mean coverage per protein, over the proteins it fires on', PL + g.iw / 2, H - PB + 26);
   }
 
   /** The top edge of the bars. */
   function bandTop(): number {
-    return PT - BAND - BAND_GAP;
+    return PT - BARS - BAND_GAP;
   }
 
   /** Inside the plot, between its top and bottom lines. The brush and the click live here. */
@@ -464,7 +490,7 @@ export function depthMap(d: Data): DepthMapHandle {
     if (!isOverview()) return -1;
     const top = bandTop();
     // Some room above the bars, where the share of the tallest one is written.
-    if (y < top - 14 || y > top + BAND + 2) return -1;
+    if (y < top - 14 || y > top + BARS + 2) return -1;
     return layerAt(x) ?? -1;
   }
 
@@ -569,20 +595,16 @@ export function depthMap(d: Data): DepthMapHandle {
 
   function writeCaption(): void {
     const colour = family
-      ? ` The amber dots pair with a concept of ${family}. Every other latent is grey.`
+      ? ` The amber dots pair with a concept of ${family}. Every other latent is gray.`
       : '';
     caption.textContent = '';
     const v = view();
     if (isOverview()) {
-      // Layers 15 to 19 are 5 of the 24, so an even spread puts 5/24 of the latents there.
-      const band = [15, 16, 17, 18, 19];
-      const mid = band.reduce((a, l) => a + liveByLayer[l - 1], 0);
-      const even = (band.length / nLayers) * 100;
+      // The panel title gives the share. The caption gives the count and what to compare it to.
+      const b = peakBand(d);
       caption.textContent =
-        `${num(live.length)} live latents. ` +
-        `${num(mid)} of them, which is ${((mid / live.length) * 100).toFixed(0)}%, peak at ` +
-        `layers 15 to 19. Those are ${band.length} of the ${nLayers} layers, so an even spread ` +
-        `would put ${band.length}/${nLayers} of the latents there, which is ${even.toFixed(0)}%.` +
+        `That is ${num(b.count)} of the ${num(live.length)} live latents. An even spread over ` +
+        `the ${nLayers} layers would put ${pct(b.even * 100, 0)} in layers ${b.from} to ${b.to}.` +
         colour;
       return;
     }
@@ -616,7 +638,7 @@ export function depthMap(d: Data): DepthMapHandle {
         help,
         'Point at an amber dot to see its latent, and click the dot to open it. Click ' +
         'anywhere else inside the plot to open that layer alone. Drag a rectangle inside the ' +
-        'plot to zoom into it and to list its latents. Point at a blue bar to see its share.',
+        'plot to zoom into it and to list its latents. Point at a bar to see its share.',
       );
       return;
     }
@@ -634,19 +656,16 @@ export function depthMap(d: Data): DepthMapHandle {
   function writeLegend(): void {
     legend.textContent = '';
     // A zoomed view draws every latent as a dot and has no bars, so its legend says so.
-    const ground = isOverview() ? 'as a density' : 'as grey dots';
+    const ground = isOverview() ? 'density, darker is more latents' : 'gray dots';
     const items: [string, string][] = [
-      [family ? `pairs with a concept of ${family}` : 'pairs with a concept', cssVar('--signal')],
+      [family ? `Paired with a concept of ${family}` : 'Paired with a concept', cssVar('--signal')],
       [
-        family ? `every other latent, ${ground}` : `nothing named it, ${ground}`,
-        cssVar('--line-strong'),
+        family ? `Every other latent (${ground})` : `Not paired (${ground})`,
+        cssVar(isOverview() ? '--muted' : '--line-strong'),
       ],
     ];
     if (isOverview()) {
-      items.push([
-        'bars on top: the share of the latents that peak in that layer and pair',
-        cssVar('--depth'),
-      ]);
+      items.push(['Bars: share of the latents at that peak layer that pair', cssVar('--depth')]);
     }
     for (const [label, color] of items) {
       const item = el('span', 'loc-key');

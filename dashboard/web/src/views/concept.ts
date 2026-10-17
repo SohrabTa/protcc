@@ -14,7 +14,7 @@ import { drawStructure } from '../structpanel';
 import type { StructureHandle } from '../structure';
 import {
   activationStrip, annotationStrip, depthRibbon, el, figures, holdHeight, howto, link, num, panel,
-  infoButton, pct, redrawStrips, row, table, uniprotLink,
+  infoButton, pct, proteinName, redrawStrips, row, table, uniprotLink,
 } from '../ui';
 
 export async function renderConcept(d: Data, name: string, host: HTMLElement): Promise<void> {
@@ -28,6 +28,7 @@ export async function renderConcept(d: Data, name: string, host: HTMLElement): P
   host.append(views);
 
   const p = panel('Concept', c.c.replace('_', ' · '));
+  p.classList.add('pagehead');
   p.append(
     el('p', 'lede', `${c.fam} · ${c.role}. Swiss-Prot records it as a ${c.fld.toLowerCase()}.`),
   );
@@ -221,7 +222,8 @@ async function drawEvidence(
     const head = el('p', 'evhead');
     head.append(
       link(`/protein/${acc}`, acc, 'mono'),
-      ` ${info.n}`,
+      ' ',
+      proteinName(info.n),
       el('span', 'muted', `  ${info.l} aa`),
       '  ',
       uniprotLink(acc),
@@ -299,7 +301,8 @@ async function drawEvidence(
         : link(`/latent/${k}`, `f/${k}`, 'mono'),
       ' on ',
       link(`/protein/${acc}`, acc, 'mono'),
-      ` ${info.n}`,
+      ' ',
+      proteinName(info.n),
     );
   };
   writeResLine();
@@ -329,7 +332,7 @@ async function drawEvidence(
     structure?.update(v);
   }
 
-  // The model, coloured by the same latent the letter row shows, marked where the pointer is.
+  // The model, colored by the same latent the letter row shows, marked where the pointer is.
   structure = await drawStructure(d, acc, values.get(picked.row)!, loc.structSlot, {
     coloredBy: 'the latent you clicked above',
     letters: true,

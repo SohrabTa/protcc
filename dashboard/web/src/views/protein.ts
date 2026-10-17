@@ -9,8 +9,8 @@ import { Data } from '../data';
 import { conceptName, pairCells } from '../pairs';
 import { drawStructure } from '../structpanel';
 import {
-  activationStrip, annotationStrip, el, figures, link, num, panel, pct, redrawStrips, row, table,
-  uniprotLink,
+  activationStrip, annotationStrip, el, figures, howto, link, num, panel, pct, proteinName,
+  redrawStrips, row, table, uniprotLink,
 } from '../ui';
 
 export async function renderProtein(d: Data, acc: string, host: HTMLElement): Promise<void> {
@@ -37,9 +37,9 @@ export async function renderProtein(d: Data, acc: string, host: HTMLElement): Pr
   host.append(views);
 
   const p = panel('Protein', acc);
+  p.classList.add('pagehead');
   const lede = el('p', 'lede');
-  lede.append(`${info.n}.`);
-  lede.append(' ', uniprotLink(acc, 'Open the UniProt entry'), '.');
+  lede.append(proteinName(info.n), '. ', uniprotLink(acc, 'Open the UniProt entry'), '.');
   p.append(lede);
 
   // Which latents fire here, ranked by how much of the protein they cover.
@@ -69,9 +69,13 @@ export async function renderProtein(d: Data, acc: string, host: HTMLElement): Pr
       'p',
       'small muted',
       `The table holds the ${shownRows} paired latents that cover the most of this protein. ` +
-        'It answers what else the crosscoder reads here, beside the annotation you came for. ' +
-        'The rows start with the latent that covers the most of the protein. Click a column ' +
-        'header to sort by it, a second time to reverse, and a third time for this order.',
+        'It answers what else the crosscoder reads here, beside the annotation you came for.',
+    ),
+    howto(
+      'The rows start with the latent that covers the most of the protein. Peak activation is ' +
+        'the strongest the latent fires on this protein, as a share of its strongest anywhere. ' +
+        'Click a column header to sort by it, a second time to reverse, and a third time for ' +
+        'this order.',
     ),
   );
 
@@ -81,7 +85,7 @@ export async function renderProtein(d: Data, acc: string, host: HTMLElement): Pr
       ['Best concept', 'paired concept'],
       ['F1 per domain', 'best pair f1'],
       'Covers',
-      'Peak here',
+      'Peak activation',
       'Peak layer',
     ],
     [0, 1],
@@ -204,15 +208,15 @@ export async function renderProtein(d: Data, acc: string, host: HTMLElement): Pr
     'Structure',
     'In three dimensions',
     named
-      ? `The model starts coloured by f/${choices[0][0]}. Of the latents that fire on ${acc} and ` +
+      ? `The model starts colored by f/${choices[0][0]}. Of the latents that fire on ${acc} and ` +
           'pair with a concept, it fires on the most residues.'
-      : `No latent that fires on ${acc} pairs with a concept, so the model starts coloured by ` +
+      : `No latent that fires on ${acc} pairs with a concept, so the model starts colored by ` +
           `f/${choices[0][0]}, the latent that fires on the most residues.`,
   );
   const pair = el('div', 'loc-pair');
   const slot = el('div', 'loc-struct');
   const side = el('div');
-  side.append(el('h3', 'sub', 'Colour the model by'));
+  side.append(el('h3', 'sub', 'Color the model by'));
   const list = el('div', 'colorby');
   side.append(list);
   pair.append(slot, side);
@@ -228,7 +232,7 @@ export async function renderProtein(d: Data, acc: string, host: HTMLElement): Pr
       el('span', 'cb-concept', best ? conceptName(best) : 'no concept'),
       el('span', 'cb-cover', pct((n / info.l) * 100, 0)),
     );
-    b.title = `Colour the model by f/${fid}. It covers ${pct((n / info.l) * 100, 0)} of ${acc}.`;
+    b.title = `Color the model by f/${fid}. It covers ${pct((n / info.l) * 100, 0)} of ${acc}.`;
     list.append(b);
     return { fid, b };
   });

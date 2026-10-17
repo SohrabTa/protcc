@@ -6,9 +6,9 @@
  * to a concept except through the whole list.
  *
  * It searches concepts, because that is what a reader arrives with. Nobody comes here knowing a
- * latent number, and almost nobody comes with an accession. Both still work, typed as `f/1819`
- * or `Q03217`, because they are how you return to a page you have already seen. They are not
- * advertised in the placeholder for the same reason.
+ * latent number, and almost nobody comes with an accession. Both still work, typed as `f/1819`,
+ * `1819` or `Q03217`, because they are how you return to a page you have already seen. They are
+ * not advertised in the placeholder for the same reason, and the empty result names them.
  */
 
 import type { Data } from './data';
@@ -37,20 +37,22 @@ export function mountJump(d: Data, host: HTMLElement): void {
     const t = q.trim();
     if (!t) return;
 
-    const asFeature = /^f\/?(\d+)$/i.exec(t);
-    if (asFeature) {
-      const fid = Number(asFeature[1]);
+    // A bare number is a latent too, but a concept name can hold digits, so the concepts that
+    // match still follow it.
+    const asFeature = /^(f\/?)?(\d+)$/i.exec(t);
+    if (asFeature && Number(asFeature[2]) < d.manifest.headline.latents_total) {
+      const fid = Number(asFeature[2]);
       const f = d.featureById.get(fid);
       hits.push({
         label: `f/${fid}`,
-        hash: `/feature/${fid}`,
+        hash: `/latent/${fid}`,
         note: !f
           ? 'dead latent'
           : f.c
             ? `best concept ${bestConceptLabel(d, fid)}`
             : 'no concept pairs with it',
       });
-      return;
+      if (asFeature[1]) return;
     }
     const acc = t.toUpperCase();
     if (d.proteinShard.has(acc)) {
@@ -74,7 +76,7 @@ export function mountJump(d: Data, host: HTMLElement): void {
       b.nf - a.nf || b.f1 - a.f1;
     starts.sort(byStrength);
     contains.sort(byStrength);
-    for (const c of [...starts, ...contains].slice(0, MAX)) {
+    for (const c of [...starts, ...contains].slice(0, MAX - hits.length)) {
       hits.push({
         label: c.c.replace('_', ' · '),
         hash: `/concept/${encodeURIComponent(c.c)}`,
@@ -85,7 +87,18 @@ export function mountJump(d: Data, host: HTMLElement): void {
 
   function render(): void {
     list.textContent = '';
-    list.hidden = hits.length === 0;
+    const typed = input.value.trim() !== '';
+    list.hidden = !typed;
+    if (typed && hits.length === 0) {
+      const none = el('div', 'jump-none');
+      none.append(
+        el('span', 'jump-label', 'No match'),
+        el('span', 'jump-note', 'Search by a concept name, a latent number such as f/1819, or ' +
+          'a UniProt accession of the evaluation set.'),
+      );
+      list.append(none);
+      return;
+    }
     hits.forEach((h, i) => {
       const row = el('button', 'jump-hit');
       row.setAttribute('aria-selected', String(i === cursor));
@@ -134,7 +147,7 @@ export function mountJump(d: Data, host: HTMLElement): void {
     }, 120);
   });
   input.addEventListener('focus', () => {
-    if (hits.length) list.hidden = false;
+    if (input.value.trim()) list.hidden = false;
   });
 
   // "/" focuses it, the convention wherever a page is mostly reading. It must not steal the key

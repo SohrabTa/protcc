@@ -13,7 +13,7 @@
 
 import type { Data } from './data';
 import { METHOD_SECTIONS, METRIC_INFO, type SectionId } from './metrics';
-import { el, link, num, panel } from './ui';
+import { el, link, num, panel, withContents } from './ui';
 
 const NS = 'http://www.w3.org/2000/svg';
 
@@ -52,100 +52,101 @@ function cite(text: string, href: string): HTMLAnchorElement {
  * the same direction learned again in every one of them, with nothing that says they are the
  * same. The right side is one dictionary that reads every layer and writes back into every
  * layer, so that direction is one unit with a profile over depth.
+ *
+ * The two titles and the two captions are HTML under each drawing, so they wrap and keep the
+ * size of the text around them.
  */
 function dictionaryPicture(): HTMLElement {
-  const W = 700;
-  const H = 214;
-  const s = document.createElementNS(NS, 'svg');
-  s.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  s.setAttribute('width', '100%');
-  s.setAttribute('role', 'img');
-  s.setAttribute(
-    'aria-label',
-    'On the left, one dictionary for each layer, with the same feature learned again in each. ' +
-      'On the right, one dictionary that reads and writes every layer.',
-  );
-  s.style.display = 'block';
-  s.style.maxWidth = `${W}px`;
-
-  const ys = [34, 62, 90, 118, 146];
-  const heading = (x: number, t: string) =>
+  const W = 330;
+  const H = 150;
+  const ys = [8, 36, 64, 92, 120];
+  const layerName = (i: number) => (i === 2 ? 'layer m' : `layer ${[24, 23, '', 2, 1][i]}`);
+  const drawing = (label: string): SVGSVGElement => {
+    const s = document.createElementNS(NS, 'svg');
+    s.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    s.setAttribute('role', 'img');
+    s.setAttribute('aria-label', label);
+    return s;
+  };
+  const layerBox = (s: SVGSVGElement, y: number, i: number) => {
+    svgNode(s, 'rect', {
+      x: 0, y, width: 84, height: 22, rx: 2, fill: 'var(--surface)', stroke: 'var(--line)',
+    });
     svgNode(s, 'text', {
-      x, y: 16, 'font-size': 12, fill: 'var(--ink-2)', 'font-weight': 600,
-    }, t);
+      x: 42, y: y + 15.5, 'font-size': 12, fill: 'var(--muted)', 'text-anchor': 'middle',
+    }, layerName(i));
+  };
 
   // ---- left: one autoencoder for each layer ----
-  heading(10, 'One autoencoder for each layer');
+  const left = drawing('One dictionary for each layer, with the same feature learned again in each.');
   ys.forEach((y, i) => {
-    svgNode(s, 'rect', {
-      x: 10, y, width: 76, height: 20, rx: 2, fill: 'var(--surface-2)', stroke: 'var(--line)',
+    layerBox(left, y, i);
+    svgNode(left, 'line', {
+      x1: 86, y1: y + 11, x2: 112, y2: y + 11, stroke: 'var(--line-strong)',
     });
-    svgNode(s, 'text', {
-      x: 48, y: y + 14, 'font-size': 10.5, fill: 'var(--muted)', 'text-anchor': 'middle',
-    }, i === 2 ? 'layer m' : `layer ${[24, 23, '', 2, 1][i]}`);
-    svgNode(s, 'line', {
-      x1: 88, y1: y + 10, x2: 108, y2: y + 10, stroke: 'var(--line-strong)',
-    });
-    svgNode(s, 'rect', {
-      x: 110, y, width: 90, height: 20, rx: 2, fill: 'none', stroke: 'var(--line-strong)',
+    svgNode(left, 'rect', {
+      x: 114, y, width: 110, height: 22, rx: 2, fill: 'none', stroke: 'var(--line-strong)',
     });
     // The same direction, learned again in every dictionary, with nothing tying the copies.
-    svgNode(s, 'rect', { x: 118, y: y + 6, width: 24, height: 8, rx: 1.5, fill: 'var(--signal)',
-      opacity: 0.8 });
-    svgNode(s, 'rect', { x: 148, y: y + 6, width: 14, height: 8, rx: 1.5,
-      fill: 'var(--line-strong)', opacity: 0.5 });
-    svgNode(s, 'rect', { x: 168, y: y + 6, width: 20, height: 8, rx: 1.5,
-      fill: 'var(--line-strong)', opacity: 0.5 });
+    svgNode(left, 'rect', { x: 122, y: y + 7, width: 30, height: 8, rx: 1.5, fill: 'var(--signal)',
+      opacity: 0.85 });
+    svgNode(left, 'rect', { x: 158, y: y + 7, width: 18, height: 8, rx: 1.5,
+      fill: 'var(--line-strong)', opacity: 0.6 });
+    svgNode(left, 'rect', { x: 182, y: y + 7, width: 26, height: 8, rx: 1.5,
+      fill: 'var(--line-strong)', opacity: 0.6 });
   });
-  svgNode(s, 'text', {
-    x: 10, y: 182, 'font-size': 10.5, fill: 'var(--muted)',
-  }, 'The amber unit is the same direction in all five, and');
-  svgNode(s, 'text', {
-    x: 10, y: 196, 'font-size': 10.5, fill: 'var(--muted)',
-  }, 'nothing in the training says so. 24 models, 24 dictionaries.');
 
   // ---- right: one crosscoder ----
-  heading(360, 'One crosscoder over all layers');
+  const right = drawing('One dictionary that reads and writes every layer.');
   ys.forEach((y, i) => {
-    svgNode(s, 'rect', {
-      x: 360, y, width: 76, height: 20, rx: 2, fill: 'var(--surface-2)', stroke: 'var(--line)',
+    layerBox(right, y, i);
+    svgNode(right, 'path', {
+      d: `M86 ${y + 11} C 118 ${y + 11}, 118 75, 150 75`,
+      stroke: 'var(--depth)', 'stroke-width': 1, fill: 'none', opacity: 0.7,
     });
-    svgNode(s, 'text', {
-      x: 398, y: y + 14, 'font-size': 10.5, fill: 'var(--muted)', 'text-anchor': 'middle',
-    }, i === 2 ? 'layer m' : `layer ${[24, 23, '', 2, 1][i]}`);
-    svgNode(s, 'path', {
-      d: `M438 ${y + 10} C 470 ${y + 10}, 470 90, 500 90`,
-      stroke: 'var(--depth)', 'stroke-width': 0.8, fill: 'none', opacity: 0.55,
+    svgNode(right, 'path', {
+      d: `M216 75 C 248 75, 248 ${y + 11}, 280 ${y + 11}`,
+      stroke: 'var(--signal)', 'stroke-width': 1, fill: 'none', opacity: 0.6,
     });
-    svgNode(s, 'path', {
-      d: `M560 96 C 590 96, 590 ${y + 10}, 620 ${y + 10}`,
-      stroke: 'var(--signal)', 'stroke-width': 0.8, fill: 'none', opacity: 0.5,
-    });
-    svgNode(s, 'rect', {
-      x: 622, y, width: 8, height: 20, rx: 1.5, fill: 'var(--surface-2)', stroke: 'var(--line)',
+    svgNode(right, 'rect', {
+      x: 282, y, width: 10, height: 22, rx: 1.5, fill: 'var(--surface)', stroke: 'var(--line)',
     });
   });
-  svgNode(s, 'rect', {
-    x: 500, y: 62, width: 60, height: 62, rx: 2, fill: 'none', stroke: 'var(--line-strong)',
+  svgNode(right, 'rect', {
+    x: 150, y: 40, width: 66, height: 70, rx: 2, fill: 'var(--surface)', stroke: 'var(--line-strong)',
   });
-  svgNode(s, 'rect', { x: 508, y: 72, width: 44, height: 8, rx: 1.5, fill: 'var(--signal)',
-    opacity: 0.85 });
-  svgNode(s, 'rect', { x: 508, y: 88, width: 26, height: 8, rx: 1.5, fill: 'var(--line-strong)',
-    opacity: 0.5 });
-  svgNode(s, 'rect', { x: 508, y: 104, width: 34, height: 8, rx: 1.5, fill: 'var(--line-strong)',
-    opacity: 0.5 });
-  svgNode(s, 'text', {
-    x: 530, y: 56, 'font-size': 10.5, fill: 'var(--muted)', 'text-anchor': 'middle',
+  svgNode(right, 'rect', { x: 158, y: 52, width: 50, height: 9, rx: 1.5, fill: 'var(--signal)',
+    opacity: 0.9 });
+  svgNode(right, 'rect', { x: 158, y: 70, width: 30, height: 9, rx: 1.5, fill: 'var(--line-strong)',
+    opacity: 0.6 });
+  svgNode(right, 'rect', { x: 158, y: 88, width: 40, height: 9, rx: 1.5, fill: 'var(--line-strong)',
+    opacity: 0.6 });
+  svgNode(right, 'text', {
+    x: 183, y: 30, 'font-size': 12, fill: 'var(--muted)', 'text-anchor': 'middle',
   }, 'one dictionary');
-  svgNode(s, 'text', {
-    x: 360, y: 182, 'font-size': 10.5, fill: 'var(--muted)',
-  }, 'The amber unit is one latent. It reads every layer and writes');
-  svgNode(s, 'text', {
-    x: 360, y: 196, 'font-size': 10.5, fill: 'var(--muted)',
-  }, 'back into every layer, so it has a length at each of the 24.');
 
-  const box = el('div', 'gl-pic');
-  box.append(s);
+  const half = (title: string, svg: SVGSVGElement, caption: string): HTMLElement => {
+    const f = el('figure', 'm-half');
+    const cap = el('figcaption');
+    cap.append(el('strong', undefined, title), ' ', caption);
+    f.append(svg, cap);
+    return f;
+  };
+  const box = el('div', 'gl-pic m-pair');
+  box.append(
+    half(
+      'One autoencoder for each layer.',
+      left,
+      'The amber unit is the same direction in all five dictionaries, and nothing in the ' +
+        'training says so. 24 models give 24 dictionaries.',
+    ),
+    half(
+      'One crosscoder over all layers.',
+      right,
+      'The amber unit is one latent. It reads every layer and writes back into every layer, so ' +
+        'it has a length at each of the 24.',
+    ),
+  );
   return box;
 }
 
@@ -179,7 +180,6 @@ function section(id: SectionId, title: string, body: (Node | string)[]): HTMLEle
 export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
   host.textContent = '';
   const views = el('div', 'views');
-  host.append(views);
   const h = d.manifest.headline;
 
   const intro = panel(
@@ -200,11 +200,14 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
   toc.append(gl);
   intro.append(toc);
   intro.append(
-    para(
+    el(
+      'p',
+      'lede',
       'The glossary holds the definitions, one entry for each number. Each section here ends ' +
         'with the entries it used. Read this page for the argument and the glossary for a word.',
     ),
   );
+  intro.classList.add('pagehead');
   views.append(intro);
 
   // ---- 1. why ---------------------------------------------------------
@@ -214,7 +217,7 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
         'ProtT5 was trained on millions of protein sequences with no labels at all ',
         cite('(Elnaggar and others, 2021)', 'https://doi.org/10.1109/TPAMI.2021.3095381'),
         '. It learned to fill in masked residues, and along the way it learned enough that its ' +
-          'vectors predict structure, localisation and function. The knowledge is in the ' +
+          'vectors predict structure, localization and function. The knowledge is in the ' +
           'weights and the weights say nothing a person can read.',
       ),
       para(
@@ -228,7 +231,7 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
           'checked against biology. And a named part can be used on purpose, as a handle for ' +
           'guided mutation or for steering ',
         cite('(Yang and others, 2025)', 'https://doi.org/10.1038/s41467-025-55987-8'),
-        '. Neither is possible while the vector is one dense block of 1024 numbers.',
+        '. Neither is possible while the vector is one dense block of 1,024 numbers.',
       ),
     ]),
   );
@@ -237,7 +240,7 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
   views.append(
     section('sparse', 'Why sparse features', [
       para(
-        'A residue vector is dense. Every one of its 1024 numbers is non-zero, and no single ' +
+        'A residue vector is dense. Every one of its 1,024 numbers is non-zero, and no single ' +
           'number means anything alone. This field works from one assumption: the model holds ' +
           'many more concepts than it has dimensions, so it packs them in as directions that ' +
           'overlap. A dense vector is then a sum of many concepts at once, and that is why one ' +
@@ -246,7 +249,7 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
       para(
         'A sparse autoencoder unpacks that sum ',
         cite('(Shu and others, 2025)', 'https://arxiv.org/abs/2503.05613'),
-        '. It learns a wider dictionary, here 8192 units against 1024 dimensions, and it must ' +
+        '. It learns a wider dictionary, here 8,192 units against 1,024 dimensions, and it must ' +
           'rebuild the vector from only a few of them. Two terms decide the training: how well ' +
           'the rebuild matches, and how few units it may use. The units that survive are the ' +
           'parts the model reuses.',
@@ -320,9 +323,9 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
         'The activations come from the residual stream of all 24 encoder layers of ',
         el('span', 'mono', 'Rostlab/prot_t5_xl_uniref50'),
         ', over UniRef50 sequences. The crosscoder has ',
-        el('span', 'mono', String(h.latents_total)),
+        el('span', 'mono', num(h.latents_total)),
         ' latents and is trained with BatchTopK, which keeps the strongest 32 latents per ' +
-          'residue across a batch rather than penalising them all ',
+          'residue across a batch rather than penalizing them all ',
         cite('(Bussmann and others, 2024)', 'https://arxiv.org/abs/2412.06410'),
         '. An auxiliary term pushes dead latents back into use.',
       ),
@@ -330,14 +333,13 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
         'At inference the model changes to JumpReLU with one global threshold. A latent then ' +
           'fires whenever it clears that threshold, and the count per residue is no longer ' +
           'fixed at 32. Every activation on this site is read that way, on normalized ' +
-          'activations. Reading un-normalized activations was a real bug here, and it cost ' +
-          '0.11 of average F1.',
+          'activations. Without the normalization, the average F1 falls by 0.11.',
       ),
       para(
         'The evaluation set is separate from the training data: ',
         el('strong', undefined, `${num(d.manifest.counts.proteins)} Swiss-Prot proteins`),
-        ' of annotation score 3, 4 or 5, at most 512 residues. The pairing scores below are ' +
-          'measured on a held-out part of that set, never on the proteins used to choose the ' +
+        ' of annotation score 3, 4 or 5, at most 512 residues. Every pairing score on this site ' +
+          'is measured on a held-out part of that set, never on the proteins used to choose the ' +
           'pairing.',
       ),
       para(
@@ -369,11 +371,11 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
           'strong',
           undefined,
           `${h.concepts_identified} of the ${h.concepts_total} concepts have at least one ` +
-            `latent, and ${num(h.features_paired)} latents pair with something.`,
+            `latent, and ${num(h.features_paired)} latents pair with at least one concept.`,
         ),
         ' The average best test F1 over all concepts is ',
         el('strong', undefined, h.avg_best_test_f1.toFixed(3)),
-        '. Those three numbers are the ones in the picture at the top of every page.',
+        '. Those three numbers are the ones in the four steps at the top of the landing page.',
       ),
       para(
         'A concept is rarely one latent. Most found concepts are split across a group, and each ' +
@@ -389,10 +391,10 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
     section('limits', 'What these numbers cannot say', [
       para(
         el('strong', undefined, 'A high score is not by itself a finding. '),
-        'The same pipeline was run against a crosscoder trained on a randomly initialised ' +
+        'The same pipeline was run against a crosscoder trained on a randomly initialized ' +
           'ProtT5, which has learned nothing about proteins. That null still clears 0.5 F1 per ' +
           'domain on 43 concepts, and on one of them, ',
-        el('span', 'mono', 'Domain_RNase III'),
+        link(`/concept/${encodeURIComponent('Domain_RNase III')}`, 'Domain · RNase III'),
         ', it reaches 0.98. So a claim about one concept needs that concept’s own null, not ' +
           'the average.',
       ),
@@ -486,6 +488,12 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
   }
   src.append(list);
   views.append(src);
+  host.append(
+    withContents(views, [
+      ...METHOD_SECTIONS.map((x) => ({ id: `m-${x.id}`, title: x.title, href: `#/method/${x.id}` })),
+      { id: 'm-sources', title: 'Sources', href: '#/method/sources' },
+    ]),
+  );
 
   // A section in the route scrolls itself into view. Fonts land after the first layout, which
   // moves everything below the target, so the scroll is repeated rather than done once.

@@ -11,7 +11,7 @@
 
 import type { Data } from './data';
 import { loadBackbone, structureView, type StructureHandle } from './structure';
-import { el, howto, num } from './ui';
+import { el, howto, num, rampKey } from './ui';
 
 export interface StructureOptions {
   /** What colours the model, for example "f/2358". */
@@ -78,7 +78,7 @@ export async function drawStructure(
 
   const help = howto(
     'The model is the AlphaFold prediction for this protein. ' +
-      `The colour is how hard ${opts.coloredBy} fires on each residue, on the same scale as ` +
+      `The color is how hard ${opts.coloredBy} fires on each residue, on the same scale as ` +
       'the strips and the letters. ' +
       (opts.why ? `${opts.why} ` : '') +
       'Drag to turn the model. To zoom, hold Ctrl (⌘ on a Mac) and scroll, or pinch.' +
@@ -86,6 +86,7 @@ export async function drawStructure(
   );
   note.replaceWith(help);
 
+  wrap.append(rampKey('does not fire'));
   try {
     live = await structureView(bb, acts, box);
   } catch (err) {

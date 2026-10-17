@@ -1,20 +1,22 @@
 /**
- * The header picture: the method in four stations, with the site's own numbers under each one.
+ * The header of the landing page: the method in four steps, with the site's own numbers.
  *
- * It replaces a strip of five numbers with no context. A reader who lands here does not know
- * what an average best test F1 of 0.479 is an average over, and the strip could not tell them.
- * Each number now sits under the thing it counts, the arrows say what feeds what, and the whole
- * picture is a link to the method page.
+ * Each step is one link into the part of the method page that argues for it. The heading, the
+ * number and the caption are HTML, so they keep their size at every width and wrap like text.
+ * Only the small drawing above each number is SVG, and it is drawn at its own size so that its
+ * labels are not scaled down with the page.
  *
  * The numbers come from the manifest, so this figure cannot fall behind the data tree.
  */
 
 import type { Data } from './data';
+import type { SectionId } from './metrics';
 import { el, num } from './ui';
 
 const NS = 'http://www.w3.org/2000/svg';
-const W = 1120;
-const H = 206;
+const PIC_W = 230;
+const PIC_H = 84;
+const MONO = "'IBM Plex Mono', ui-monospace, monospace";
 
 function add(
   parent: SVGElement,
@@ -29,193 +31,150 @@ function add(
   return n;
 }
 
-/** A station's heading, its big number, and the lines under it. */
-function station(
-  svg: SVGElement,
-  x: number,
+function picture(): SVGSVGElement {
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${PIC_W} ${PIC_H}`);
+  svg.setAttribute('aria-hidden', 'true');
+  return svg;
+}
+
+/** Three lines of a sequence: the input is letters, one residue at a time. */
+function proteinPicture(): SVGSVGElement {
+  const svg = picture();
+  ['MVHWTAEEKAAITSVW', 'QKVNVEHDGHDALGRL', 'LIVYPWTQRYFSNFGN'].forEach((t, i) => {
+    add(svg, 'text', {
+      x: 0, y: 22 + i * 24, 'font-size': 14, fill: 'var(--ink-2)', 'font-family': MONO,
+      'letter-spacing': 1,
+    }, t);
+  });
+  return svg;
+}
+
+/** Nine bars for the 24 layers, with the band where most latents peak in slate. */
+function layersPicture(layers: number): SVGSVGElement {
+  const svg = picture();
+  for (let i = 0; i < 9; i++) {
+    const lit = i >= 3 && i <= 5;
+    add(svg, 'rect', {
+      x: 0, y: 4 + i * 9, width: 118, height: 6, rx: 1.5,
+      fill: lit ? 'var(--depth)' : 'var(--line-strong)', opacity: lit ? 0.9 : 0.55,
+    });
+  }
+  add(svg, 'text', { x: 128, y: 12, 'font-size': 12, fill: 'var(--muted)' }, `layer ${layers}`);
+  add(svg, 'text', { x: 128, y: 44, 'font-size': 12, fill: 'var(--depth)' }, 'layers 15 to 19');
+  add(svg, 'text', { x: 128, y: 82, 'font-size': 12, fill: 'var(--muted)' }, 'layer 1');
+  return svg;
+}
+
+/** Every layer into one dictionary, a few of its latents firing, and back into every layer. */
+function crosscoderPicture(total: number): SVGSVGElement {
+  const svg = picture();
+  const fanIn = add(svg, 'g', {
+    stroke: 'var(--depth)', 'stroke-width': 1, opacity: 0.6, fill: 'none',
+  });
+  [8, 24, 42, 60, 76].forEach((y, i) => {
+    add(fanIn, 'path', { d: `M0 ${y} C 26 ${y}, 26 ${34 + i * 4}, 48 ${34 + i * 4}` });
+  });
+  add(svg, 'rect', {
+    x: 48, y: 4, width: 24, height: 76, rx: 2, fill: 'none', stroke: 'var(--line-strong)',
+  });
+  [10, 16, 28, 34, 46, 58, 64, 70].forEach((y) => {
+    add(svg, 'rect', { x: 52, y, width: 16, height: 2.5, fill: 'var(--line-strong)', opacity: 0.6 });
+  });
+  [22, 40, 52].forEach((y) => {
+    add(svg, 'rect', { x: 52, y, width: 16, height: 3, fill: 'var(--signal)' });
+  });
+  const fanOut = add(svg, 'g', {
+    stroke: 'var(--signal)', 'stroke-width': 1, opacity: 0.6, fill: 'none',
+  });
+  [8, 24, 42, 60, 76].forEach((y, i) => {
+    add(fanOut, 'path', { d: `M72 ${34 + i * 4} C 94 ${34 + i * 4}, 94 ${y}, 116 ${y}` });
+  });
+  add(svg, 'rect', {
+    x: 116, y: 4, width: 6, height: 76, rx: 1.5, fill: 'var(--surface-2)', stroke: 'var(--line)',
+  });
+  add(svg, 'text', { x: 132, y: 30, 'font-size': 12, fill: 'var(--muted)' }, `${num(total)} latents`);
+  add(svg, 'text', { x: 132, y: 48, 'font-size': 12, fill: 'var(--signal)' }, '32 fire at once');
+  add(svg, 'text', { x: 132, y: 66, 'font-size': 12, fill: 'var(--muted)' }, 'per residue');
+  return svg;
+}
+
+/** One protein, the Swiss-Prot annotation on top, and two latents that fire inside it. */
+function namingPicture(): SVGSVGElement {
+  const svg = picture();
+  const rows: [string, string, [number, number][]][] = [
+    ['Swiss-Prot', 'var(--accent)', [[42, 150]]],
+    ['f/7525', 'var(--signal)', [[56, 104], [124, 140]]],
+    ['f/4643', 'var(--signal)', [[96, 150]]],
+  ];
+  rows.forEach(([label, color, spans], i) => {
+    const y = 10 + i * 26;
+    add(svg, 'text', {
+      x: 0, y: y + 8, 'font-size': 12, fill: color, 'font-family': MONO,
+    }, label);
+    add(svg, 'rect', {
+      x: 78, y, width: 152, height: 9, rx: 1.5, fill: 'var(--surface-2)', stroke: 'var(--line)',
+    });
+    for (const [a, b] of spans) {
+      add(svg, 'rect', { x: 78 + a - 40, y, width: b - a, height: 9, rx: 1.5, fill: color });
+    }
+  });
+  return svg;
+}
+
+function step(
   n: number,
   head: string,
+  section: SectionId,
+  label: string,
+  pic: SVGSVGElement,
   value: string,
-  lines: string[],
-): void {
-  add(svg, 'text', {
-    x, y: 14, 'font-size': 11, 'font-weight': 500, fill: 'var(--muted)',
-  }, `${n} · ${head}`);
-  add(svg, 'text', {
-    x, y: 136, 'font-size': 18, 'font-weight': 600, fill: 'var(--ink)',
-  }, value);
-  lines.forEach((t, i) => {
-    add(svg, 'text', { x, y: 154 + i * 14, 'font-size': 11, fill: 'var(--muted)' }, t);
-  });
-}
-
-function arrow(svg: SVGElement, x1: number, x2: number): void {
-  add(svg, 'line', {
-    x1, y1: 78, x2, y2: 78, stroke: 'var(--line-strong)', 'marker-end': 'url(#mf-arrow)',
-  });
-}
-
-/** One station, as a link into the section of the method page that argues for it. */
-function hotspot(host: HTMLElement, left: number, width: number, section: string, label: string) {
-  const a = el('a', 'mf-hot');
+  caption: string,
+): HTMLAnchorElement {
+  const a = el('a', 'mf-step');
   a.href = `#/method/${section}`;
-  a.title = label;
-  a.setAttribute('aria-label', label);
-  a.style.left = `${(left / W) * 100}%`;
-  a.style.width = `${(width / W) * 100}%`;
-  host.append(a);
+  a.title = `Method: ${label}`;
+  const h = el('span', 'mf-head');
+  h.append(el('span', 'mf-n', String(n)), head);
+  const p = el('span', 'mf-pic');
+  p.append(pic);
+  a.append(h, p, el('span', 'mf-value', value), el('span', 'mf-cap', caption));
+  return a;
 }
 
 export function methodFigure(d: Data): HTMLElement {
   const h = d.manifest.headline;
-  const box = el('div', 'methodfig');
-  const svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  svg.setAttribute('width', '100%');
-  svg.setAttribute('role', 'img');
-  svg.setAttribute(
-    'aria-label',
-    'A protein goes into ProtT5. One crosscoder reads all 24 encoder layers at once and writes ' +
-      'back into all of them. Swiss-Prot then names what each latent reads.',
+  const box = el('div');
+  const steps = el('nav', 'mf');
+  steps.setAttribute('aria-label', 'The method in four steps');
+  steps.append(
+    step(
+      1, 'A protein', 'why', 'Why read the inside of ProtT5',
+      proteinPicture(),
+      num(d.manifest.counts.proteins),
+      'Swiss-Prot proteins in the evaluation set, read one residue at a time.',
+    ),
+    step(
+      2, 'ProtT5 encoder', 'one-dictionary', 'Why one dictionary for 24 layers',
+      layersPicture(h.layers),
+      String(h.layers),
+      'encoder layers. Each layer holds its own vector for every residue.',
+    ),
+    step(
+      3, 'One crosscoder for all layers', 'one-dictionary', 'Why one dictionary for 24 layers',
+      crosscoderPicture(h.latents_total),
+      num(h.latents_alive),
+      `of the ${num(h.latents_total)} latents fire at least once. Each latent writes into ` +
+        'every layer, so it has a depth profile.',
+    ),
+    step(
+      4, 'Swiss-Prot names the latents', 'naming', 'How a latent gets a name',
+      namingPicture(),
+      `${h.concepts_identified} of ${h.concepts_total}`,
+      `concepts have at least one latent. ${num(h.features_paired)} latents pair with a ` +
+        `concept. Mean best F1: ${h.avg_best_test_f1.toFixed(3)}.`,
+    ),
   );
-  svg.style.display = 'block';
-
-  const defs = add(svg, 'defs', {});
-  const marker = add(defs, 'marker', {
-    id: 'mf-arrow', viewBox: '0 0 8 8', refX: 7, refY: 4, markerWidth: 7, markerHeight: 7,
-    orient: 'auto',
-  });
-  add(marker, 'path', { d: 'M0 0 L8 4 L0 8 z', fill: 'var(--line-strong)' });
-
-  // ---- 1. a protein ----------------------------------------------------
-  const mono = "'IBM Plex Mono', ui-monospace, monospace";
-  ['AQSVPYGIS', 'QIKAPALHS', 'QGYTGSNVK'].forEach((t, i) => {
-    add(svg, 'text', {
-      x: 14, y: 52 + i * 18, 'font-size': 13, fill: 'var(--ink-2)', 'font-family': mono,
-    }, t);
-  });
-  station(svg, 14, 1, 'A protein', num(d.manifest.counts.proteins), [
-    'proteins of Swiss-Prot, read',
-    'one residue at a time',
-  ]);
-  arrow(svg, 150, 182);
-
-  // ---- 2. ProtT5 -------------------------------------------------------
-  // Nine bars stand for the 24 layers. Drawing all 24 at this height gives a grey block.
-  for (let i = 0; i < 9; i++) {
-    const lit = i >= 4 && i <= 6;
-    add(svg, 'rect', {
-      x: 196, y: 26 + i * 10, width: 150, height: 7, rx: 1.5,
-      fill: lit ? 'var(--depth)' : 'var(--line-strong)', opacity: lit ? 0.85 : 0.5,
-    });
-  }
-  add(svg, 'text', { x: 352, y: 33, 'font-size': 10, fill: 'var(--muted)' }, `layer ${h.layers}`);
-  add(svg, 'text', { x: 352, y: 81, 'font-size': 10, fill: 'var(--depth)' }, 'layers 15 to 19');
-  add(svg, 'text', { x: 352, y: 117, 'font-size': 10, fill: 'var(--muted)' }, 'layer 1');
-  station(svg, 196, 2, 'ProtT5, 24 encoder layers', String(h.layers), [
-    'layers, and each one holds its own',
-    'vector for every residue',
-  ]);
-  arrow(svg, 430, 462);
-
-  // ---- 3. the crosscoder ----------------------------------------------
-  // The fan in and the fan out are the point of the picture. One dictionary reads every layer
-  // and writes back into every layer, which is what a stack of per-layer autoencoders cannot do.
-  const fan = add(svg, 'g', {
-    stroke: 'var(--depth)', 'stroke-width': 0.7, opacity: 0.45, fill: 'none',
-  });
-  [30, 50, 70, 90, 110].forEach((y, i) => {
-    add(fan, 'path', { d: `M476 ${y} C 520 ${y}, 520 ${70 + i * 4}, 560 ${70 + i * 4}` });
-  });
-  add(svg, 'rect', {
-    x: 560, y: 26, width: 26, height: 104, rx: 2, fill: 'none', stroke: 'var(--line)',
-  });
-  const quiet = add(svg, 'g', { fill: 'var(--line-strong)', opacity: 0.55 });
-  [30, 35, 45, 50, 60, 70, 80, 90, 100, 110, 120, 125].forEach((y) => {
-    add(quiet, 'rect', { x: 564, y, width: 18, height: 2.2 });
-  });
-  const firing = add(svg, 'g', { fill: 'var(--signal)' });
-  [40, 65, 85, 105].forEach((y) => {
-    add(firing, 'rect', { x: 564, y, width: 18, height: 2.6 });
-  });
-  add(svg, 'text', {
-    x: 592, y: 36, 'font-size': 10, fill: 'var(--muted)',
-  }, `${num(h.latents_total)} latents`);
-  add(svg, 'text', { x: 592, y: 50, 'font-size': 10, fill: 'var(--signal)' }, '32 fire at a time');
-  const out = add(svg, 'g', {
-    stroke: 'var(--signal)', 'stroke-width': 0.7, opacity: 0.5, fill: 'none',
-  });
-  [30, 50, 70, 90, 110].forEach((y, i) => {
-    add(out, 'path', { d: `M586 ${70 + i * 4} C 626 ${70 + i * 4}, 626 ${y}, 668 ${y}` });
-  });
-  add(svg, 'rect', {
-    x: 668, y: 26, width: 8, height: 104, rx: 1.5, fill: 'var(--surface-2)', stroke: 'var(--line)',
-  });
-  add(svg, 'text', {
-    x: 672, y: 142, 'font-size': 10, fill: 'var(--muted)', 'text-anchor': 'middle',
-  }, 'back into');
-  add(svg, 'text', {
-    x: 672, y: 155, 'font-size': 10, fill: 'var(--muted)', 'text-anchor': 'middle',
-  }, 'all 24');
-  station(svg, 476, 3, 'One crosscoder reads all 24 at once', num(h.latents_alive), [
-    `of ${num(h.latents_total)} latents ever fire. One latent`,
-    'writes into every layer, so it has',
-    'a depth profile.',
-  ]);
-  arrow(svg, 700, 732);
-
-  // ---- 4. Swiss-Prot names them ---------------------------------------
-  const rowLabel = (y: number, t: string, fill: string) => {
-    add(svg, 'text', { x: 746, y, 'font-size': 10, fill, 'font-family': mono }, t);
-  };
-  const strip = (y: number) => {
-    add(svg, 'rect', {
-      x: 820, y, width: 270, height: 7, rx: 1.5, fill: 'var(--surface-2)', stroke: 'var(--line)',
-    });
-  };
-  rowLabel(40, 'Swiss-Prot', 'var(--accent)');
-  strip(33);
-  add(svg, 'rect', {
-    x: 884, y: 33, width: 150, height: 7, rx: 1.5, fill: 'var(--accent)', opacity: 0.8,
-  });
-  rowLabel(58, 'f/7525', 'var(--signal)');
-  strip(51);
-  add(svg, 'rect', {
-    x: 892, y: 51, width: 42, height: 7, rx: 1.5, fill: 'var(--signal)', opacity: 0.85,
-  });
-  add(svg, 'rect', {
-    x: 1002, y: 51, width: 16, height: 7, rx: 1.5, fill: 'var(--signal)', opacity: 0.85,
-  });
-  rowLabel(76, 'f/4643', 'var(--signal)');
-  strip(69);
-  add(svg, 'rect', {
-    x: 940, y: 69, width: 60, height: 7, rx: 1.5, fill: 'var(--signal)', opacity: 0.85,
-  });
-  add(svg, 'text', {
-    x: 820, y: 94, 'font-size': 10, fill: 'var(--muted)',
-  }, 'one protein, one row for each latent');
-  station(
-    svg,
-    746,
-    4,
-    'Swiss-Prot names what a latent reads',
-    `${h.concepts_identified} of ${h.concepts_total}`,
-    [
-      `concepts have a latent. ${num(h.features_paired)} latents pair, at`,
-      'F1 per domain over 0.5 on held-out proteins.',
-      `Average best F1 ${h.avg_best_test_f1.toFixed(3)}.`,
-    ],
-  );
-
-  box.append(svg);
-  // Each station is its own link, over the drawing, so a reader who wants one part goes there.
-  hotspot(box, 0, 182, 'why', 'Why read the inside of ProtT5');
-  hotspot(box, 182, 280, 'one-dictionary', 'What ProtT5 holds at each layer');
-  hotspot(box, 462, 270, 'one-dictionary', 'Why one dictionary for 24 layers');
-  hotspot(box, 732, 388, 'naming', 'How a latent gets a name');
-
-  const foot = el('div', 'methodfoot');
-  foot.append(el('span', undefined, 'Click a station to open that part of the method.'));
-  box.append(foot);
+  box.append(steps, el('p', 'methodfoot', 'Click a step to read that part of the method.'));
   return box;
 }

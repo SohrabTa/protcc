@@ -6,13 +6,18 @@
  * nothing; the family split gives 9.01 effective buckets against 1.95. See
  * `documentation/experiments/09-feature-dashboard.md`.
  *
- * One family is shown at a time. All eleven at once is 187 rows of table, and the two panels
- * under it are the ones that carry a finding, so nobody reached them.
+ * One family choice holds for the whole page. Each panel used to have its own row of chips, and
+ * a reader who picked a family in the Depth panel still saw all families in the two above it.
  */
 
 import type { Concept, Data } from '../data';
-import { depthMap } from '../depthmap';
-import { coverageBar, el, figures, howto, infoButton, link, num, panel, row, table } from '../ui';
+import { depthMap, peakBand } from '../depthmap';
+import {
+  coverageBar, el, figures, howto, infoButton, link, num, panel, pct, row, table,
+} from '../ui';
+
+/** With all families shown, each family lists this many concepts and a link to the rest. */
+const PREVIEW_ROWS = 5;
 
 export function renderOverview(d: Data, host: HTMLElement): void {
   host.textContent = '';
@@ -20,13 +25,16 @@ export function renderOverview(d: Data, host: HTMLElement): void {
   host.append(views);
 
   let query = '';
-
-  const famOrder = familyOrder(d);
   let family = '';
+  const famOrder = familyOrder(d);
+  const found = d.concepts.filter((c) => c.nf > 0).length;
+
+  const bar = familyBar(d, famOrder, (key) => setFamily(key));
+  views.append(bar.root);
 
   const p = panel(
     'Concepts',
-    'What the crosscoder found',
+    `${found} of ${d.concepts.length} concepts have at least one latent`,
     'Every Swiss-Prot concept in the evaluation set, grouped by what the annotation is ' +
       'biologically. A concept counts as found when at least one latent pairs with it. A latent ' +
       'pairs with a concept when its F1 per domain is more than 0.5 on a held-out set of ' +
@@ -34,25 +42,13 @@ export function renderOverview(d: Data, host: HTMLElement): void {
   );
   p.append(
     howto(
-      'Pick a family chip to show one family, or type in the filter box. The filter searches ' +
-        'all families, whichever chip is picked. The rows start with the best F1, highest ' +
-        'first. Click a column header to sort by it, a second time to reverse, and a third ' +
-        'time for this order.',
+      'Pick a family above to show one family, or type in the filter box. The filter searches ' +
+        'all families, so it sets the family to All families. With All families, each family ' +
+        `shows its ${PREVIEW_ROWS} best concepts, and the link under them shows the rest. The ` +
+        'rows start with the best F1, highest first. Click a column header to sort by it, a ' +
+        'second time to reverse, and a third time for this order.',
     ),
   );
-  // Every panel on this page starts on all families and has its own chips. All families is 187
-  // rows, so the table body scrolls inside the panel instead of pushing the other panels down.
-  const tabs = familyTabs(d, famOrder, family, (key) => {
-    family = key;
-    // A chip and the filter are two ways to narrow the list, and the last one used wins. A chip
-    // that did nothing while the box held text would look broken.
-    if (query) {
-      query = '';
-      search.value = '';
-    }
-    draw();
-  });
-  p.append(tabs.root);
 
   const controls = el('div', 'chips');
   const search = el('input');
@@ -60,27 +56,23 @@ export function renderOverview(d: Data, host: HTMLElement): void {
   search.placeholder = 'Filter all families';
   search.addEventListener('input', () => {
     query = search.value.trim();
-    draw();
+    // A filter that searches all families while a chip says one family would contradict it.
+    if (query && family) setFamily('', false);
+    else draw();
   });
   const status = el('span', 'small muted');
   controls.append(search, status);
   p.append(controls);
 
-  // One scroll box for the whole list, not one per family. Nested scroll boxes trap the wheel.
-  const body = el('div', 'concept-scroll');
+  const body = el('div', 'concept-list');
   p.append(body);
   views.append(p);
 
   function draw() {
     body.textContent = '';
     const q = query.toLowerCase();
-
-    // A search runs over every family, because a reader who types a name does not know which
-    // family it is in. That is the one case the tabs step aside for, and they show it by having
-    // no chip pressed.
     const searching = q.length > 0;
-    tabs.set(searching ? null : family);
-    const shown = searching || family === '' ? famOrder : famOrder.filter(([f]) => f === family);
+    const shown = family === '' ? famOrder : famOrder.filter(([f]) => f === family);
 
     let any = false;
     let hits = 0;
@@ -115,7 +107,9 @@ export function renderOverview(d: Data, host: HTMLElement): void {
         ['Concept', 'Best F1', 'Latents', 'Proteins', 'Best latent'],
         [0],
       );
-      for (const c of match.sort((a, b) => b.f1 - a.f1)) {
+      const sorted = match.sort((a, b) => b.f1 - a.f1);
+      const preview = family === '' && !searching && sorted.length > PREVIEW_ROWS;
+      for (const c of preview ? sorted.slice(0, PREVIEW_ROWS) : sorted) {
         tb.append(
           row(
             [
@@ -130,49 +124,64 @@ export function renderOverview(d: Data, host: HTMLElement): void {
           ),
         );
       }
-      const missed = inFamily.length - match.length;
       const scroll = el('div', 'tbl-scroll');
       scroll.append(root);
       g.append(scroll);
+      const missed = inFamily.length - match.length;
+      const foot = el('p', 'small muted famfoot');
+      if (preview) {
+        const more = el('button', 'linkish', `Show all ${match.length} found concepts of ${fam}`);
+        more.addEventListener('click', () => {
+          setFamily(fam);
+          p.scrollIntoView({ block: 'start' });
+        });
+        foot.append(more);
+      }
       if (missed > 0) {
-        g.append(
-          el(
-            'p',
-            'small muted',
-            `${missed} concept${missed === 1 ? '' : 's'} in this family ` +
-              `${missed === 1 ? 'has' : 'have'} no latent.`,
-          ),
+        foot.append(
+          `${preview ? ' ' : ''}${missed} concept${missed === 1 ? '' : 's'} in this family ` +
+            `${missed === 1 ? 'has' : 'have'} no latent.`,
         );
       }
+      if (foot.childNodes.length) g.append(foot);
       body.append(g);
     }
     if (!any) body.append(el('p', 'loading', 'Nothing matches that filter.'));
     status.textContent = searching
       ? `${hits} found concept${hits === 1 ? '' : 's'} in ${hitFamilies} ` +
-        `famil${hitFamilies === 1 ? 'y' : 'ies'} match. The filter searches all families. ` +
-        'Pick a family chip to clear it.'
+        `famil${hitFamilies === 1 ? 'y' : 'ies'} match.`
       : '';
   }
 
-  const split = splitPanel(d, famOrder);
+  const split = splitPanel(d);
   views.append(split.root);
 
   // Where the latents live in the encoder, and which of them anything named.
+  const band = peakBand(d);
   const depthPanel = panel(
     'Depth',
-    'Where the latents peak, and how many of them pair with a concept',
+    `${pct(band.share * 100, 0)} of the live latents peak in layers ${band.from} to ${band.to}`,
     'A latent adds its own vector to each of the 24 encoder layers. The vectors differ from ' +
       'layer to layer in direction and in length. The length at a layer is how much the latent ' +
       'changes that layer. The peak layer is the layer where the vector is longest.',
   );
   const map = depthMap(d);
-  // The two plots start on all families, so nothing in them is hidden until a reader asks.
-  const depthTabs = familyTabs(d, famOrder, '', (key) => {
-    depthTabs.set(key);
-    map.setFamily(key);
-  });
-  depthPanel.append(map.howto, depthTabs.root, map.root);
+  depthPanel.append(map.howto, map.root);
   views.append(depthPanel);
+
+  /** The one place that changes the family. `clearQuery` is false when the filter asks for it. */
+  function setFamily(key: string, clearQuery = true): void {
+    family = key;
+    if (clearQuery && query) {
+      query = '';
+      search.value = '';
+    }
+    bar.set(key);
+    draw();
+    split.setFamily(key);
+    map.setFamily(key);
+  }
+
   draw();
   map.mount();
 }
@@ -193,36 +202,47 @@ function familyOrder(d: Data): FamilyOrder {
 }
 
 /**
- * One row of family chips. Each panel on the home page gets its own row and keeps its own choice.
+ * The family choice for the whole page: a row of chips under the header, and a slim bar with the
+ * same choice that stays at the top of the window once the chips have scrolled away.
  *
  * Each chip also says how much of its family the crosscoder names, so the row is a summary
  * before anything is clicked.
  */
-function familyTabs(
+function familyBar(
   d: Data,
   famOrder: FamilyOrder,
-  initial: string,
   onPick: (key: string) => void,
-): { root: HTMLElement; set(key: string | null): void } {
-  const root = el('div', 'famtabs');
+): { root: HTMLElement; set(key: string): void } {
+  const root = el('section', 'fambar');
+  const head = el('div', 'fambar-head');
+  head.append(
+    el('span', 'eyebrow', 'Family'),
+    el('span', 'small muted', 'The family you pick applies to all three panels on this page.'),
+  );
+  const tabs = el('div', 'famtabs');
+  root.append(head, tabs);
+
+  const found = d.concepts.filter((c) => c.nf > 0).length;
+  const options: [string, string, number, number][] = [
+    ['', 'All families', found, d.concepts.length],
+    ...famOrder.map(([fam, list]): [string, string, number, number] => [
+      fam, fam, list.filter((c) => c.nf > 0).length, list.length,
+    ]),
+  ];
+
   const buttons = new Map<string, HTMLButtonElement>();
-  const make = (key: string, label: string, found: number, total: number) => {
+  for (const [key, label, n, total] of options) {
     const b = el('button', 'famtab');
     b.append(el('span', 'famtab-name', label));
-    b.append(el('span', 'famtab-count', `${found} / ${total}`));
-    const bar = el('span', 'famtab-bar');
+    b.append(el('span', 'famtab-count', `${n} / ${total}`));
+    const meter = el('span', 'famtab-bar');
     const fill = el('i');
-    fill.style.width = `${total ? (found / total) * 100 : 0}%`;
-    bar.append(fill);
-    b.append(bar);
+    fill.style.width = `${total ? (n / total) * 100 : 0}%`;
+    meter.append(fill);
+    b.append(meter);
     b.addEventListener('click', () => onPick(key));
     buttons.set(key, b);
-    root.append(b);
-  };
-  const found = d.concepts.filter((c) => c.nf > 0).length;
-  make('', 'all families', found, d.concepts.length);
-  for (const [fam, list] of famOrder) {
-    make(fam, fam, list.filter((c) => c.nf > 0).length, list.length);
+    tabs.append(b);
   }
   const info = infoButton(
     'the family chips',
@@ -235,12 +255,33 @@ function familyTabs(
     'pairing',
   );
   info.classList.add('famtabs-info');
-  root.append(info);
-  // null presses no chip, which is how the Concepts panel shows that its filter overrides them.
-  const set = (key: string | null) => {
+  tabs.append(info);
+
+  // The slim bar. It is fixed and not sticky, so it takes no room in the page and the page does
+  // not move when it appears.
+  const float = el('div', 'famfloat');
+  float.hidden = true;
+  const inner = el('div', 'famfloat-in');
+  const select = el('select');
+  select.setAttribute('aria-label', 'Family');
+  for (const [key, label, n, total] of options) {
+    const o = el('option', undefined, `${label} (${n} / ${total})`);
+    o.value = key;
+    select.append(o);
+  }
+  select.addEventListener('change', () => onPick(select.value));
+  inner.append(el('span', 'eyebrow', 'Family'), select);
+  float.append(inner);
+  root.append(float);
+  new IntersectionObserver(([e]) => {
+    float.hidden = e.isIntersecting || e.boundingClientRect.top > 0;
+  }).observe(tabs);
+
+  const set = (key: string) => {
     for (const [k, b] of buttons) b.setAttribute('aria-pressed', String(k === key));
+    select.value = key;
   };
-  set(initial);
+  set('');
   return { root, set };
 }
 
@@ -279,7 +320,7 @@ function median(xs: number[]): number {
   return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
 }
 
-function splitPanel(d: Data, famOrder: FamilyOrder): SplitHandle {
+function splitPanel(d: Data): SplitHandle {
   const pairs: Pair[] = [];
   for (const c of d.concepts) {
     if (!c.feats?.length) continue;
@@ -289,14 +330,17 @@ function splitPanel(d: Data, famOrder: FamilyOrder): SplitHandle {
     }
   }
 
+  const allFound = d.concepts.filter((c) => c.nf > 0);
+  const allMulti = allFound.filter((c) => c.nf >= 2);
   const p = panel(
-    'Splitting',
-    'One concept, several latents',
-    'A concept is rarely one latent. Most found concepts pair with a group of latents. The ' +
-      'plot shows each pair of a latent and a concept. Up is how often the latent is right when ' +
-      'it fires, and across is how much of the annotated region it reads.',
+    'Splitting: one concept, several latents',
+    'Most latents read only a small part of their concept',
+    `A concept is rarely one latent. ${allMulti.length} of the ${allFound.length} found ` +
+      'concepts pair with more than one latent, and the median pair reads ' +
+      `${pct(median(pairs.map((x) => x.rec)) * 100)} of the annotated residues. The plot shows ` +
+      'each pair of a latent and a concept. Up is how often the latent is right when it fires, ' +
+      'and across is how much of the annotated region it reads.',
   );
-  const tabs = familyTabs(d, famOrder, '', (key) => setFamily(key));
   const stats = el('div');
   // The names sit beside the plot and not above it. Above it, a long list pushed the plot out of
   // view, and a reader who points at a name has to see the plot at the same time.
@@ -312,14 +356,12 @@ function splitPanel(d: Data, famOrder: FamilyOrder): SplitHandle {
         'the pointer. The arrow after a name opens the concept page. Point at a dot to see its ' +
         'latent, and click the dot to open it. Drag a rectangle on the plot to zoom in.',
     ),
-    tabs.root,
     stats,
     grid,
     note,
   );
 
   function setFamily(fam: string): void {
-    tabs.set(fam);
     const found = d.concepts.filter((c) => c.nf > 0 && (!fam || (c.fam || 'unassigned') === fam));
     const multi = found.filter((c) => c.nf >= 2);
     const mine = fam ? pairs.filter((x) => x.fam === fam) : pairs;
@@ -418,7 +460,7 @@ function splitPanel(d: Data, famOrder: FamilyOrder): SplitHandle {
 
     note.textContent =
       (fam
-        ? `The amber dots pair with a concept of ${fam}, and the grey dots with another. `
+        ? `The amber dots pair with a concept of ${fam}, and the gray dots with another. `
         : '') +
       'A crosscoder that had learned whole concepts would fill the top right corner. A latent ' +
       'there is right when it fires and also reads the whole region. This one fills the top ' +
@@ -548,8 +590,8 @@ function linearTicks([lo, hi]: Span): { values: number[]; decimals: number } {
 function splitScatter(pairs: Pair[], family: string): ScatterHandle {
   const W = 640;
   const H = 280;
-  const PL = 46;
-  const PB = 38;
+  const PL = 50;
+  const PB = 42;
   const PT = 18;
   const PR = 14;
   const iw = W - PL - PR;
@@ -582,15 +624,15 @@ function splitScatter(pairs: Pair[], family: string): ScatterHandle {
   });
   add(
     'text',
-    { x: PL + iw / 2, y: H - 4, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 9 },
-    'recall per residue: how much of the annotated region it covers',
+    { x: PL + iw / 2, y: H - 4, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 11 },
+    'Recall per residue: how much of the annotated region it covers',
   );
   const rot = add(
     'text',
-    { x: 11, y: PT + ih / 2, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 9 },
-    'precision: how often it is right when it fires',
+    { x: 12, y: PT + ih / 2, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 11 },
+    'Precision: how often it is right when it fires',
   );
-  rot.setAttribute('transform', `rotate(-90 11 ${PT + ih / 2})`);
+  rot.setAttribute('transform', `rotate(-90 12 ${PT + ih / 2})`);
 
   // A small margin around 0 and 1, so that the many dots at precision 1.0 and at recall 0 sit
   // inside the plot and not on its edge, where a rectangle cannot start.
@@ -630,7 +672,7 @@ function splitScatter(pairs: Pair[], family: string): ScatterHandle {
       svgNode(
         axes,
         'text',
-        { x: PL - 6, y: Y(g) + 3, 'text-anchor': 'end', fill: 'var(--muted)', 'font-size': 9 },
+        { x: PL - 6, y: Y(g) + 4, 'text-anchor': 'end', fill: 'var(--muted)', 'font-size': 10.5 },
         g.toFixed(yt.decimals),
       );
     }
@@ -639,7 +681,7 @@ function splitScatter(pairs: Pair[], family: string): ScatterHandle {
       svgNode(
         axes,
         'text',
-        { x: X(g), y: H - PB + 13, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 9 },
+        { x: X(g), y: H - PB + 14, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 10.5 },
         g.toFixed(xt.decimals),
       );
     }

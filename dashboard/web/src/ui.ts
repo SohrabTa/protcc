@@ -41,6 +41,18 @@ export function uniprotLink(acc: string, text = 'UniProt'): HTMLAnchorElement {
   return a;
 }
 
+/**
+ * A protein's name as UniProt's "Protein names" field gives it: the recommended name, then the
+ * other names in parentheses or brackets. The page shows the recommended name, and the whole
+ * field is the tooltip.
+ */
+export function proteinName(names: string): HTMLElement {
+  const cut = names.search(/ [([]/);
+  const span = el('span', 'pname', cut > 0 ? names.slice(0, cut) : names);
+  if (cut > 0) span.title = names;
+  return span;
+}
+
 export function cssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
@@ -68,6 +80,25 @@ export function ramp(t: number): string {
   return `rgb(${rampRGB(t).join(',')})`;
 }
 
+/** The key to the activation ramp, for a view that has no axis to read the color from. */
+export function rampKey(silent: string): HTMLElement {
+  const box = el('div', 'rampkey');
+  const bar = el('span', 'rampkey-bar');
+  const stops = [0, 0.25, 0.55, 0.8, 1].map((t) => `${ramp(t)} ${t * 100}%`);
+  bar.style.background = `linear-gradient(to right, ${stops.join(', ')})`;
+  const rest = el('i', 'rampkey-rest');
+  rest.style.background = cssVar('--struct-rest');
+  box.append(
+    el('span', undefined, 'activation 0'),
+    bar,
+    el('span', undefined, '1.00, its strongest'),
+    el('span', 'rampkey-gap'),
+    rest,
+    el('span', undefined, silent),
+  );
+  return box;
+}
+
 /**
  * Black or white, whichever is readable on the given colour.
  *
@@ -79,7 +110,13 @@ export function inkOn(rgb: [number, number, number]): string {
     const c = v / 255;
     return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
   });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.36 ? '#101010' : '#f5f5f5';
+  // Whichever ink has the higher contrast ratio. A fixed cut at 0.36 put white letters on
+  // mid-amber cells at a ratio of 2.6. Pure black and white keep the worst cell, where the two
+  // are equal, at 4.58, which is above the 4.5 that small text needs.
+  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  const dark = (lum + 0.05) / 0.05;
+  const light = 1.05 / (lum + 0.05);
+  return dark >= light ? '#000000' : '#ffffff';
 }
 
 export const fmt = (x: number, d = 3) => x.toFixed(d);
@@ -448,15 +485,63 @@ export function setHowto(box: HTMLElement, text: string): void {
   }
 }
 
+/** A section of a page. An empty eyebrow prints none. */
 export function panel(eyebrow: string, title: string, lede?: string): HTMLElement {
   const p = el('section', 'panel');
   const h = el('header');
   const d = el('div');
-  d.append(el('span', 'eyebrow', eyebrow), el('h2', undefined, title));
+  if (eyebrow) d.append(el('span', 'eyebrow', eyebrow));
+  d.append(el('h2', undefined, title));
   h.append(d);
   p.append(h);
   if (lede) p.append(el('p', 'lede', lede));
   return p;
+}
+
+/**
+ * A long page with the list of its sections beside it.
+ *
+ * The list stays in view while the page scrolls, and it marks the section the reader is in. On a
+ * narrow screen there is no room beside the text, and the page keeps its own list at the top.
+ * Call it after the sections are in `views`, because it looks them up by id.
+ */
+export function withContents(
+  views: HTMLElement,
+  sections: { id: string; title: string; href: string }[],
+): HTMLElement {
+  const grid = el('div', 'longform');
+  const nav = el('nav', 'onpage');
+  nav.setAttribute('aria-label', 'On this page');
+  nav.append(el('span', 'eyebrow', 'On this page'));
+  const list = el('ol');
+  const marks: { section: HTMLElement; link: HTMLAnchorElement }[] = [];
+  for (const sct of sections) {
+    const a = el('a', undefined, sct.title);
+    a.href = sct.href;
+    const li = el('li');
+    li.append(a);
+    list.append(li);
+    const section = views.querySelector<HTMLElement>(`#${sct.id}`);
+    if (section) marks.push({ section, link: a });
+  }
+  nav.append(list);
+  grid.append(views, nav);
+
+  // The current section is the last one whose top has passed a line near the top of the window.
+  let frame = 0;
+  const mark = () => {
+    frame = 0;
+    let current = marks[0];
+    for (const m of marks) if (m.section.getBoundingClientRect().top < 140) current = m;
+    for (const m of marks) m.link.setAttribute('aria-current', String(m === current));
+  };
+  const onScroll = () => {
+    if (!frame) frame = requestAnimationFrame(mark);
+  };
+  addEventListener('scroll', onScroll, { passive: true });
+  addEventListener('hashchange', () => removeEventListener('scroll', onScroll), { once: true });
+  requestAnimationFrame(mark);
+  return grid;
 }
 
 /**

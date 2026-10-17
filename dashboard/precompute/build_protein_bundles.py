@@ -146,7 +146,10 @@ def main():
             if len(seq) != hi - lo:
                 raise SystemExit(f"shard {s}: {pid} sequence is {len(seq)} against {hi - lo}")
             out["proteins"][pid] = {
-                "n": (str(row["Protein names"])[:120] if row is not None else pid),
+                # The whole field. The site shows the recommended name, the text before the
+                # first parenthesis, and keeps the rest for the tooltip. A cut at a fixed length
+                # used to stop names in the middle of a word.
+                "n": (str(row["Protein names"]) if row is not None else pid),
                 "l": hi - lo,
                 "s": seq,
                 "c": per_protein[pid],

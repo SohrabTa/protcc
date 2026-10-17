@@ -9,7 +9,7 @@
 
 import type { Data } from './data';
 import { METHOD_SECTIONS, METRIC_INFO } from './metrics';
-import { el, link, num, panel } from './ui';
+import { el, link, num, panel, withContents } from './ui';
 
 const ns = 'http://www.w3.org/2000/svg';
 
@@ -51,20 +51,22 @@ const inAny = (i: number, spans: [number, number][]): boolean =>
  */
 function residuePicture(scored: boolean): HTMLElement {
   const cw = 15;
-  const x0 = 92;
+  const x0 = 96;
   const W = x0 + N_RES * cw + 6;
-  const H = scored ? 104 : 60;
+  const H = scored ? 112 : 60;
   const s = svgEl(W, H);
 
   const label = (y: number, t: string) =>
     add(s, 'text', {
-      x: x0 - 8, y: y + 11, 'text-anchor': 'end', fill: 'var(--muted)', 'font-size': 10,
+      x: x0 - 10, y: y + 12, 'text-anchor': 'end', fill: 'var(--muted)', 'font-size': 13,
     }, t);
+  // An empty cell is drawn in the line color, so the protein shows as a track and the marks on
+  // it read as a part of a whole.
   const strip = (y: number, on: (i: number) => string | null) => {
     for (let i = 0; i < N_RES; i++) {
       add(s, 'rect', {
         x: x0 + i * cw, y, width: cw - 1.5, height: 15, rx: 1,
-        fill: on(i) ?? 'var(--surface-2)',
+        fill: on(i) ?? 'var(--line)',
       });
     }
   };
@@ -85,8 +87,9 @@ function residuePicture(scored: boolean): HTMLElement {
         mark === 'right' ? 'var(--accent)' : mark === 'wrong' ? 'var(--signal)' : 'var(--line-strong)';
       add(s, 'rect', { x: x0 + i * cw, y: 46, width: cw - 1.5, height: 15, rx: 1, fill: color });
       add(s, 'text', {
-        x: x0 + i * cw + (cw - 1.5) / 2, y: 57, 'text-anchor': 'middle', 'font-size': 9,
-        fill: 'var(--surface)', 'font-family': 'IBM Plex Mono, monospace',
+        x: x0 + i * cw + (cw - 1.5) / 2, y: 58, 'text-anchor': 'middle', 'font-size': 12,
+        fill: mark === 'missed' ? 'var(--ink)' : 'var(--surface)',
+        'font-family': 'IBM Plex Mono, monospace',
       }, mark === 'right' ? '+' : mark === 'wrong' ? '!' : '-');
     }
     const keys: [string, string, string][] = [
@@ -96,13 +99,13 @@ function residuePicture(scored: boolean): HTMLElement {
     ];
     let kx = x0;
     for (const [g, c, t] of keys) {
-      add(s, 'rect', { x: kx, y: 72, width: 12, height: 12, rx: 1, fill: c });
+      add(s, 'rect', { x: kx, y: 80, width: 15, height: 15, rx: 1, fill: c });
       add(s, 'text', {
-        x: kx + 6, y: 81.5, 'text-anchor': 'middle', 'font-size': 9, fill: 'var(--surface)',
-        'font-family': 'IBM Plex Mono, monospace',
+        x: kx + 7.5, y: 92, 'text-anchor': 'middle', 'font-size': 12,
+        fill: g === '-' ? 'var(--ink)' : 'var(--surface)', 'font-family': 'IBM Plex Mono, monospace',
       }, g);
-      add(s, 'text', { x: kx + 18, y: 82, 'font-size': 10.5, fill: 'var(--ink-2)' }, t);
-      kx += 18 + t.length * 6.1 + 20;
+      add(s, 'text', { x: kx + 22, y: 92, 'font-size': 13, fill: 'var(--ink-2)' }, t);
+      kx += 22 + t.length * 7.6 + 24;
     }
   }
   const wrap = el('div', 'gl-pic');
@@ -112,32 +115,33 @@ function residuePicture(scored: boolean): HTMLElement {
 
 /** Two proteins, to show what "per domain" changes. */
 function domainPicture(): HTMLElement {
-  const cw = 9;
-  const x0 = 118;
+  const cw = 11;
+  const x0 = 96;
   const n = 46;
-  const W = x0 + n * cw + 78;
-  const s = svgEl(W, 84);
+  // Room after the cells for the longest verdict, "domain recalled", at 13 px.
+  const W = x0 + n * cw + 128;
+  const s = svgEl(W, 88);
   const cases: [string, [number, number][], [number, number][], string][] = [
     ['protein 1', [[8, 26]], [[19, 20]], 'domain recalled'],
     ['protein 2', [[8, 26]], [[33, 36]], 'domain missed'],
   ];
   cases.forEach(([name, ann, fire, verdict], k) => {
-    const y = 8 + k * 38;
+    const y = 6 + k * 42;
     add(s, 'text', {
-      x: x0 - 8, y: y + 11, 'text-anchor': 'end', fill: 'var(--muted)', 'font-size': 10,
+      x: x0 - 10, y: y + 12, 'text-anchor': 'end', fill: 'var(--muted)', 'font-size': 13,
     }, name);
     for (let i = 0; i < n; i++) {
       add(s, 'rect', {
-        x: x0 + i * cw, y, width: cw - 1.5, height: 12, rx: 1,
-        fill: inAny(i, ann) ? 'var(--accent)' : 'var(--surface-2)',
+        x: x0 + i * cw, y, width: cw - 1.5, height: 13, rx: 1,
+        fill: inAny(i, ann) ? 'var(--accent)' : 'var(--line)',
       });
       add(s, 'rect', {
-        x: x0 + i * cw, y: y + 14, width: cw - 1.5, height: 12, rx: 1,
-        fill: inAny(i, fire) ? 'var(--signal)' : 'var(--surface-2)',
+        x: x0 + i * cw, y: y + 16, width: cw - 1.5, height: 13, rx: 1,
+        fill: inAny(i, fire) ? 'var(--signal)' : 'var(--line)',
       });
     }
     add(s, 'text', {
-      x: x0 + n * cw + 8, y: y + 17, 'font-size': 10.5,
+      x: x0 + n * cw + 12, y: y + 20, 'font-size': 13,
       fill: k === 0 ? 'var(--accent)' : 'var(--muted)',
     }, verdict);
   });
@@ -146,34 +150,39 @@ function domainPicture(): HTMLElement {
   return wrap;
 }
 
-/** The 24-layer profile, with one latent's peak marked. */
+/** The 24-layer profile, with one latent's peak marked. Slate, because slate is depth. */
 function depthPicture(): HTMLElement {
-  const W = 420;
-  const s = svgEl(W, 74);
   const profile = [
     2, 3, 4, 5, 7, 9, 12, 16, 21, 28, 37, 48, 61, 74, 87, 96, 100, 95, 82, 66, 50, 36, 25, 17,
   ];
-  const bw = 14;
-  const x0 = 26;
+  const bw = 22;
+  const x0 = 12;
+  const top = 24;
+  const tall = 56;
+  const W = x0 + profile.length * bw + 12;
+  const s = svgEl(W, 116);
   profile.forEach((v, i) => {
-    const h = Math.max(2, (v / 100) * 44);
+    const h = Math.max(2, (v / 100) * tall);
     add(s, 'rect', {
-      x: x0 + i * bw, y: 8 + 44 - h, width: bw - 3, height: h, rx: 1,
-      fill: v === 100 ? 'var(--signal)' : 'var(--accent)',
-      'fill-opacity': v === 100 ? 1 : 0.35 + 0.5 * (v / 100),
+      x: x0 + i * bw, y: top + tall - h, width: bw - 4, height: h, rx: 1,
+      fill: v === 100 ? 'var(--signal)' : 'var(--depth)',
+      'fill-opacity': v === 100 ? 1 : 0.35 + 0.55 * (v / 100),
     });
   });
+  const mid = (layer: number) => x0 + (layer - 1) * bw + (bw - 4) / 2;
   add(s, 'text', {
-    x: x0 + 16 * bw + (bw - 3) / 2, y: 4, 'text-anchor': 'middle', 'font-size': 9,
-    fill: 'var(--signal)',
+    x: mid(17), y: top - 8, 'text-anchor': 'middle', 'font-size': 12, fill: 'var(--signal)',
   }, 'peak 17');
   for (const l of [1, 12, 24]) {
     add(s, 'text', {
-      x: x0 + (l - 1) * bw + (bw - 3) / 2, y: 66, 'text-anchor': 'middle', 'font-size': 9,
+      x: mid(l), y: top + tall + 18, 'text-anchor': 'middle', 'font-size': 12,
       fill: 'var(--muted)',
     }, String(l));
   }
-  add(s, 'text', { x: x0, y: 66, 'font-size': 9, fill: 'var(--muted)', opacity: 0 }, '');
+  add(s, 'text', {
+    x: x0 + (profile.length * bw) / 2, y: top + tall + 36, 'text-anchor': 'middle',
+    'font-size': 13, fill: 'var(--muted)',
+  }, 'encoder layer');
   const wrap = el('div', 'gl-pic');
   wrap.append(s);
   return wrap;
@@ -193,16 +202,15 @@ function formula(text: string): HTMLElement {
 const BODIES: Record<string, () => Node[]> = {
   pairing: () => [
     para(
-      'A latent pairs with a concept when it scores more than 0.5 on F1 per domain. The score ' +
-      'comes from a held-out set of proteins that the pairing search never saw. InterPLM sets ' +
-      'that cut, and this site keeps it.',
+      'The score comes from a held-out set of proteins that the pairing search never saw. ' +
+      'InterPLM sets that cut, and this site keeps it.',
     ),
     formula('pairs with the concept  =  F1 per domain > 0.5 on the held-out set'),
     para(
       'The search runs over every concept against every live latent, at five activation ' +
-      'thresholds, and keeps the best. 1020 of the 8128 live latents pair with something, and ' +
-      '187 of the 408 concepts get at least one latent. A concept with no latent is not ' +
-      'evidence that ProtT5 ignores it.',
+      'thresholds, and keeps the best. 187 of the 408 concepts get at least one latent. Some ' +
+      'latents pair with more than one concept, so the 1,020 paired latents make 1,080 pairs. ' +
+      'A concept with no latent is not evidence that ProtT5 ignores it.',
     ),
     para(
       'Read the cut with care. The score is per domain, so one firing inside a region counts ' +
@@ -211,10 +219,6 @@ const BODIES: Record<string, () => Node[]> = {
     ),
   ],
   precision: () => [
-    para(
-      'Precision asks whether the latent is right when it fires. Count the residues it fires ' +
-      'on. Count how many of those the Swiss-Prot annotation covers. Divide.',
-    ),
     residuePicture(true),
     formula('precision = 5 right / (5 right + 3 wrong) = 0.63'),
     para(
@@ -223,23 +227,15 @@ const BODIES: Record<string, () => Node[]> = {
     ),
   ],
   'recall-per-residue': () => [
-    para(
-      'Recall per residue asks how much of the annotation the latent reads. Count the residues ' +
-      'the annotation covers. Count how many of those the latent fires on. Divide.',
-    ),
     residuePicture(true),
     formula('recall per residue = 5 right / (5 right + 11 missed) = 0.31'),
     para(
       'This number shows concept splitting. Most paired latents have a high precision and a ' +
       'low recall per residue. Each one reads a part of the region, and no single latent reads ' +
-      'all of it. Over the 1080 pairings the median is 0.032.',
+      'all of it. Over the 1,080 pairs the median is 0.032.',
     ),
   ],
   'recall-per-domain': () => [
-    para(
-      'Recall per domain counts whole annotated regions instead of residues. A region counts as ' +
-      'read when the latent fires anywhere inside it, even on one residue.',
-    ),
     domainPicture(),
     formula('recall per domain = 1 region read / 2 regions = 0.50'),
     para(
@@ -247,7 +243,7 @@ const BODIES: Record<string, () => Node[]> = {
       'answers a detection question: does this latent tell you that the region is present?',
     ),
     para(
-      'It is generous by design, and the gap it leaves is large. Over the 1080 pairings on this ' +
+      'It is generous by design, and the gap it leaves is large. Over the 1,080 pairs on this ' +
       'site the median recall per domain is 0.981 and the median recall per residue is 0.032. ' +
       'The same latent that finds almost every region touches 3% of the residues in them.',
     ),
@@ -271,10 +267,7 @@ const BODIES: Record<string, () => Node[]> = {
     ),
   ],
   'f1-per-residue': () => [
-    para(
-      'The same harmonic mean, with the recall counted over residues. It asks whether the latent ' +
-      'covers the region rather than whether it notices the region.',
-    ),
+    para('It asks whether the latent covers the region, not whether it notices the region.'),
     formula('F1 per residue = 2 · precision · recall per residue / (precision + recall per residue)'),
     para(
       'The two scores disagree, and the size of the disagreement is measured. Over the 209 ' +
@@ -290,13 +283,9 @@ const BODIES: Record<string, () => Node[]> = {
   ],
   'peak-layer': () => [
     para(
-      'A crosscoder latent writes into all 24 encoder layers at once. To write into a layer ' +
-      'means to add a vector to that layer’s residual stream. The residual stream is the ' +
-      'running sum of everything the model holds about a residue so far.',
-    ),
-    para(
-      'Each layer gets its own vector for the same latent. The length of that vector is how much ' +
-      'the latent changes that layer. The peak layer is the layer with the longest vector.',
+      'To write into a layer means to add a vector to that layer’s residual stream. The ' +
+      'residual stream is the running sum of everything the model holds about a residue so ' +
+      'far. The length of the vector is how much the latent changes that layer.',
     ),
     depthPicture(),
     para(
@@ -311,9 +300,8 @@ const BODIES: Record<string, () => Node[]> = {
   ],
   depth: () => [
     para(
-      'The depth ribbon draws the full profile that the peak layer summarises. Each bar is one ' +
-      'encoder layer, from 1 on the left to 24 on the right. The bars are scaled so the peak ' +
-      'layer reaches full height.',
+      'Each bar is one encoder layer, from 1 on the left to 24 on the right. The bars are scaled ' +
+      'so that the peak layer reaches full height.',
     ),
     depthPicture(),
     para(
@@ -323,11 +311,7 @@ const BODIES: Record<string, () => Node[]> = {
     ),
   ],
   'cosine-similarity': () => [
-    para(
-      'Each layer has its own direction for the same latent. The cosine similarity compares each ' +
-      'of those directions against the direction at the peak layer. The latent page draws it as ' +
-      'the dashed line.',
-    ),
+    para('The latent page draws it as the dashed line of the Depth panel.'),
     formula('1 = the same direction   ·   0 = unrelated   ·   -1 = the opposite direction'),
     para(
       'A latent whose cosine stays near 1 across many layers writes one thing all the way ' +
@@ -338,11 +322,7 @@ const BODIES: Record<string, () => Node[]> = {
   ],
   covers: () => [
     para(
-      'Covers is a property of one latent on one protein. Of that protein’s residues, it is the ' +
-      'share where the latent is active at all.',
-    ),
-    para(
-      'It is small for almost every latent, because the crosscoder keeps 32 of 8192 latents ' +
+      'It is small for almost every latent, because the crosscoder keeps 32 of 8,192 latents ' +
       'active at each residue. 2.9% of a 300-residue protein is about 9 residues.',
     ),
     para(
@@ -352,9 +332,8 @@ const BODIES: Record<string, () => Node[]> = {
   ],
   'peak-activation': () => [
     para(
-      'Every activation on this site is divided by that latent’s largest activation over the ' +
-      'whole evaluation set. 1.00 marks the one protein and residue where the latent fires ' +
-      'hardest.',
+      'Every activation on this site uses the same scale, not only the peak. The strips, the ' +
+      'letters and the 3D model all divide by the latent’s largest activation.',
     ),
     para(
       'The scale is per latent and it is not shared. A peak of 0.50 for one latent and 0.50 for ' +
@@ -362,25 +341,25 @@ const BODIES: Record<string, () => Node[]> = {
       'of the two fires harder in the raw activations.',
     ),
     para(
-      'A strong activation carries more than a weak one, and that is measured. Over the 1080 ' +
-      'pairings the median precision rises from 0.656 at any activation to 0.953 above 0.8 of ' +
+      'A strong activation carries more than a weak one, and that is measured. Over the 1,080 ' +
+      'pairs the median precision rises from 0.656 at any activation to 0.953 above 0.8 of ' +
       'the maximum. The random-init null stays flat over the same cuts, at 0.817 to 0.795.',
     ),
   ],
   latents: () => [
     para(
-      'A latent is one of the 8192 units the crosscoder learned. 8128 of them fire at least once ' +
-      'on the evaluation set and are called live. The other 64 are dead and have no page.',
+      '8,128 of the latents fire at least once on the evaluation set and are called live. The ' +
+      'other 64 are dead and have no page.',
     ),
     para(
-      'In a concept table the Latents column counts how many latents pair with that concept. A ' +
-      'concept with 11 in that column has 11 latents that each clear the pairing cut. Each one ' +
-      'reads a part of the region.',
+      'A concept with 11 in the Latents column has 11 latents that each clear the pairing cut. ' +
+      'Each one reads a part of the region.',
     ),
     para(
-      '1020 of the live latents pair with a concept, and 58 of those pair with more than one. ' +
-      'The remaining 7108 fire on something the Swiss-Prot annotations in this evaluation set ' +
-      'cannot name, which is not evidence that they carry nothing.',
+      '1,020 of the live latents pair with a concept, and 58 of those pair with more than one. ' +
+      'Together they make 1,080 pairs. The remaining 7,108 fire on something the Swiss-Prot ' +
+      'annotations in this evaluation set cannot name, which is not evidence that they carry ' +
+      'nothing.',
     ),
     para(
       'This site says latent and never feature. UniProt calls its own sequence annotations the ' +
@@ -388,10 +367,6 @@ const BODIES: Record<string, () => Node[]> = {
     ),
   ],
   'best-latent': () => [
-    para(
-      'Of all the latents that pair with a concept, the best latent is the one with the highest ' +
-      'F1 per domain. Nothing else enters the choice.',
-    ),
     para(
       'Best by that score is not the same as best at reading the region. On Domain · ABC ' +
       'transporter the best latent is 4587, at F1 0.994, and it fires on 0.86% of the annotated ' +
@@ -408,10 +383,7 @@ const BODIES: Record<string, () => Node[]> = {
       'Domain_CN hydrolase is the Domain field with the value CN hydrolase, and the site prints ' +
       'it as Domain · CN hydrolase.',
     ),
-    para(
-      'There are 408 concepts in this evaluation set, and at least one latent pairs with 187 of ' +
-      'them.',
-    ),
+    para('At least one latent pairs with 187 of the 408 concepts.'),
     para(
       'The landing page groups the concepts by what they are biologically and not by the ' +
       'Swiss-Prot field. The field name puts 82.6% of the paired latents into one bucket and ' +
@@ -423,10 +395,6 @@ const BODIES: Record<string, () => Node[]> = {
       'The evaluation set is 207,463 proteins from UniProtKB with an annotation score of 3, 4 ' +
       'or 5, each of at most 512 residues. Every latent was measured on every one of them, so a ' +
       'protein count on this site is a full count and not a sample.',
-    ),
-    para(
-      'In a concept table the Proteins column counts the proteins that Swiss-Prot annotates with ' +
-      'that concept. Those are the proteins the evidence panel steps through.',
     ),
     para(
       'On a latent page the count is different. There it is the proteins the latent fires on, ' +
@@ -456,7 +424,6 @@ const BODIES: Record<string, () => Node[]> = {
 export function renderGlossary(d: Data, host: HTMLElement, slug?: string): void {
   host.textContent = '';
   const views = el('div', 'views');
-  host.append(views);
 
   const intro = panel(
     'Glossary',
@@ -476,10 +443,11 @@ export function renderGlossary(d: Data, host: HTMLElement, slug?: string): void 
   method.href = '#/method';
   toc.append(method);
   intro.append(toc);
+  intro.classList.add('pagehead');
   views.append(intro);
 
   for (const m of METRIC_INFO) {
-    const p = panel('Definition', m.title);
+    const p = panel('', m.title);
     p.id = `gl-${m.slug}`;
     p.append(el('p', 'lede', m.short));
     const body = el('div', 'gl-body');
@@ -553,6 +521,12 @@ export function renderGlossary(d: Data, host: HTMLElement, slug?: string): void 
   back.append(link('/', 'Back to the concepts'));
   prov.append(back);
   views.append(prov);
+  host.append(
+    withContents(views, [
+      ...METRIC_INFO.map((m) => ({ id: `gl-${m.slug}`, title: m.title, href: `#/glossary/${m.slug}` })),
+      { id: 'gl-provenance', title: 'What this data is', href: '#/glossary/provenance' },
+    ]),
+  );
 
   if (slug) {
     // The route carries the entry, so a tooltip link lands on the entry rather than at the top.

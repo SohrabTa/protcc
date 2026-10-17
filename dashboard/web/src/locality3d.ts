@@ -11,10 +11,12 @@
  * answered the question for that latent and could not place it against the others, which is the
  * part that carries a finding.
  *
- * How to read a position. Across is the distance along the chain between the residues the latent
- * fires on, over the same distance for the whole protein. Up is the same for the distance in
- * space. A value of 1 means the firing residues are as far apart as any two residues of the
- * protein. Left is close along the chain. Low is close in space.
+ * How to read a position. Across is the median distance along the chain between the residues the
+ * latent fires on, divided by the median distance between two random residues of the protein. Up
+ * is the same ratio for the distance in space, between alpha carbons. A value of 1 means that the
+ * firing residues are as far apart as random residues. Left is close along the chain. Low is
+ * close in space. A latent that fires at the two ends of a chain is further apart than random,
+ * which is why the axes run past 1.
  *
  * Every dot answers to the pointer and opens its own latent page, because a position on its own
  * does not say which latent sits there.
@@ -81,10 +83,10 @@ export function latentLocalityPlot(d: Data, self?: Feature): HTMLElement {
 
   const W = 520;
   const H = 340;
-  const PL = 54;
+  const PL = 50;
   const PR = 16;
   const PT = 18;
-  const PB = 58;
+  const PB = 46;
   const iw = W - PL - PR;
   const ih = H - PT - PB;
   const svg = document.createElementNS(NS, 'svg');
@@ -121,9 +123,13 @@ export function latentLocalityPlot(d: Data, self?: Feature): HTMLElement {
   for (let g = 0; g <= hi + 0.001; g += 0.5) {
     add('line', { x1: X(g), y1: PT, x2: X(g), y2: PT + ih, stroke: 'var(--line)' });
     add('line', { x1: PL, y1: Y(g), x2: PL + iw, y2: Y(g), stroke: 'var(--line)' });
-    label(X(g), H - PB + 14, 'middle', 10, 'var(--muted)', g.toFixed(1));
-    label(PL - 6, Y(g) + 3, 'end', 10, 'var(--muted)', g.toFixed(1));
+    label(X(g), H - PB + 15, 'middle', 10.5, 'var(--muted)', g.toFixed(1));
+    label(PL - 6, Y(g) + 4, 'end', 10.5, 'var(--muted)', g.toFixed(1));
   }
+  // 1 is the one value with a meaning of its own: as far apart as two random residues.
+  const dash = { stroke: 'var(--muted)', 'stroke-dasharray': '4 3', 'stroke-width': 1 };
+  add('line', { x1: X(1), y1: PT, x2: X(1), y2: PT + ih, ...dash });
+  add('line', { x1: PL, y1: Y(1), x2: PL + iw, y2: Y(1), ...dash });
 
   const placed: Point[] = [];
   for (const pass of [false, true]) {
@@ -146,15 +152,15 @@ export function latentLocalityPlot(d: Data, self?: Feature): HTMLElement {
   // The three regions named where they are, because a reader should not have to hold a rule about
   // 0.7 in their head to read the plot.
   label(
-    (PL + X(SEQ_LOCAL)) / 2, PT + 13, 'middle', 10.5, 'var(--ink-2)',
+    (PL + X(SEQ_LOCAL)) / 2, PT + 14, 'middle', 11, 'var(--ink-2)',
     `one stretch of the chain, ${num(counts.stretch)}`,
   );
   label(
-    PL + iw - 5, Y(0) - 7, 'end', 10.5, 'var(--depth)',
+    PL + iw - 5, Y(0) - 7, 'end', 11, 'var(--depth)',
     `one site in the fold, ${num(counts['fold-site'])}`,
   );
   label(
-    PL + iw - 5, PT + 13, 'end', 10.5, 'var(--ink-2)',
+    PL + iw - 5, PT + 14, 'end', 11, 'var(--ink-2)',
     `no single place, ${num(counts.neither)}`,
   );
 
@@ -167,23 +173,16 @@ export function latentLocalityPlot(d: Data, self?: Feature): HTMLElement {
     add('circle', { cx: mine.x.toFixed(1), cy: mine.y.toFixed(1), r: 2.4, fill: 'var(--ink)' });
   }
 
-  // Both axes carry the same three parts: what the number is, what the low end means, and what
-  // the high end means.
+  // Each axis title says what the ratio is measured against. The dashed lines mark 1.
   label(
-    PL + iw / 2, H - 18, 'middle', 10.5, 'var(--muted)',
-    'how far apart along the chain, over the whole protein',
+    PL + iw / 2, H - 6, 'middle', 11, 'var(--muted)',
+    'Spread along the chain (1 = like random residues)',
   );
-  label(PL, H - 6, 'start', 9.5, 'var(--muted)', '0, next to each other');
-  label(PL + iw, H - 6, 'end', 9.5, 'var(--muted)', '1, as far apart as the protein');
   const yTitle = label(
-    14, PT + ih / 2, 'middle', 10.5, 'var(--muted)',
-    'how far apart in space, over the whole protein',
+    13, PT + ih / 2, 'middle', 11, 'var(--muted)',
+    'Spread in space (1 = like random residues)',
   );
-  yTitle.setAttribute('transform', `rotate(-90 14 ${PT + ih / 2})`);
-  const yLow = label(28, PT + ih, 'start', 9.5, 'var(--muted)', '0, one point in space');
-  yLow.setAttribute('transform', `rotate(-90 28 ${PT + ih})`);
-  const yHigh = label(28, PT, 'end', 9.5, 'var(--muted)', '1, the whole fold');
-  yHigh.setAttribute('transform', `rotate(-90 28 ${PT})`);
+  yTitle.setAttribute('transform', `rotate(-90 13 ${PT + ih / 2})`);
 
   // ---- the pointer -----------------------------------------------------
   const marker = add('circle', {
@@ -291,7 +290,6 @@ export function latentLocalityPlot(d: Data, self?: Feature): HTMLElement {
     item.append(sw, name);
     legend.append(item);
   }
-  legend.append(el('span', 'loc-key', 'point at a dot to name it, click it to open it'));
   plotSide.append(legend);
 
   const key = el('dl', 'cornerkey');

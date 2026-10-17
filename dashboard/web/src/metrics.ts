@@ -47,7 +47,7 @@ export const METRIC_INFO: MetricInfo[] = [
     title: 'What a pairing is',
     short:
       'A latent pairs with a concept when its F1 per domain is more than 0.5 on the held-out ' +
-      'set. 1020 of the 8128 live latents pair with something.',
+      'set. 1,020 of the 8,128 live latents pair with at least one concept.',
   },
   {
     slug: 'precision',
@@ -135,7 +135,7 @@ export const METRIC_INFO: MetricInfo[] = [
     section: 'sparse',
     title: 'Latent',
     short:
-      'One of the 8192 units the crosscoder learned. In a concept table, the Latents column ' +
+      'One of the 8,192 units the crosscoder learned. In a concept table, the Latents column ' +
       'counts the latents that pair with the concept in that row.',
   },
   {
@@ -187,7 +187,7 @@ const BY_HEADER: Record<string, string> = {
   depth: 'depth',
   covers: 'covers',
   peak: 'peak-activation',
-  'peak here': 'peak-activation',
+  'peak activation': 'peak-activation',
   latents: 'latents',
   'best latent': 'best-latent',
   concept: 'concept',
@@ -205,7 +205,7 @@ const BY_KEY: Record<string, { slug: string; short: string }> = {
   latent: {
     slug: 'latents',
     short:
-      'One of the 8192 units the crosscoder learned. Each row is one latent, and the link opens ' +
+      'One of the 8,192 units the crosscoder learned. Each row is one latent, and the link opens ' +
       'its page.',
   },
   'proteins it fires on': {
