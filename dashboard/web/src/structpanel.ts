@@ -78,7 +78,7 @@ export async function drawStructure(
       `The colour is how hard ${opts.coloredBy} fires on each residue, on the same scale as ` +
       'the strips and the letters. ' +
       (opts.why ? `${opts.why} ` : '') +
-      'Drag to turn the model, and scroll on it to zoom.' +
+      'Drag to turn the model. To zoom, hold Ctrl (⌘ on a Mac) and scroll, or pinch.' +
       (opts.letters ? ' Point at a letter in the row above to mark its residue with a ball.' : ''),
   );
   note.replaceWith(help);

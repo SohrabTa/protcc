@@ -696,3 +696,11 @@ h3.sub { font-size: 0.95rem; font-weight: 600; color: var(--ink); margin: 20px 0
   .ex-row { grid-template-columns: minmax(0, 1fr) 44px; }
   .ex-label { grid-column: 1 / -1; }
 }
+
+/* The note that a plain wheel scrolls the page and does not zoom the model. */
+.struct-hint {
+  position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 2;
+  padding: 3px 10px; border-radius: 3px; font-size: 0.82rem; pointer-events: none;
+  color: var(--surface); background: var(--ink); opacity: 0; transition: opacity 150ms linear;
+}
+.struct-hint.on { opacity: 0.85; }

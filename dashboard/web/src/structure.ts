@@ -13,6 +13,7 @@
  * be shown rather than hidden.
  */
 
+import type { GLViewer } from '3dmol/build/3Dmol.es6-min.js';
 import { cssVar, rampRGB } from './ui';
 
 export interface Backbone {
@@ -81,6 +82,97 @@ function alphaCarbons(cif: string): { resi: Int32Array; xyz: Float32Array } {
   return { resi: Int32Array.from(resi), xyz: Float32Array.from(xyz) };
 }
 
+/** The share of the box the model may fill. The rest keeps it clear of the edges. */
+const FILL = 0.9;
+
+/** The model on the screen: its size, and how far its centre is from the centre of the box. */
+function screenBox(
+  viewer: GLViewer,
+  atoms: { x: number; y: number; z: number }[],
+  host: HTMLElement,
+): { w: number; h: number; dx: number; dy: number } {
+  // modelToScreen gives page coordinates (3Dmol `canvasOffset`), so the box goes to the same frame.
+  const pts = viewer.modelToScreen(atoms);
+  let [x0, x1, y0, y1] = [Infinity, -Infinity, Infinity, -Infinity];
+  for (const q of pts) {
+    x0 = Math.min(x0, q.x);
+    x1 = Math.max(x1, q.x);
+    y0 = Math.min(y0, q.y);
+    y1 = Math.max(y1, q.y);
+  }
+  const r = host.getBoundingClientRect();
+  return {
+    w: x1 - x0,
+    h: y1 - y0,
+    dx: (x0 + x1) / 2 - (r.left + window.scrollX + r.width / 2),
+    dy: (y0 + y1) / 2 - (r.top + window.scrollY + r.height / 2),
+  };
+}
+
+/**
+ * Zoom and pan until the model fills the box in its current orientation.
+ *
+ * `zoomTo` fits a sphere around the atom farthest from the centre into the height of the view
+ * (`zoomTo` in 3Dmol.es6.js: `maxD = Math.sqrt(maxDsq) * 2`, then the camera distance from
+ * `camera.fov`). The box is about three times wider than high, so most of its width stayed
+ * empty, and one long tail made the whole model small. This measures the model on the screen and
+ * zooms by the ratio, in two passes, because the perspective makes one pass a little short.
+ *
+ * The sphere is centred on the atoms, not on their outline, so a zoomed model can run off one
+ * edge. The pan moves the outline to the centre. 3Dmol does not document the scale of
+ * `translate`, so the first pan measures it and the second pan corrects by it.
+ */
+function fillBox(viewer: GLViewer, host: HTMLElement): void {
+  const atoms = viewer.selectedAtoms({ atom: 'CA' });
+  if (atoms.length < 2 || host.clientWidth === 0 || host.clientHeight === 0) return;
+  for (let pass = 0; pass < 2; pass++) {
+    const m = screenBox(viewer, atoms, host);
+    const factor = FILL * Math.min(host.clientWidth / m.w, host.clientHeight / m.h);
+    if (!Number.isFinite(factor) || Math.abs(factor - 1) < 0.02) break;
+    viewer.zoom(Math.min(4, Math.max(0.5, factor)));
+  }
+  const before = screenBox(viewer, atoms, host);
+  if (Math.abs(before.dx) < 2 && Math.abs(before.dy) < 2) return;
+  viewer.translate(before.dx, before.dy);
+  const after = screenBox(viewer, atoms, host);
+  const gain = (off0: number, off1: number) =>
+    Math.abs(off0) >= 2 && Math.abs(off0 - off1) > 1e-6 ? (off0 - off1) / off0 : 0;
+  const gx = gain(before.dx, after.dx);
+  const gy = gain(before.dy, after.dy);
+  viewer.translate(gx ? after.dx / gx : 0, gy ? after.dy / gy : 0);
+  viewer.render();
+}
+
+/**
+ * Let a plain wheel scroll the page, and keep the zoom for Ctrl or Cmd with the wheel.
+ *
+ * 3Dmol listens for the wheel on its canvas and calls `preventDefault` (`_handleMouseScroll` in
+ * 3Dmol.es6.js). A reader who scrolled down the page with the pointer over the model stopped
+ * there, and the model zoomed instead. A listener on the box in the capture phase runs before the
+ * canvas gets the event. A trackpad pinch arrives as a wheel with `ctrlKey` set, so it still
+ * zooms. Embedded maps solve the same conflict in the same way.
+ */
+function passWheelToPage(host: HTMLElement): void {
+  const hint = document.createElement('div');
+  hint.className = 'struct-hint';
+  hint.textContent = /Mac|iPhone|iPad/.test(navigator.platform)
+    ? 'Hold ⌘ and scroll, or pinch, to zoom'
+    : 'Hold Ctrl and scroll to zoom';
+  host.append(hint);
+  let timer = 0;
+  host.addEventListener(
+    'wheel',
+    (ev) => {
+      if (ev.ctrlKey || ev.metaKey) return;
+      ev.stopPropagation();
+      hint.classList.add('on');
+      clearTimeout(timer);
+      timer = window.setTimeout(() => hint.classList.remove('on'), 1400);
+    },
+    { capture: true },
+  );
+}
+
 export interface StructureHandle {
   /** Point the viewer at a different latent on the same model. */
   update(values: Uint8Array): void;
@@ -147,6 +239,8 @@ export async function structureView(
   paint();
   viewer.zoomTo();
   viewer.render();
+  fillBox(viewer, host);
+  passWheelToPage(host);
 
   return {
     update(next) {

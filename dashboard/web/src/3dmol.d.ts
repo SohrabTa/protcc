@@ -11,6 +11,10 @@ declare module '3dmol/build/3Dmol.es6-min.js' {
     addStyle(selector: object, style: object): void;
     render(): void;
     zoomTo(): void;
+    zoom(factor: number): void;
+    translate(x: number, y: number): void;
+    selectedAtoms(sel: object): { x: number; y: number; z: number }[];
+    modelToScreen(coords: { x: number; y: number; z: number }[]): { x: number; y: number }[];
     clear(): void;
   }
   export function createViewer(element: HTMLElement, config?: object): GLViewer;
