@@ -1,6 +1,10 @@
 /**
- * One latent: what it pairs with, where in the encoder it lives, how selective it is, and the
- * proteins it fires on.
+ * One latent: what it pairs with, what it fires on, where in the encoder it lives, how selective
+ * it is, and the proteins it fires on.
+ *
+ * The order follows the questions of a reader, as in the feature pages of Bricken et al. (2023)
+ * and sae_vis: the label and its score first, then the examples, then the one protein in place,
+ * then the statistics. The full protein list is last, because it is a reference and not a reading.
  *
  * The protein list is the complete ranking and not a sample of it, so a peak range is a slice of
  * the real distribution, and the Evidence panel counts every protein in a range.
@@ -14,8 +18,8 @@ import { currentStructure, drawStructure } from '../structpanel';
 import { latentLocalityPlot } from '../locality3d';
 import { conceptBadge, conceptName } from '../pairs';
 import {
-  cssVar, el, holdHeight, howto, infoButton, link, num, panel, pct, row, stepper, table,
-  uniprotLink,
+  cssVar, el, figures, holdHeight, howto, infoButton, inkOn, link, num, panel, pct, rampRGB, row,
+  stepper, table, uniprotLink,
 } from '../ui';
 
 /**
@@ -35,6 +39,12 @@ const RANGES: { label: string; lo: number; hi: number }[] = [
 ];
 
 const PAGE = 25;
+
+/** How many proteins one group of examples shows. */
+const EXAMPLES = 10;
+
+/** Residues on each side of the strongest residue in one example row. */
+const FLANK = 30;
 
 /** What the page needs to know about each ranked protein, counted once for all panels. */
 interface RankedProteins {
@@ -82,26 +92,15 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
 
   // Every concept this latent pairs with, the best by F1 per domain first.
   const paired = d.pairsOf(fid);
-  views.append(latentPanel(f, paired));
+  views.append(latentPanel(d, f, paired));
 
-  const grid = el('div', 'grid2');
-  const leftCol = el('div', 'views');
-  leftCol.append(depthPanel(d, f), selectivityPanel(d, f));
-  const listPanel = panel('Proteins', 'Where it fires');
-  grid.append(leftCol, listPanel);
-  views.append(grid);
-
-  const spacePanel = panel('Locality', 'A stretch of the chain, or a site in the fold');
-  spacePanel.append(
-    howto(
-      'One dot for each live latent. A dot near the left fires on residues that are neighbours ' +
-        'in the chain. A dot near the bottom fires on residues that are together in space. ' +
-        'Both axes are divided by the same spread over the whole protein, so 1 is as far apart ' +
-        'as the protein itself. Point at a dot to name its latent, and click it to open it.',
-    ),
-    latentLocalityPlot(d, f),
+  const exPanel = panel(
+    'Examples',
+    'What it fires on',
+    `The ${EXAMPLES} proteins it fires on most strongly, cut to ${2 * FLANK + 1} residues ` +
+      'around the strongest residue. The ranges below show weaker examples.',
   );
-  views.append(spacePanel);
+  views.append(exPanel);
 
   const resPanel = panel(
     'Which residues',
@@ -111,7 +110,8 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
   resPanel.classList.add('evpanel');
   resPanel.append(
     howto(
-      'Step through the proteins with the arrows, in the order of the Proteins panel. ' +
+      'Click an example above to show its protein here, or step through the proteins with the ' +
+        'arrows, in the order of the Proteins panel. ' +
         (paired.length > 1 ? 'Pick a concept to mark its residues in teal. ' : '') +
         localityHowto(paired.length > 0),
     ),
@@ -126,10 +126,32 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
   evPanel.classList.add('evpanel');
   views.append(evPanel);
 
+  const grid = el('div', 'grid2');
+  grid.append(depthPanel(d, f), selectivityPanel(d, f));
+  views.append(grid);
+
+  const spacePanel = panel('Locality', 'A stretch of the chain, or a site in the fold');
+  spacePanel.append(
+    howto(
+      'One dot for each live latent. A dot near the left fires on residues that are neighbours ' +
+        'in the chain. A dot near the bottom fires on residues that are together in space. ' +
+        'Both axes are divided by the same spread over the whole protein, so 1 is as far apart ' +
+        'as the protein itself. Point at a dot to name its latent, and click it to open it.',
+    ),
+    latentLocalityPlot(d, f),
+  );
+  views.append(spacePanel);
+
+  const listPanel = panel('Proteins', 'Every protein it fires on');
+  views.append(listPanel);
+
   const ranked = countRanked(d, await d.ranking(fid), paired);
-  drawProteinList(d, ranked, paired, listPanel);
-  drawResidues(d, f, ranked.rank, paired, resChooser, resMark, resBody);
+  const show = drawResidues(d, f, ranked.rank, paired, resChooser, resMark, resBody);
+  drawExamples(d, f, ranked, paired, exPanel, (acc) => {
+    if (show(acc)) resPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
   drawEvidence(ranked, paired, evPanel);
+  drawProteinList(d, ranked, paired, listPanel);
 }
 
 function conceptLink(c: Concept): HTMLAnchorElement {
@@ -144,9 +166,17 @@ function namedConcept(paired: LatentPair[], i: number, asLink: boolean): HTMLEle
   return box;
 }
 
-/** The concepts this latent pairs with, and the scores of each pair. */
-function latentPanel(f: Feature, paired: LatentPair[]): HTMLElement {
+/** The concepts this latent pairs with, the scores of each pair, and three numbers about it. */
+function latentPanel(d: Data, f: Feature, paired: LatentPair[]): HTMLElement {
   const p = panel('Latent', `f/${f.f}`);
+  // The same three numbers on every latent, so that a latent with no concept still says what it is.
+  p.append(
+    figures([
+      [num(f.np), `proteins it fires on, ${pct(f.pp, 2)} of ${num(d.manifest.counts.proteins)}`],
+      [pct(f.pw), 'of a protein it covers, as the mean'],
+      [`${f.pk} of ${d.nLayers}`, 'peak layer in the encoder'],
+    ]),
+  );
   if (paired.length === 0) {
     p.append(
       el('p', 'lede', 'No Swiss-Prot concept in this evaluation set pairs with this latent.'),
@@ -451,7 +481,7 @@ function drawResidues(
   chooserHost: HTMLElement,
   markHost: HTMLElement,
   body: HTMLElement,
-): void {
+): (acc: string) => boolean {
   const withTrack: string[] = [];
   for (let i = 0; i < rank.protein.length; i++) {
     const acc = d.proteinIds[rank.protein[i]];
@@ -461,7 +491,7 @@ function drawResidues(
     body.append(
       el('p', 'warn', 'No protein this latent fires on has a per-residue track in this tree.'),
     );
-    return;
+    return () => false;
   }
   let pending = 0;
   let shownAcc = withTrack[0];
@@ -489,12 +519,158 @@ function drawResidues(
       markHost.append(b);
     });
   }
-  chooserHost.append(
-    stepper(withTrack, 'protein', (acc) => {
-      shownAcc = acc;
-      redraw();
-    }),
+  const steps = stepper(withTrack, 'protein', (acc) => {
+    shownAcc = acc;
+    redraw();
+  });
+  chooserHost.append(steps.root);
+  return (acc) => steps.show(acc);
+}
+
+/**
+ * The proteins of one group of examples, as indices into the ranking.
+ *
+ * Group -1 is the top of the ranking. A peak range takes its proteins at even steps through the
+ * range, so the examples span the range and do not crowd at its upper end. sae_vis samples its
+ * quantile groups the same way, but at random. Even steps need no seed, so a link always shows
+ * the same examples.
+ */
+function exampleIndices(d: Data, ranked: RankedProteins, group: number): number[] {
+  const { rank, range } = ranked;
+  const pool: number[] = [];
+  for (let i = 0; i < rank.protein.length; i++) {
+    if ((group < 0 || range[i] === group) && d.hasTrack(d.proteinIds[rank.protein[i]])) {
+      pool.push(i);
+      if (group < 0 && pool.length === EXAMPLES) break;
+    }
+  }
+  if (group < 0 || pool.length <= EXAMPLES) return pool;
+  return Array.from(
+    { length: EXAMPLES },
+    (_, j) => pool[Math.floor(((j + 0.5) * pool.length) / EXAMPLES)],
   );
+}
+
+/**
+ * Examples of what the latent fires on: one row per protein, cut around its strongest residue.
+ *
+ * This is the first thing a feature page shows in Bricken et al. (2023), sae_vis, and InterProt,
+ * because a reader judges a feature from its examples before any statistic. The amber of each
+ * letter is the activation on the same scale as the strips below. Teal under a letter marks the
+ * best paired concept, so a reader can see where label and firing agree.
+ */
+function drawExamples(
+  d: Data,
+  f: Feature,
+  ranked: RankedProteins,
+  paired: LatentPair[],
+  host: HTMLElement,
+  onPick: (acc: string) => void,
+): void {
+  const concept = paired[0]?.concept.c;
+  host.append(
+    howto(
+      'Each row is one protein. The letters are its residues, cut to the strongest residue ' +
+        'and the residues around it. The stronger the amber, the harder the latent fires there. ' +
+        (concept
+          ? `A teal line under a letter marks where Swiss-Prot annotates ${conceptName(concept)}. `
+          : '') +
+        'Peak is the strongest it fires on the protein, as a share of its strongest anywhere. ' +
+        'Pick a range to see weaker examples. Click a row to read the whole protein below.',
+    ),
+  );
+  const controls = el('div', 'chips');
+  const buttons: HTMLButtonElement[] = [];
+  const rows = el('div', 'examples');
+  let group = -1;
+  let pending = 0;
+
+  const addButton = (label: string, index: number, count: number) => {
+    const b = el('button', undefined, label);
+    b.disabled = count === 0;
+    b.addEventListener('click', () => {
+      group = index;
+      void draw();
+    });
+    buttons.push(b);
+    controls.append(b);
+  };
+  addButton('strongest', -1, ranked.rank.protein.length);
+  RANGES.forEach((r, i) => addButton(`${r.label} (${num(ranked.counts[i])})`, i, ranked.counts[i]));
+  host.append(controls, rows);
+
+  async function draw(): Promise<void> {
+    const mine = ++pending;
+    buttons.forEach((b, i) => b.setAttribute('aria-pressed', String(i - 1 === group)));
+    const picks = exampleIndices(d, ranked, group);
+    const release = holdHeight(rows);
+    const loaded = await Promise.all(
+      picks.map(async (i) => {
+        const acc = d.proteinIds[ranked.rank.protein[i]];
+        const [info, track] = await Promise.all([d.protein(acc), d.track(acc)]);
+        return { i, acc, info, track };
+      }),
+    );
+    release();
+    if (mine !== pending) return;
+    rows.textContent = '';
+    if (loaded.length === 0) {
+      rows.append(el('p', 'small muted', 'No protein in this range has a per-residue track.'));
+      return;
+    }
+    for (const { i, acc, info, track } of loaded) {
+      if (!info) continue;
+      const acts = Data.activationOf(track, f.f);
+      const ci = concept ? d.columnOf(concept) : null;
+      rows.append(
+        exampleRow(acc, info.n, info.s, acts, ci !== null ? info.c[String(ci)] ?? [] : [],
+          ranked.rank.value[i] / 255, onPick),
+      );
+    }
+  }
+  void draw();
+}
+
+/** One example: the accession, the residues around the peak, and the peak value. */
+function exampleRow(
+  acc: string,
+  name: string,
+  seq: string,
+  acts: Uint8Array,
+  ranges: [number, number][],
+  peak: number,
+  onPick: (acc: string) => void,
+): HTMLElement {
+  let top = 0;
+  for (let r = 1; r < acts.length; r++) if (acts[r] > acts[top]) top = r;
+  // The window keeps its full width at the ends of the chain, so every row has the same length.
+  const width = Math.min(seq.length, 2 * FLANK + 1);
+  const start = Math.max(0, Math.min(top - FLANK, seq.length - width));
+  const annotated = new Uint8Array(seq.length);
+  for (const [a, b] of ranges) {
+    for (let r = Math.max(0, a); r <= Math.min(seq.length - 1, b); r++) annotated[r] = 1;
+  }
+
+  const row_ = el('button', 'ex-row');
+  row_.type = 'button';
+  row_.title = `${acc} ${name}. Click to read the whole protein below.`;
+  const label = el('span', 'ex-label');
+  label.append(el('span', 'mono ex-acc', acc), el('span', 'ex-name', name));
+  const letters = el('span', 'ex-seq mono');
+  letters.append(el('span', 'ex-pos', String(start + 1)));
+  for (let r = start; r < start + width; r++) {
+    const rgb = rampRGB(acts[r] / 255);
+    const c = el('span', annotated[r] ? 'ex-aa ann' : 'ex-aa', seq[r]);
+    if (acts[r] > 0) {
+      c.style.background = `rgb(${rgb.join(',')})`;
+      c.style.color = inkOn(rgb);
+    }
+    if (r === top) c.classList.add('top');
+    letters.append(c);
+  }
+  row_.append(label, letters, el('span', 'ex-peak mono', peak.toFixed(2)));
+  row_.addEventListener('click', () => onPick(acc));
+  return row_;
 }
 
 /**

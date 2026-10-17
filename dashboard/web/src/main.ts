@@ -33,38 +33,81 @@ function header(): void {
   }
 }
 
-/** The theme the reader picked last. Light is the default, as on a printed figure. */
+/** The theme the reader picked last. Dark is the default: light strained the eyes. */
 const THEME_KEY = 'protcc-theme';
 type Theme = 'light' | 'dark';
 
 function storedTheme(): Theme {
   try {
-    return localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light';
+    return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark';
   } catch {
-    return 'light';
+    return 'dark';
   }
 }
 
-/** The canvases and the 3D model read the colours when they draw, so a switch draws the page again. */
-function mountThemeButton(): void {
-  const btn = document.getElementById('themebtn')!;
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/** A sun or a moon, the two icons that most sites use for the two themes. */
+function themeIcon(theme: Theme): SVGSVGElement {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('aria-hidden', 'true');
+  const add = (tag: string, attrs: Record<string, string>) => {
+    const n = document.createElementNS(SVG_NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    svg.append(n);
+  };
+  if (theme === 'light') {
+    add('circle', { cx: '8', cy: '8', r: '3' });
+    for (let k = 0; k < 8; k++) {
+      const t = (k * Math.PI) / 4;
+      const [c, s_] = [Math.cos(t), Math.sin(t)];
+      add('line', {
+        x1: (8 + 5 * c).toFixed(2), y1: (8 + 5 * s_).toFixed(2),
+        x2: (8 + 6.6 * c).toFixed(2), y2: (8 + 6.6 * s_).toFixed(2),
+      });
+    }
+  } else {
+    add('path', { d: 'M13.2 10.1A5.6 5.6 0 0 1 5.9 2.8a5.6 5.6 0 1 0 7.3 7.3Z' });
+  }
+  return svg;
+}
+
+/**
+ * The theme switch: a sun and a moon side by side, the current one filled.
+ *
+ * Two named halves show the state and the choice at once. A single icon that flips leaves the
+ * reader to guess whether it shows the theme they have or the theme they get.
+ *
+ * The canvases and the 3D model read the colours when they draw, so a switch draws the page again.
+ */
+function mountThemeSwitch(): void {
+  const host = document.getElementById('themeswitch')!;
+  const buttons = (['light', 'dark'] as Theme[]).map((theme) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.title = theme === 'light' ? 'Light theme' : 'Dark theme';
+    b.setAttribute('aria-label', b.title);
+    b.append(themeIcon(theme));
+    b.addEventListener('click', () => {
+      if (document.documentElement.dataset.theme === theme) return;
+      try {
+        localStorage.setItem(THEME_KEY, theme);
+      } catch {
+        // Private windows refuse storage. The switch still holds for this visit.
+      }
+      apply(theme);
+      header();
+      void route();
+    });
+    host.append(b);
+    return { theme, b };
+  });
   const apply = (theme: Theme): void => {
     document.documentElement.dataset.theme = theme;
-    btn.textContent = theme === 'dark' ? 'Light' : 'Dark';
-    btn.title = `Change to the ${theme === 'dark' ? 'light' : 'dark'} theme`;
+    for (const x of buttons) x.b.setAttribute('aria-pressed', String(x.theme === theme));
   };
   apply(storedTheme());
-  btn.addEventListener('click', () => {
-    const next: Theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-    try {
-      localStorage.setItem(THEME_KEY, next);
-    } catch {
-      // Private windows refuse storage. The switch still holds for this visit.
-    }
-    apply(next);
-    header();
-    void route();
-  });
 }
 
 function setCrumbs(parts: (Node | string)[]): void {
@@ -123,7 +166,7 @@ async function route(): Promise<void> {
 }
 
 async function start(): Promise<void> {
-  mountThemeButton();
+  mountThemeSwitch();
   app.append(el('p', 'loading', 'Loading the index…'));
   try {
     await data.load();

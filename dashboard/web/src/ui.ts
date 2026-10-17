@@ -487,12 +487,20 @@ export function holdHeight(host: HTMLElement): () => void {
  * a list of them is not a choice anybody can make: the reader wants another example, not a
  * particular protein. So the control offers the next one, the previous one, and a random one,
  * and says where in the list they are.
+ *
+ * `show` moves the stepper to an item from outside, for a click on an example elsewhere on the
+ * page. It returns false for an item that is not in the list.
  */
+export interface Stepper {
+  root: HTMLElement;
+  show(item: string): boolean;
+}
+
 export function stepper(
   items: string[],
   label: string,
   onPick: (item: string, index: number) => void,
-): HTMLElement {
+): Stepper {
   const box = el('div', 'chips stepper');
   let i = 0;
   const pos = el('span', 'small muted');
@@ -516,5 +524,13 @@ export function stepper(
 
   box.append(pos, prev, name, next, rand);
   go(0);
-  return box;
+  return {
+    root: box,
+    show(item) {
+      const at = items.indexOf(item);
+      if (at < 0) return false;
+      go(at);
+      return true;
+    },
+  };
 }
