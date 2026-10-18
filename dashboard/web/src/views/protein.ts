@@ -6,6 +6,7 @@
  */
 
 import { Data } from '../data';
+import { metricForHeader } from '../metrics';
 import { conceptName, pairCells } from '../pairs';
 import { drawStructure } from '../structpanel';
 import {
@@ -58,8 +59,8 @@ export async function renderProtein(d: Data, acc: string, host: HTMLElement): Pr
   const withConcept = ranked.filter(([f]) => d.featureById.get(f)!.c);
   p.append(
     figures([
-      [num(ranked.length), 'latents fire here'],
-      [num(withConcept.length), 'of them pair with a concept'],
+      [num(ranked.length), 'latents fire here', metricForHeader('latent')],
+      [num(withConcept.length), 'of them pair with a concept', metricForHeader('pairing')],
       [String(info.l), 'residues'],
     ]),
   );
@@ -72,10 +73,9 @@ export async function renderProtein(d: Data, acc: string, host: HTMLElement): Pr
         'It answers what else the crosscoder reads here, beside the annotation you came for.',
     ),
     howto(
-      'The rows start with the latent that covers the most of the protein. Peak activation is ' +
-        'the strongest the latent fires on this protein, as a share of its strongest anywhere. ' +
-        'Click a column header to sort by it, a second time to reverse, and a third time for ' +
-        'this order.',
+      'The rows start with the latent that covers the most of the protein. Covers counts every ' +
+        'residue where the latent fires at all. Peak activation is the strongest the latent ' +
+        'fires on this protein, as a share of its strongest anywhere.',
     ),
   );
 
@@ -117,8 +117,10 @@ export async function renderProtein(d: Data, acc: string, host: HTMLElement): Pr
   const ev = panel(
     'Along the sequence',
     'What fires where',
-    'The teal rows are Swiss-Prot annotations. The amber rows are the latents that pair with ' +
-      'them, so a row pair that lines up is a latent doing its job.',
+    'Teal rows are Swiss-Prot annotations. Under each one, the amber rows are the latents ' +
+      'that pair with it. The stronger the amber, the harder the latent fires, from 0 to its ' +
+      'strongest anywhere. Where amber lines up with teal, the latent fires on the annotated ' +
+      'residues.',
   );
   // One block per annotation, each holding its own latents. A single flat grid left the reader
   // guessing which amber rows belonged to which teal one, because an annotation that no latent

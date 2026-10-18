@@ -16,9 +16,6 @@ import {
   coverageBar, el, figures, howto, infoButton, link, num, panel, pct, row, table,
 } from '../ui';
 
-/** With all families shown, each family lists this many concepts and a link to the rest. */
-const PREVIEW_ROWS = 5;
-
 export function renderOverview(d: Data, host: HTMLElement): void {
   host.textContent = '';
   const views = el('div', 'views');
@@ -37,16 +34,14 @@ export function renderOverview(d: Data, host: HTMLElement): void {
     `${found} of ${d.concepts.length} concepts have at least one latent`,
     'Every Swiss-Prot concept in the evaluation set, grouped by what the annotation is ' +
       'biologically. A concept counts as found when at least one latent pairs with it. A latent ' +
-      'pairs with a concept when its F1 per domain is more than 0.5 on a held-out set of ' +
-      'proteins. Open a concept to see which latents detect it, and where.',
+      'pairs with a concept when its F1 per domain is more than 0.5 on two separate halves of ' +
+      'the proteins. Open a concept to see which latents detect it, and where.',
   );
   p.append(
     howto(
       'Pick a family above to show one family, or type in the filter box. The filter searches ' +
-        'all families, so it sets the family to All families. With All families, each family ' +
-        `shows its ${PREVIEW_ROWS} best concepts, and the link under them shows the rest. The ` +
-        'rows start with the best F1, highest first. Click a column header to sort by it, a ' +
-        'second time to reverse, and a third time for this order.',
+        'all families, so it sets the family to All families. The rows start with the best F1, ' +
+        'highest first.',
     ),
   );
 
@@ -107,9 +102,7 @@ export function renderOverview(d: Data, host: HTMLElement): void {
         ['Concept', 'Best F1', 'Latents', 'Proteins', 'Best latent'],
         [0],
       );
-      const sorted = match.sort((a, b) => b.f1 - a.f1);
-      const preview = family === '' && !searching && sorted.length > PREVIEW_ROWS;
-      for (const c of preview ? sorted.slice(0, PREVIEW_ROWS) : sorted) {
+      for (const c of match.sort((a, b) => b.f1 - a.f1)) {
         tb.append(
           row(
             [
@@ -128,22 +121,16 @@ export function renderOverview(d: Data, host: HTMLElement): void {
       scroll.append(root);
       g.append(scroll);
       const missed = inFamily.length - match.length;
-      const foot = el('p', 'small muted famfoot');
-      if (preview) {
-        const more = el('button', 'linkish', `Show all ${match.length} found concepts of ${fam}`);
-        more.addEventListener('click', () => {
-          setFamily(fam);
-          p.scrollIntoView({ block: 'start' });
-        });
-        foot.append(more);
-      }
       if (missed > 0) {
-        foot.append(
-          `${preview ? ' ' : ''}${missed} concept${missed === 1 ? '' : 's'} in this family ` +
-            `${missed === 1 ? 'has' : 'have'} no latent.`,
+        g.append(
+          el(
+            'p',
+            'small muted famfoot',
+            `${missed} concept${missed === 1 ? '' : 's'} in this family ` +
+              `${missed === 1 ? 'has' : 'have'} no latent.`,
+          ),
         );
       }
-      if (foot.childNodes.length) g.append(foot);
       body.append(g);
     }
     if (!any) body.append(el('p', 'loading', 'Nothing matches that filter.'));
@@ -161,13 +148,16 @@ export function renderOverview(d: Data, host: HTMLElement): void {
   const depthPanel = panel(
     'Depth',
     `${pct(band.share * 100, 0)} of the live latents peak in layers ${band.from} to ${band.to}`,
-    'A latent adds its own vector to each of the 24 encoder layers. The vectors differ from ' +
-      'layer to layer in direction and in length. The length at a layer is how much the latent ' +
-      'changes that layer. The peak layer is the layer where the vector is longest.',
+    'Each latent sits across at its peak layer, the layer it writes into hardest after a ' +
+      'correction for the growth of the residual stream. It sits up at the number of proteins ' +
+      'it fires on, on a log scale. Amber dots pair with a concept, and the gray field holds the ' +
+      'latents that pair with no concept. The bars on top show the share of each layer’s ' +
+      'latents that pair.',
   );
   const map = depthMap(d);
   depthPanel.append(map.howto, map.root);
   views.append(depthPanel);
+  views.insertBefore(panelTabs([p, split.root, depthPanel], bar.tools), p);
 
   /** The one place that changes the family. `clearQuery` is false when the filter asks for it. */
   function setFamily(key: string, clearQuery = true): void {
@@ -184,6 +174,69 @@ export function renderOverview(d: Data, host: HTMLElement): void {
 
   draw();
   map.mount();
+}
+
+/**
+ * One tab for each panel, and one panel on screen at a time.
+ *
+ * Three things keep the other two panels in view. The tabs are cards that state each result, so
+ * the three findings are on screen before a click. The bar that stays at the top of the window
+ * switches the panel too, so a reader deep in the concept list still sees the other two. And
+ * each panel ends with a link to the next one.
+ */
+function panelTabs(panels: HTMLElement[], floatTools: HTMLElement): HTMLElement {
+  const box = el('section', 'ovtabs-box');
+  box.append(el('span', 'eyebrow', 'The results, in three views'));
+  const strip = el('div', 'ovtabs');
+  strip.setAttribute('role', 'tablist');
+  box.append(strip);
+  const mini = el('div', 'ovmini');
+  mini.setAttribute('role', 'group');
+  mini.setAttribute('aria-label', 'View');
+  floatTools.append(mini);
+
+  const names = panels.map((pane) => (pane.querySelector('.eyebrow')?.textContent ?? '').split(':')[0]);
+  const results = panels.map((pane) => pane.querySelector('h2')?.textContent ?? '');
+  const tabs = panels.map((pane, i) => {
+    pane.classList.add('ovtab-pane');
+    pane.setAttribute('role', 'tabpanel');
+    const tab = el('button', 'ovtab');
+    tab.type = 'button';
+    tab.setAttribute('role', 'tab');
+    tab.append(
+      el('span', 'ovtab-name', `${i + 1} · ${names[i]}`),
+      el('span', 'ovtab-sub', results[i]),
+    );
+    tab.addEventListener('click', () => show(i));
+    strip.append(tab);
+    return tab;
+  });
+  const minis = names.map((name, i) => {
+    const b = el('button', undefined, name);
+    b.type = 'button';
+    b.addEventListener('click', () => show(i, true));
+    mini.append(b);
+    return b;
+  });
+  panels.forEach((pane, i) => {
+    if (i === panels.length - 1) return;
+    const next = el('button', 'ovnext');
+    next.type = 'button';
+    next.append(el('span', 'ovnext-k', `Next view: ${names[i + 1]}`), el('span', undefined, results[i + 1]));
+    next.addEventListener('click', () => show(i + 1, true));
+    pane.append(next);
+  });
+
+  function show(at: number, scroll = false): void {
+    panels.forEach((pane, i) => {
+      pane.hidden = i !== at;
+      tabs[i].setAttribute('aria-selected', String(i === at));
+      minis[i].setAttribute('aria-pressed', String(i === at));
+    });
+    if (scroll) box.scrollIntoView({ block: 'start' });
+  }
+  show(0);
+  return box;
 }
 
 type FamilyOrder = [string, Concept[]][];
@@ -212,7 +265,7 @@ function familyBar(
   d: Data,
   famOrder: FamilyOrder,
   onPick: (key: string) => void,
-): { root: HTMLElement; set(key: string): void } {
+): { root: HTMLElement; set(key: string): void; tools: HTMLElement } {
   const root = el('section', 'fambar');
   const head = el('div', 'fambar-head');
   head.append(
@@ -251,7 +304,7 @@ function familyBar(
       'concepts of the family that at least one latent pairs with. The second number counts ' +
       'all the concepts of the family. The bar shows the same share.\n\n' +
       `For all families that is ${found} of ${d.concepts.length}. A latent pairs with a ` +
-      'concept when its F1 per domain is more than 0.5.',
+      'concept when its F1 per domain is more than 0.5 on two separate halves of the proteins.',
     'pairing',
   );
   info.classList.add('famtabs-info');
@@ -282,7 +335,7 @@ function familyBar(
     select.value = key;
   };
   set('');
-  return { root, set };
+  return { root, set, tools: inner };
 }
 
 /**
@@ -351,10 +404,9 @@ function splitPanel(d: Data): SplitHandle {
   const note = el('p', 'small muted');
   p.append(
     howto(
-      'Every dot is one latent paired with one concept. Point at a concept name beside the plot ' +
-        'to light up its latents. Click the name to keep them lit, and then only its dots answer ' +
-        'the pointer. The arrow after a name opens the concept page. Point at a dot to see its ' +
-        'latent, and click the dot to open it. Drag a rectangle on the plot to zoom in.',
+      'Point at a concept name to light up its latents, and click the name to keep them lit. ' +
+        'The arrow after a name opens the concept page. Point at a dot to name its latent, and ' +
+        'click it to open it. Drag a rectangle to zoom in, and press Escape to go back one step.',
     ),
     stats,
     grid,
@@ -625,7 +677,7 @@ function splitScatter(pairs: Pair[], family: string): ScatterHandle {
   add(
     'text',
     { x: PL + iw / 2, y: H - 4, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 11 },
-    'Recall per residue: how much of the annotated region it covers',
+    'Recall per residue: share of the annotated residues it fires on',
   );
   const rot = add(
     'text',
@@ -933,7 +985,11 @@ function splitScatter(pairs: Pair[], family: string): ScatterHandle {
   };
   put('top left', 'right when it fires, and reads a sliver of the region.');
   put('top right', 'right when it fires, and reads all of the region.');
-  put('bottom', 'wrong more often than right.');
+  put(
+    'bottom',
+    'wrong more often than right. No pair sits below 1/3, because a precision that low cannot ' +
+      'reach an F1 per domain above 0.5.',
+  );
   wrap.append(corners);
 
   render();

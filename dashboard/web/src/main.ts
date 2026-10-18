@@ -17,6 +17,7 @@ import { renderGlossary } from './glossary';
 import { renderMethod } from './method';
 import { methodFigure } from './methodfigure';
 import { mountJump } from './jump';
+import { useFacts } from './facts';
 
 const data = new Data('./data');
 const app = document.getElementById('app')!;
@@ -181,6 +182,7 @@ async function start(): Promise<void> {
     app.append(box);
     return;
   }
+  useFacts(data);
   header();
   mountJump(data, document.getElementById('jump')!);
   // The provenance used to sit under every page. It now lives at the end of the glossary, which

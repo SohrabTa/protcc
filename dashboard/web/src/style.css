@@ -825,3 +825,53 @@ h3.sub { font-size: var(--fs-body); font-weight: 600; color: var(--ink); margin:
 
 /* The search with no result: what it can find instead. */
 .jump-none { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; }
+
+/* On a phone the plots keep a readable width and scroll sideways. Scaled down to the screen,
+   their text fell to 6 or 7 px. */
+@media (max-width: 640px) {
+  .split-box, .loc3d-box, .gl-pic { overflow-x: auto; }
+  .split-box > svg { min-width: 560px; }
+  .loc3d-box > svg { min-width: 480px; }
+  .gl-pic:not(.m-pair) svg { min-width: 600px; }
+}
+
+/* The three panels of the landing page as tabs. The tabs are cards that state each
+   result, so the reader sees three views before a click. */
+.ovtabs-box { margin-top: 22px; scroll-margin-top: 56px; }
+.ovtabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
+.ovtab {
+  display: flex; flex-direction: column; gap: 4px; text-align: left; padding: 12px 14px 14px;
+  cursor: pointer; font: inherit; color: var(--ink-2); background: var(--surface);
+  border: 1px solid var(--line-strong); border-radius: 6px;
+}
+.ovtab:hover { border-color: var(--ink-2); background: var(--surface-2); }
+.ovtab[aria-selected='true'] {
+  color: var(--ink); background: var(--surface-2); border-color: var(--ink);
+  box-shadow: inset 0 -3px 0 var(--ink);
+}
+.ovtab:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.ovtab-name { font-size: var(--fs-sm); font-weight: 600; color: var(--muted); }
+.ovtab[aria-selected='true'] .ovtab-name { color: var(--ink-2); }
+.ovtab-sub { font-size: var(--fs-body); font-weight: 600; line-height: 1.35; }
+.views > .ovtab-pane { border-top: 0; }
+@media (max-width: 760px) { .ovtabs { grid-template-columns: 1fr; } }
+/* The same switch in the bar at the top of the window. */
+.ovmini {
+  display: inline-flex; gap: 2px; padding: 2px; margin-left: auto;
+  border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface-2);
+}
+.ovmini button {
+  font: inherit; font-size: var(--fs-sm); padding: 3px 12px; border: 0; border-radius: 999px;
+  background: none; color: var(--ink-2); cursor: pointer;
+}
+.ovmini button:hover { color: var(--ink); }
+.ovmini button[aria-pressed='true'] { background: var(--ink); color: var(--surface); }
+/* The way on to the next panel, at the end of each one. */
+.ovnext {
+  display: flex; flex-direction: column; gap: 2px; width: 100%; margin-top: 28px; padding: 12px 14px;
+  text-align: right; font: inherit; color: var(--ink); cursor: pointer;
+  background: none; border: 1px solid var(--line-strong); border-radius: 6px;
+}
+.ovnext:hover { background: var(--surface-2); border-color: var(--ink-2); }
+.ovnext-k { font-size: var(--fs-sm); color: var(--muted); }
+.ovnext-k::after { content: ' \2192'; }

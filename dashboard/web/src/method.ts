@@ -13,7 +13,8 @@
 
 import type { Data } from './data';
 import { METHOD_SECTIONS, METRIC_INFO, type SectionId } from './metrics';
-import { el, link, num, panel, withContents } from './ui';
+import { peakBand } from './depthmap';
+import { el, link, num, panel, pct, withContents } from './ui';
 
 const NS = 'http://www.w3.org/2000/svg';
 
@@ -60,7 +61,7 @@ function dictionaryPicture(): HTMLElement {
   const W = 330;
   const H = 150;
   const ys = [8, 36, 64, 92, 120];
-  const layerName = (i: number) => (i === 2 ? 'layer m' : `layer ${[24, 23, '', 2, 1][i]}`);
+  const layerName = (i: number) => (i === 2 ? '…' : `layer ${[24, 23, '', 2, 1][i]}`);
   const drawing = (label: string): SVGSVGElement => {
     const s = document.createElementNS(NS, 'svg');
     s.setAttribute('viewBox', `0 0 ${W} ${H}`);
@@ -78,7 +79,7 @@ function dictionaryPicture(): HTMLElement {
   };
 
   // ---- left: one autoencoder for each layer ----
-  const left = drawing('One dictionary for each layer, with the same feature learned again in each.');
+  const left = drawing('One dictionary for each layer, with the same direction learned again in each.');
   ys.forEach((y, i) => {
     layerBox(left, y, i);
     svgNode(left, 'line', {
@@ -165,9 +166,10 @@ function definitionsOf(id: SectionId): HTMLElement | null {
   return p;
 }
 
-function section(id: SectionId, title: string, body: (Node | string)[]): HTMLElement {
-  const i = METHOD_SECTIONS.findIndex((x) => x.id === id) + 1;
-  const p = panel(`Method ${i} of ${METHOD_SECTIONS.length}`, title);
+/** One section of the page. Its title comes from METHOD_SECTIONS, which the glossary also reads. */
+function section(id: SectionId, body: (Node | string)[]): HTMLElement {
+  const i = METHOD_SECTIONS.findIndex((x) => x.id === id);
+  const p = panel(`Method ${i + 1} of ${METHOD_SECTIONS.length}`, METHOD_SECTIONS[i].title);
   p.id = `m-${id}`;
   const b = el('div', 'gl-body');
   b.append(...body);
@@ -181,13 +183,14 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
   host.textContent = '';
   const views = el('div', 'views');
   const h = d.manifest.headline;
+  const band = peakBand(d);
 
   const intro = panel(
     'Method',
     'What this dashboard is, and why it is built this way',
     'ProtT5 reads a protein sequence and writes a vector for every residue. Those vectors hold ' +
-      'what the model knows, and nothing in them is labeled. This site puts names on parts of ' +
-      'them. This page is the argument behind every number it prints.',
+      'what the model knows, and nothing in them is labeled. This site pairs parts of them with ' +
+      'Swiss-Prot concepts. This page is the argument behind every number it prints.',
   );
   const toc = el('div', 'gl-toc');
   for (const sct of METHOD_SECTIONS) {
@@ -212,7 +215,7 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
 
   // ---- 1. why ---------------------------------------------------------
   views.append(
-    section('why', 'Why read the inside of ProtT5', [
+    section('why', [
       para(
         'ProtT5 was trained on millions of protein sequences with no labels at all ',
         cite('(Elnaggar and others, 2021)', 'https://doi.org/10.1109/TPAMI.2021.3095381'),
@@ -227,8 +230,8 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
           'one.',
       ),
       para(
-        'Two things follow from a named part. A prediction that traces back to one can be ' +
-          'checked against biology. And a named part can be used on purpose, as a handle for ' +
+        'Two things follow from a labeled part. A prediction that traces back to one can be ' +
+          'checked against biology. And a labeled part can be used on purpose, as a handle for ' +
           'guided mutation or for steering ',
         cite('(Yang and others, 2025)', 'https://doi.org/10.1038/s41467-025-55987-8'),
         '. Neither is possible while the vector is one dense block of 1,024 numbers.',
@@ -238,7 +241,7 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
 
   // ---- 2. sparse ------------------------------------------------------
   views.append(
-    section('sparse', 'Why sparse features', [
+    section('sparse', [
       para(
         'A residue vector is dense. Every one of its 1,024 numbers is non-zero, and no single ' +
           'number means anything alone. This field works from one assumption: the model holds ' +
@@ -249,15 +252,17 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
       para(
         'A sparse autoencoder unpacks that sum ',
         cite('(Shu and others, 2025)', 'https://arxiv.org/abs/2503.05613'),
-        '. It learns a wider dictionary, here 8,192 units against 1,024 dimensions, and it must ' +
-          'rebuild the vector from only a few of them. Two terms decide the training: how well ' +
-          'the rebuild matches, and how few units it may use. The units that survive are the ' +
-          'parts the model reuses.',
+        `. It learns a dictionary: here ${num(h.latents_total)} directions, eight times more ` +
+          'than the 1,024 dimensions. It rebuilds each residue vector as a weighted sum of only ' +
+          'a few of them. Learning such a list is called dictionary learning. Training asks for ' +
+          'two things: the rebuild must match the vector, and it may use only a few directions ' +
+          'at once.',
       ),
       para(
-        'Each of those units is what this site calls a latent. A latent has an activation at ' +
-          'every residue of every protein, and that number is what every panel on this site ' +
-          'draws. ',
+        'Each direction is what this site calls a latent. The weight a latent gets at a residue ' +
+          'is its activation there, and 0 means the latent is off. The site divides each ' +
+          'activation by the latent’s largest one, so it runs from 0 to 1, and that number is ' +
+          'what every panel draws. ',
         el('strong', undefined, `${num(h.latents_alive)} of the ${num(h.latents_total)} latents`),
         ' ever fire on the evaluation set. The rest are dead and are not shown.',
       ),
@@ -273,7 +278,7 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
 
   // ---- 3. one dictionary ----------------------------------------------
   views.append(
-    section('one-dictionary', 'Why one dictionary for 24 layers', [
+    section('one-dictionary', [
       para(
         'ProtT5 has 24 encoder layers, and each one holds its own vector for every residue. A ' +
           'sparse autoencoder reads one vector, so the ordinary approach is to train 24 of ' +
@@ -299,11 +304,12 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
       para(
         'That row of 24 lengths is the depth profile, and a per-layer autoencoder cannot ' +
           'produce it. The Depth panel draws it on every latent page. It is also why the ' +
-          'landing page can say where in the encoder the named latents live. ',
+          'landing page can say where in the encoder the paired latents live. ',
         el(
           'strong',
           undefined,
-          '60% of the live latents peak at layers 15 to 19, against 21% for an even spread.',
+          `${pct(band.share * 100, 0)} of the live latents peak at layers ${band.from} to ` +
+            `${band.to}, against ${pct(band.even * 100, 0)} for an even spread.`,
         ),
       ),
       para(
@@ -318,29 +324,32 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
 
   // ---- 4. training ----------------------------------------------------
   views.append(
-    section('training', 'How this crosscoder was trained', [
+    section('training', [
       para(
-        'The activations come from the residual stream of all 24 encoder layers of ',
+        'The input is the residual stream after each of the 24 encoder layers of ',
         el('span', 'mono', 'Rostlab/prot_t5_xl_uniref50'),
-        ', over UniRef50 sequences. The crosscoder has ',
+        ', over UniRef50 sequences of at most 512 residues. The residual stream is the vector ' +
+          'each layer passes on for a residue. The crosscoder has ',
         el('span', 'mono', num(h.latents_total)),
-        ' latents and is trained with BatchTopK, which keeps the strongest 32 latents per ' +
-          'residue across a batch rather than penalizing them all ',
+        ' latents and is trained with BatchTopK ',
         cite('(Bussmann and others, 2024)', 'https://arxiv.org/abs/2412.06410'),
-        '. An auxiliary term pushes dead latents back into use.',
+        '. Across a batch of residues, BatchTopK keeps the 32 × (batch size) strongest ' +
+          'activations and sets the rest to 0, so a residue uses 32 latents on average. Other ' +
+          'sparse autoencoders put a penalty on all activations instead. An auxiliary term ' +
+          'pushes dead latents back into use.',
       ),
       para(
         'At inference the model changes to JumpReLU with one global threshold. A latent then ' +
-          'fires whenever it clears that threshold, and the count per residue is no longer ' +
-          'fixed at 32. Every activation on this site is read that way, on normalized ' +
-          'activations. Without the normalization, the average F1 falls by 0.11.',
+          'fires whenever it clears that threshold, and a residue still uses about 32 latents on ' +
+          'average. The site divides each activation by the latent’s largest activation on the ' +
+          'evaluation set, and the pairing cuts apply to that scale.',
       ),
       para(
         'The evaluation set is separate from the training data: ',
         el('strong', undefined, `${num(d.manifest.counts.proteins)} Swiss-Prot proteins`),
-        ' of annotation score 3, 4 or 5, at most 512 residues. Every pairing score on this site ' +
-          'is measured on a held-out part of that set, never on the proteins used to choose the ' +
-          'pairing.',
+        ' of annotation score 3, 4 or 5, at most 512 residues. The set is split into two ' +
+          'halves. The validation half chooses the pairings, and every pairing score on this ' +
+          'site is measured on the other, held-out half.',
       ),
       para(
         'The exact checkpoint, the evaluation set and the build date are at the end of the ',
@@ -352,9 +361,10 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
 
   // ---- 5. naming ------------------------------------------------------
   views.append(
-    section('naming', 'How a latent gets a name', [
+    section('naming', [
       para(
-        'A latent is a number per residue and nothing more. To give it a name, the method of ',
+        'A latent’s activation is one number per residue, and nothing in it says what the ' +
+          'latent detects. To pair it with a concept, the method of ',
         cite('InterPLM (Simon and Zou, 2025)', 'https://doi.org/10.1038/s41592-025-02836-7'),
         ' is used: take what Swiss-Prot already annotates, and ask which latent fires where the ' +
           'annotation is.',
@@ -364,7 +374,8 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
           'a motif, an active site, a zinc finger. For every concept and every latent, the ' +
           'pipeline compares the residues the latent fires on against the residues the concept ' +
           'covers. That comparison gives precision and recall. A latent pairs with a concept ' +
-          'when its F1 per domain is more than 0.5 on the held-out proteins.',
+          'when its F1 per domain is more than 0.5 on the validation half and again on the ' +
+          'held-out half.',
       ),
       para(
         el(
@@ -373,7 +384,8 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
           `${h.concepts_identified} of the ${h.concepts_total} concepts have at least one ` +
             `latent, and ${num(h.features_paired)} latents pair with at least one concept.`,
         ),
-        ' The average best test F1 over all concepts is ',
+        ` The average best F1 per domain over all ${h.concepts_total} concepts, on the held-out ` +
+          'half, is ',
         el('strong', undefined, h.avg_best_test_f1.toFixed(3)),
         '. Those three numbers are the ones in the four steps at the top of the landing page.',
       ),
@@ -388,16 +400,7 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
 
   // ---- 6. limits ------------------------------------------------------
   views.append(
-    section('limits', 'What these numbers cannot say', [
-      para(
-        el('strong', undefined, 'A high score is not by itself a finding. '),
-        'The same pipeline was run against a crosscoder trained on a randomly initialized ' +
-          'ProtT5, which has learned nothing about proteins. That null still clears 0.5 F1 per ' +
-          'domain on 43 concepts, and on one of them, ',
-        link(`/concept/${encodeURIComponent('Domain_RNase III')}`, 'Domain · RNase III'),
-        ', it reaches 0.98. So a claim about one concept needs that concept’s own null, not ' +
-          'the average.',
-      ),
+    section('limits', [
       para(
         el('strong', undefined, 'F1 per domain is a generous score. '),
         'One firing residue inside a region counts as recalling the whole region. So a latent ' +
@@ -409,11 +412,11 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
       para(
         el('strong', undefined, 'The set is one set. '),
         'Everything here is Swiss-Prot, at most 512 residues, with an annotation score of 3 or ' +
-          'more. A latent that reads something Swiss-Prot does not annotate cannot be named ' +
-          'here, and there are ',
+          'more. A latent that reads something Swiss-Prot does not annotate cannot pair here, ' +
+          'and ',
         el('strong', undefined, `${num(h.latents_alive - h.features_paired)} live latents`),
-        ' that nothing named. They are not noise. They are what this evaluation set could not ' +
-          'name.',
+        ' pair with no concept. They are not noise. This evaluation set has no concept for ' +
+          'them.',
       ),
       para(
         el('strong', undefined, 'A correlation is not a mechanism. '),

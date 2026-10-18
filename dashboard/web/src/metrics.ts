@@ -2,7 +2,9 @@
  * The name and the one-sentence definition of every number the dashboard prints.
  *
  * This module holds no DOM and imports nothing. The table helper reads it to put a tooltip on a
- * column header, and the glossary page reads it for the titles, so a metric is named once. The
+ * column header, and the glossary page reads it for the titles, so a metric is named once. A
+ * measured number is written as `{key}`, and `fill` in `facts.ts` puts in the value of the data
+ * tree when the sentence is shown. The
  * drawn definitions live in `glossary.ts`, which needs the DOM helpers and would otherwise make
  * an import cycle with `ui.ts`.
  *
@@ -17,8 +19,8 @@ export interface MetricInfo {
   title: string;
   /** One or two sentences, for the tooltip on a column header. */
   short: string;
-  /** The method section that argues for this number. See METHOD_SECTIONS. */
-  section: SectionId;
+  /** The method section that argues for this word or number. Absent when none does. */
+  section?: SectionId;
 }
 
 export type SectionId = 'why' | 'sparse' | 'one-dictionary' | 'training' | 'naming' | 'limits';
@@ -33,21 +35,66 @@ export type SectionId = 'why' | 'sparse' | 'one-dictionary' | 'training' | 'nami
  */
 export const METHOD_SECTIONS: { id: SectionId; title: string }[] = [
   { id: 'why', title: 'Why read the inside of ProtT5' },
-  { id: 'sparse', title: 'Why sparse features' },
+  { id: 'sparse', title: 'Why sparse latents' },
   { id: 'one-dictionary', title: 'Why one dictionary for 24 layers' },
   { id: 'training', title: 'How this crosscoder was trained' },
-  { id: 'naming', title: 'How a latent gets a name' },
+  { id: 'naming', title: 'How a latent is paired with a concept' },
   { id: 'limits', title: 'What these numbers cannot say' },
 ];
 
+/**
+ * The glossary in reading order: the words of the model first, then the scores of a pairing, then
+ * the numbers about depth and about one protein, then the data and its limits.
+ */
 export const METRIC_INFO: MetricInfo[] = [
+  {
+    slug: 'crosscoder',
+    section: 'one-dictionary',
+    title: 'Crosscoder',
+    short:
+      'A sparse dictionary that reads the residual stream of a residue at all 24 encoder layers ' +
+      'at once. It rebuilds the residual stream of every layer from the same few latents.',
+  },
+  {
+    slug: 'latents',
+    section: 'sparse',
+    title: 'Latent',
+    short:
+      'One of the {latents_total} directions in the crosscoder’s dictionary. In a concept ' +
+      'table, the Latents column counts the latents that pair with the concept in that row.',
+  },
+  {
+    slug: 'activation',
+    section: 'sparse',
+    title: 'Activation',
+    short:
+      'How strongly a latent is used to rebuild one residue, divided by the largest activation ' +
+      'of that latent on the evaluation set. 0 is off, and 1.00 is its strongest.',
+  },
+  {
+    slug: 'residual-stream',
+    section: 'one-dictionary',
+    title: 'Residual stream',
+    short:
+      'The vector of 1,024 numbers that each layer of ProtT5 passes on for a residue. It is the ' +
+      'running sum of what the model holds about that residue so far.',
+  },
+  {
+    slug: 'decoder-vector',
+    section: 'one-dictionary',
+    title: 'Decoder vector',
+    short:
+      'What a latent adds to the crosscoder’s rebuilt copy of one layer’s residual stream. Each ' +
+      'latent has 24 of them, one for each layer, and their lengths make its depth profile.',
+  },
   {
     slug: 'pairing',
     section: 'naming',
     title: 'What a pairing is',
     short:
-      'A latent pairs with a concept when its F1 per domain is more than 0.5 on the held-out ' +
-      'set. 1,020 of the 8,128 live latents pair with at least one concept.',
+      'A latent pairs with a concept when its F1 per domain is more than 0.5 on two separate ' +
+      'halves of the proteins: the validation half and the held-out half. {latents_paired} of ' +
+      'the {latents_alive} live latents pair with at least one concept.',
   },
   {
     slug: 'precision',
@@ -86,25 +133,35 @@ export const METRIC_INFO: MetricInfo[] = [
     section: 'naming',
     title: 'F1 per residue',
     short:
-      'Precision and recall per residue, combined into one number. It is the harder score, and ' +
-      'it disagrees with F1 per domain for 44% of the concepts.',
+      'Precision and recall per residue, combined into one number. It is the harder score: with ' +
+      'the same pairing rule it pairs {concepts_found_per_residue} concepts, against ' +
+      '{concepts_found} for F1 per domain.',
+  },
+  {
+    slug: 'best-latent',
+    section: 'naming',
+    title: 'Best latent',
+    short:
+      'Of the latents that pair with this concept, the one the validation half chose. Its F1 per ' +
+      'domain on the held-out half is the Best F1. It is not always the one that reads the most ' +
+      'of the region.',
   },
   {
     slug: 'peak-layer',
     section: 'one-dictionary',
     title: 'Peak layer',
     short:
-      'A latent adds its own vector to each of the 24 encoder layers, and the vectors differ in ' +
-      'length. The peak layer is the layer where the vector is longest, after the correction ' +
-      'for layer scale.',
+      'A latent adds its own vector to the crosscoder’s rebuilt copy of the residual stream of ' +
+      'each of the 24 layers, and the vectors differ in length. The peak layer is the layer ' +
+      'where the vector is longest, after the correction for layer scale.',
   },
   {
     slug: 'depth',
     section: 'one-dictionary',
-    title: 'Depth',
+    title: 'Depth profile',
     short:
-      'The length of the vector that the latent adds to each of the 24 layers, drawn as a row ' +
-      'of bars. The peak layer is the tallest bar.',
+      'The length of the vector that the latent adds to each of the 24 layers. Tables draw it as ' +
+      'a row of bars, and the latent page draws it as a line. The peak layer is the highest point.',
   },
   {
     slug: 'cosine-similarity',
@@ -112,7 +169,7 @@ export const METRIC_INFO: MetricInfo[] = [
     title: 'Cosine similarity across layers',
     short:
       'Each layer gets its own direction for the same latent. The cosine compares each one ' +
-      'against the peak layer: 1 is the same direction, 0 is unrelated.',
+      'against the peak layer: 1 is the same direction, 0 is unrelated, and -1 is the opposite.',
   },
   {
     slug: 'covers',
@@ -128,23 +185,14 @@ export const METRIC_INFO: MetricInfo[] = [
     title: 'Peak activation',
     short:
       'The strongest this latent fires on this protein, divided by the strongest it fires ' +
-      'anywhere in the evaluation set. 1.00 marks its single hardest protein.',
+      'anywhere in the evaluation set. 1.00 marks the protein it fires on most strongly.',
   },
   {
-    slug: 'latents',
-    section: 'sparse',
-    title: 'Latent',
+    slug: 'spread',
+    title: 'Spread along the chain and in space',
     short:
-      'One of the 8,192 units the crosscoder learned. In a concept table, the Latents column ' +
-      'counts the latents that pair with the concept in that row.',
-  },
-  {
-    slug: 'best-latent',
-    section: 'naming',
-    title: 'Best latent',
-    short:
-      'Of the latents that pair with this concept, the one with the highest F1 per domain. Best ' +
-      'by that score only, which is not the same as the one that reads the most of the region.',
+      'The median distance between the residues a latent fires on above 0.3 of its maximum, ' +
+      'divided by the same median for random residues of the protein. 1 is like random residues.',
   },
   {
     slug: 'concept',
@@ -152,23 +200,15 @@ export const METRIC_INFO: MetricInfo[] = [
     title: 'Concept',
     short:
       'One Swiss-Prot annotation type, for example a named domain or a binding site. There are ' +
-      '408 of them in this evaluation set.',
+      '{concepts_total} of them in this evaluation set.',
   },
   {
     slug: 'proteins',
     section: 'naming',
     title: 'Proteins',
     short:
-      'How many proteins of the 207,463 in the evaluation set Swiss-Prot annotates with this ' +
+      'How many proteins of the {proteins} in the evaluation set Swiss-Prot annotates with this ' +
       'concept. These are the proteins the evidence panel steps through.',
-  },
-  {
-    slug: 'null',
-    section: 'limits',
-    title: 'Why a high score is not always a finding',
-    short:
-      'A crosscoder trained on a random ProtT5 also scores above 0.5 per domain on 43 concepts. ' +
-      'A per-concept claim needs that concept’s own null.',
   },
 ];
 
@@ -177,7 +217,6 @@ const BY_SLUG = new Map(METRIC_INFO.map((m) => [m.slug, m]));
 /** Which column header resolves to which entry. One header, one definition. */
 const BY_HEADER: Record<string, string> = {
   'f1 per domain': 'f1-per-domain',
-  'best f1': 'f1-per-domain',
   'f1 per residue': 'f1-per-residue',
   precision: 'precision',
   'recall per residue': 'recall-per-residue',
@@ -205,20 +244,31 @@ const BY_KEY: Record<string, { slug: string; short: string }> = {
   latent: {
     slug: 'latents',
     short:
-      'One of the 8,192 units the crosscoder learned. Each row is one latent, and the link opens ' +
-      'its page.',
+      'One of the {latents_total} directions in the crosscoder’s dictionary. Each row is one ' +
+      'latent, and the link opens its page.',
+  },
+  // The Best F1 of a concept follows the paper's rule, which is not the highest F1 of a table.
+  'best f1': {
+    slug: 'f1-per-domain',
+    short:
+      'The F1 per domain, on the held-out half, of the latent that the validation half chose ' +
+      'for this concept. The average over all {concepts_total} concepts is {avg_best_f1}. A ' +
+      'concept can have a Best ' +
+      'F1 above 0.5 and no paired latent, when that latent scored 0.5 or less on the validation ' +
+      'half.',
   },
   'proteins it fires on': {
     slug: 'proteins',
     short:
-      'How many of the 207,463 proteins in the evaluation set this latent fires on. Swiss-Prot ' +
-      'does not have to annotate anything there, so a latent that nothing named also has a count.',
+      'How many of the {proteins} proteins in the evaluation set this latent fires on. ' +
+      'Swiss-Prot does not have to annotate anything there, so a latent that pairs with no concept also ' +
+      'has a count.',
   },
   'paired concept': {
     slug: 'concept',
     short:
       'The concept this latent pairs with best, by F1 per domain. When it pairs with more than ' +
-      'one, the button after the name opens the others. "Nothing named it" means that no ' +
+      'one, the button after the name opens the others. "Not paired" means that no ' +
       'concept clears the pairing cut for this latent.',
   },
   'mean cover': {
@@ -232,7 +282,7 @@ const BY_KEY: Record<string, { slug: string; short: string }> = {
     slug: 'f1-per-domain',
     short:
       'The F1 per domain of this latent with its best concept. A latent pairs with a concept ' +
-      'when this score is more than 0.5 on the held-out set.',
+      'when this score is more than 0.5 on the validation half and on the held-out half.',
   },
 };
 

@@ -692,8 +692,7 @@ export function depthMap(d: Data): DepthMapHandle {
         ? `The rows start with the latents that pair with a concept of ${family}, then the ` +
           'other paired latents, then the rest. '
         : 'The rows start with the latents that pair with a concept, then the rest. ') +
-        'Inside each group, the latent that fires on the most proteins comes first. Click a ' +
-        'column header to sort by it, a second time to reverse, and a third time for this order.',
+        'Inside each group, the latent that fires on the most proteins comes first.',
     );
   }
 
@@ -862,7 +861,7 @@ export function depthMap(d: Data): DepthMapHandle {
     const fam = f?.c ? d.conceptByName.get(f.c)?.fam || 'unassigned' : '';
     readout.textContent = f
       ? `f/${f.f}  peak layer ${f.pk}  ${num(f.np)} proteins  mean cover ${pct(f.pw)}  ` +
-        (f.c ? `best concept ${bestConceptLabel(d, f.f)}  ${fam}` : 'nothing named it')
+        (f.c ? `best concept ${bestConceptLabel(d, f.f)}  ${fam}` : 'not paired')
       : '';
     draw();
   });

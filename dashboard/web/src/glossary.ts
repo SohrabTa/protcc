@@ -9,6 +9,8 @@
 
 import type { Data } from './data';
 import { METHOD_SECTIONS, METRIC_INFO } from './metrics';
+import { facts, fill, type Facts } from './facts';
+import { conceptName } from './pairs';
 import { el, link, num, panel, withContents } from './ui';
 
 const ns = 'http://www.w3.org/2000/svg';
@@ -199,18 +201,83 @@ function formula(text: string): HTMLElement {
 }
 
 /** The drawn entry for each slug in `metrics.ts`. A slug with no body gets its short line only. */
-const BODIES: Record<string, () => Node[]> = {
-  pairing: () => [
+const BODIES: Record<string, (f: Facts) => Node[]> = {
+  crosscoder: (f) => [
     para(
-      'The score comes from a held-out set of proteins that the pairing search never saw. ' +
-      'InterPLM sets that cut, and this site keeps it.',
+      'A sparse autoencoder learns a dictionary for one layer: a list of directions, of which a ' +
+      'few rebuild each residue vector. Learning such a list is called dictionary learning. A ' +
+      'crosscoder learns one dictionary for all 24 layers. It reads the residual stream of a ' +
+      'residue at all 24 layers as one input, and it rebuilds the residual stream of every ' +
+      'layer from the same few latents.',
     ),
-    formula('pairs with the concept  =  F1 per domain > 0.5 on the held-out set'),
     para(
-      'The search runs over every concept against every live latent, at five activation ' +
-      'thresholds, and keeps the best. 187 of the 408 concepts get at least one latent. Some ' +
-      'latents pair with more than one concept, so the 1,020 paired latents make 1,080 pairs. ' +
-      'A concept with no latent is not evidence that ProtT5 ignores it.',
+      'Each latent is then one unit across the whole encoder, with one decoder vector for each ' +
+        `layer. This crosscoder has ${num(f.latentsTotal)} latents, and 32 of them fire at each ` +
+        'residue on average.',
+    ),
+  ],
+  activation: (f) => [
+    para(
+      'The crosscoder gives each latent one raw number for each residue. The site divides it by ' +
+      'the largest raw number that latent reaches anywhere in the evaluation set, so every ' +
+      'latent runs from 0 to 1. The strips, the letters and the 3D model all draw this number.',
+    ),
+    para(
+      'The scale is per latent. 0.50 for one latent and 0.50 for another are each half of their ' +
+      'own strongest. They say nothing about which of the two fires harder in raw numbers.',
+    ),
+    para(
+      'A latent fires on a residue when its activation is above a cut. The cut differs by ' +
+      'place: the pairing tries five cuts, the concept page counts a residue as read above 0.3, ' +
+      'and Covers counts any activation above 0.',
+    ),
+  ],
+  'residual-stream': (f) => [
+    para(
+      'ProtT5 passes the vector of each residue from layer to layer, and each layer adds to it. ' +
+      'The crosscoder reads this vector after each of the 24 layers. It does not change ProtT5: ' +
+      'it rebuilds its own copy of the residual stream of each layer.',
+    ),
+  ],
+  'decoder-vector': (f) => [
+    para(
+      'When a latent fires, the crosscoder adds its decoder vector for each layer, scaled by the ' +
+      'activation, to its rebuilt copy of that layer’s residual stream. The direction of the ' +
+      'vector says what the ' +
+      'latent adds, and the length says how much.',
+    ),
+  ],
+  spread: (f) => [
+    formula('spread  =  median distance between firing residues / median distance between random residues'),
+    para(
+      'Along the chain, the distance is counted in residues. In space, it is measured between ' +
+      'the alpha carbons of the AlphaFold model. Each value is the median over the 20 proteins ' +
+      'the latent fires on most strongly.',
+    ),
+    para(
+      'Below 0.7 counts as close. Close along the chain is one stretch of the chain. Far along ' +
+      'the chain but close in space is one site in the fold. A latent that fires at the two ' +
+      'ends of a chain is further apart than random residues, so a spread can be above 1. The ' +
+      'Locality panel of every latent page places all measured latents by these two numbers.',
+    ),
+  ],
+  pairing: (f) => [
+    para(
+      'The proteins are split into two halves. A pair must clear 0.5 on the validation half and ' +
+      'again on the held-out half, so a score that is high by chance on one half does not ' +
+      'count. InterPLM sets this rule, and this site keeps it.',
+    ),
+    formula('pairs with the concept  =  F1 per domain > 0.5 on the validation half and on the held-out half'),
+    para(
+      'A latent fires on a residue when its activation is above a cut. The search tries five ' +
+      'cuts, 0, 0.15, 0.5, 0.6 and 0.8 of the latent’s maximum, and keeps the cut with the best ' +
+      'F1 per domain. The precision and the recalls in the tables use that cut.',
+    ),
+    para(
+      `${num(f.conceptsFound)} of the ${num(f.conceptsTotal)} concepts get at least one ` +
+        'latent. Some latents pair with more than one concept, so the ' +
+        `${num(f.latentsPaired)} paired latents make ${num(f.pairs)} pairs. A concept with no ` +
+        'latent is not evidence that ProtT5 ignores it.',
     ),
     para(
       'Read the cut with care. The score is per domain, so one firing inside a region counts ' +
@@ -218,7 +285,7 @@ const BODIES: Record<string, () => Node[]> = {
       'residues.',
     ),
   ],
-  precision: () => [
+  precision: (f) => [
     residuePicture(true),
     formula('precision = 5 right / (5 right + 3 wrong) = 0.63'),
     para(
@@ -226,16 +293,17 @@ const BODIES: Record<string, () => Node[]> = {
       'of 1.00. Precision on its own does not say that a latent is useful.',
     ),
   ],
-  'recall-per-residue': () => [
+  'recall-per-residue': (f) => [
     residuePicture(true),
     formula('recall per residue = 5 right / (5 right + 11 missed) = 0.31'),
     para(
       'This number shows concept splitting. Most paired latents have a high precision and a ' +
       'low recall per residue. Each one reads a part of the region, and no single latent reads ' +
-      'all of it. Over the 1,080 pairs the median is 0.032.',
+      `all of it. Over the ${num(f.pairs)} pairs the median is ` +
+        `${f.medianRecallResidue.toFixed(3)}.`,
     ),
   ],
-  'recall-per-domain': () => [
+  'recall-per-domain': (f) => [
     domainPicture(),
     formula('recall per domain = 1 region read / 2 regions = 0.50'),
     para(
@@ -243,12 +311,14 @@ const BODIES: Record<string, () => Node[]> = {
       'answers a detection question: does this latent tell you that the region is present?',
     ),
     para(
-      'It is generous by design, and the gap it leaves is large. Over the 1,080 pairs on this ' +
-      'site the median recall per domain is 0.981 and the median recall per residue is 0.032. ' +
-      'The same latent that finds almost every region touches 3% of the residues in them.',
+      'It is generous by design, and the gap it leaves is large. Over the ' +
+        `${num(f.pairs)} pairs on this site the median recall per domain is ` +
+        `${f.medianRecallDomain.toFixed(3)} and the median recall per residue is ` +
+        `${f.medianRecallResidue.toFixed(3)}. The same latent that finds almost every region ` +
+        `touches ${(f.medianRecallResidue * 100).toFixed(0)}% of the residues in them.`,
     ),
   ],
-  'f1-per-domain': () => [
+  'f1-per-domain': (f) => [
     para('F1 is the harmonic mean of precision and recall. It falls if either of the two falls.'),
     formula('F1 per domain = 2 · precision · recall per domain / (precision + recall per domain)'),
     para(
@@ -256,36 +326,48 @@ const BODIES: Record<string, () => Node[]> = {
       'inside a region is enough to recall it.',
     ),
     domainPicture(),
-    para(
-      'A worked case from this site. On Domain · ABC transporter, latent 4587 scores 0.994 and ' +
-      'reads 0.86% of the annotated residues. Latent 831 scores 0.857 and reads 53%. The metric ' +
-      'ranks 4587 first, and 831 is the one that reads the domain.',
-    ),
+    ...(f.example
+      ? [
+          para(
+            `A worked case from this site. On ${conceptName(f.example.concept.c)}, latent ` +
+              `${f.example.best.id} scores ${f.example.best.f1.toFixed(3)} and reads ` +
+              `${f.example.best.reads} of the annotated residues. Latent ${f.example.reader.id} ` +
+              `scores ${f.example.reader.f1.toFixed(3)} and reads ${f.example.reader.reads}. The ` +
+              `metric ranks ${f.example.best.id} first, and ${f.example.reader.id} is the one ` +
+              'that reads the domain.',
+          ),
+        ]
+      : []),
     para(
       'So read F1 per domain as a detection score, not as a fidelity score, and keep recall per ' +
       'residue in view beside it.',
     ),
   ],
-  'f1-per-residue': () => [
+  'f1-per-residue': (f) => [
     para('It asks whether the latent covers the region, not whether it notices the region.'),
     formula('F1 per residue = 2 · precision · recall per residue / (precision + recall per residue)'),
-    para(
-      'The two scores disagree, and the size of the disagreement is measured. Over the 209 ' +
-      'concepts that the per-domain metric identifies, the two metrics name the same latent for ' +
-      'only 117. The per-domain winner scores a median 0.262 per residue. The per-residue ' +
-      'winner scores 0.606 on the same concepts.',
-    ),
+    ...(f.conceptsFoundPerResidue !== undefined && f.latentsPairedPerResidue !== undefined
+      ? [
+          para(
+            'The two scores disagree, and the size of the disagreement is measured. With the ' +
+              `same pairing rule, F1 per residue pairs ${num(f.conceptsFoundPerResidue)} of the ` +
+              `${num(f.conceptsTotal)} concepts, against ${num(f.conceptsFound)} for F1 per ` +
+              `domain. It pairs ${num(f.latentsPairedPerResidue)} latents, against ` +
+              `${num(f.latentsPaired)}.`,
+          ),
+        ]
+      : []),
     para(
       'The site pairs on F1 per domain, because that is what InterPLM does and what the ' +
       'published comparison needs. This entry exists so that the reader knows what the choice ' +
       'costs.',
     ),
   ],
-  'peak-layer': () => [
+  'peak-layer': (f) => [
     para(
-      'To write into a layer means to add a vector to that layer’s residual stream. The ' +
-      'residual stream is the running sum of everything the model holds about a residue so ' +
-      'far. The length of the vector is how much the latent changes that layer.',
+      'To write into a layer means to add a vector to the crosscoder’s rebuilt copy of that ' +
+      'layer’s residual stream. ProtT5 itself does not change. The length of the vector is how ' +
+      'much the latent adds to that layer.',
     ),
     depthPicture(),
     para(
@@ -298,19 +380,20 @@ const BODIES: Record<string, () => Node[]> = {
       'a unit in one model has no counterpart in the next, so there is nothing to compare.',
     ),
   ],
-  depth: () => [
+  depth: (f) => [
     para(
       'Each bar is one encoder layer, from 1 on the left to 24 on the right. The bars are scaled ' +
-      'so that the peak layer reaches full height.',
+      'so that the peak layer reaches full height. The latent page draws the same lengths as a ' +
+      'line.',
     ),
     depthPicture(),
     para(
       'A narrow ribbon is a latent that writes into a few layers. A broad ribbon is a latent ' +
       'that holds its strength across the encoder. The median latent keeps at least half its ' +
-      'peak across 12 of the 24 layers.',
+        `peak across ${f.medianSpreadLayers} of the 24 layers.`,
     ),
   ],
-  'cosine-similarity': () => [
+  'cosine-similarity': (f) => [
     para('The latent page draws it as the dashed line of the Depth panel.'),
     formula('1 = the same direction   ·   0 = unrelated   ·   -1 = the opposite direction'),
     para(
@@ -320,103 +403,96 @@ const BODIES: Record<string, () => Node[]> = {
       'its strength at the peak.',
     ),
   ],
-  covers: () => [
+  covers: (f) => [
     para(
-      'It is small for almost every latent, because the crosscoder keeps 32 of 8,192 latents ' +
-      'active at each residue. 2.9% of a 300-residue protein is about 9 residues.',
+      `It is small for almost every latent, because 32 of the ${num(f.latentsTotal)} latents ` +
+        'fire at each residue, on average. A latent that covers 3% of a 300-residue protein ' +
+        'fires on 9 residues.',
     ),
     para(
       'Small values keep two digits. Rounded to whole percent, a motif latent reads as 0% and ' +
       'appears to do nothing.',
     ),
   ],
-  'peak-activation': () => [
+  'peak-activation': (f) => [
     para(
-      'Every activation on this site uses the same scale, not only the peak. The strips, the ' +
-      'letters and the 3D model all divide by the latent’s largest activation.',
-    ),
-    para(
-      'The scale is per latent and it is not shared. A peak of 0.50 for one latent and 0.50 for ' +
-      'another say the same thing about each latent against itself. They say nothing about which ' +
-      'of the two fires harder in the raw activations.',
-    ),
-    para(
-      'A strong activation carries more than a weak one, and that is measured. Over the 1,080 ' +
-      'pairs the median precision rises from 0.656 at any activation to 0.953 above 0.8 of ' +
-      'the maximum. The random-init null stays flat over the same cuts, at 0.817 to 0.795.',
+      'It is on the scale of every activation on this site, so a peak of 0.50 is half the ' +
+      'latent’s own strongest. The Activation entry says more about that scale.',
     ),
   ],
-  latents: () => [
+  latents: (f) => [
     para(
-      '8,128 of the latents fire at least once on the evaluation set and are called live. The ' +
-      'other 64 are dead and have no page.',
+      `${num(f.latentsAlive)} of the latents fire at least once on the evaluation set and are ` +
+        `called live. The other ${num(f.latentsDead)} are dead and have no page.`,
     ),
     para(
       'A concept with 11 in the Latents column has 11 latents that each clear the pairing cut. ' +
       'Each one reads a part of the region.',
     ),
     para(
-      '1,020 of the live latents pair with a concept, and 58 of those pair with more than one. ' +
-      'Together they make 1,080 pairs. The remaining 7,108 fire on something the Swiss-Prot ' +
-      'annotations in this evaluation set cannot name, which is not evidence that they carry ' +
-      'nothing.',
+      `${num(f.latentsPaired)} of the live latents pair with a concept, and ` +
+        `${num(f.latentsMulti)} of those pair with more than one. Together they make ` +
+        `${num(f.pairs)} pairs. The remaining ${num(f.latentsUnpaired)} pair with no concept of ` +
+        'this evaluation set, which is not evidence that they carry nothing.',
     ),
     para(
       'This site says latent and never feature. UniProt calls its own sequence annotations the ' +
       'feature table, and those annotations are the concepts on this site, so the word is taken.',
     ),
   ],
-  'best-latent': () => [
+  'best-latent': (f) => [
     para(
-      'Best by that score is not the same as best at reading the region. On Domain · ABC ' +
-      'transporter the best latent is 4587, at F1 0.994, and it fires on 0.86% of the annotated ' +
-      'residues. Latent 831 scores 0.857 and reads 53% of them.',
+      'This is the paper’s rule. For each concept, the validation half chooses one latent, and ' +
+        'the held-out half scores it. That score is the Best F1, and its average over the ' +
+        `${num(f.conceptsTotal)} concepts is ${f.avgBestF1.toFixed(3)}.`,
     ),
+    ...(f.example
+      ? [
+          para(
+            'Best by that score is not the same as best at reading the region. On ' +
+              `${conceptName(f.example.concept.c)} the best latent is ${f.example.best.id}, at ` +
+              `F1 ${f.example.best.f1.toFixed(3)}, and it fires on ${f.example.best.reads} of the ` +
+              `annotated residues. Latent ${f.example.reader.id} scores ` +
+              `${f.example.reader.f1.toFixed(3)} and reads ${f.example.reader.reads} of them.`,
+          ),
+        ]
+      : []),
     para(
       'So treat the best latent as the concept’s most reliable detector, and open the table to ' +
       'find the one that covers the most.',
     ),
   ],
-  concept: () => [
+  concept: (f) => [
     para(
       'A concept is one annotation type from Swiss-Prot, written as the field and the value. ' +
       'Domain_CN hydrolase is the Domain field with the value CN hydrolase, and the site prints ' +
       'it as Domain · CN hydrolase.',
     ),
-    para('At least one latent pairs with 187 of the 408 concepts.'),
+    para(
+      'A concept whose value is "any" joins all the values of one field. "Zinc finger · any" ' +
+      'is every zinc finger, of any type.',
+    ),
+    para(
+      `At least one latent pairs with ${num(f.conceptsFound)} of the ${num(f.conceptsTotal)} ` +
+        'concepts.',
+    ),
     para(
       'The landing page groups the concepts by what they are biologically and not by the ' +
-      'Swiss-Prot field. The field name puts 82.6% of the paired latents into one bucket and ' +
-      'tells a reader nothing.',
+      `Swiss-Prot field. The field ${f.biggestField.name} alone holds ` +
+        `${f.biggestField.share} of the paired latents, so the field name tells a reader nothing.`,
     ),
   ],
-  proteins: () => [
+  proteins: (f) => [
     para(
-      'The evaluation set is 207,463 proteins from UniProtKB with an annotation score of 3, 4 ' +
-      'or 5, each of at most 512 residues. Every latent was measured on every one of them, so a ' +
-      'protein count on this site is a full count and not a sample.',
+      `The evaluation set is ${num(f.proteins)} Swiss-Prot proteins with an annotation score ` +
+        'of 3, 4 or 5, each of at most 512 residues. Every latent was measured on every one of ' +
+        'them, so a protein count on this site is a full count and not a sample.',
     ),
     para(
       'On a latent page the count is different. There it is the proteins the latent fires on, ' +
-      'whether or not Swiss-Prot annotates anything there. A latent that fires on 206,415 of ' +
-      'them tells you about the crosscoder and not about biology, so read a large count as a ' +
-      'warning.',
-    ),
-  ],
-  null: () => [
-    para(
-      'A matched crosscoder trained on a randomly initialized ProtT5 reaches 0.175 average test ' +
-      'F1 on this same evaluation set, against 0.479 for the real one. That average hides the ' +
-      'per-concept picture.',
-    ),
-    para(
-      'On 43 concepts the null clears 0.5 per domain, and on 13 of the 403 shared concepts it ' +
-      'beats the real crosscoder. The per-domain metric is the reason: one firing recalls a ' +
-      'whole region, so a detector of any conserved motif scores well.',
-    ),
-    para(
-      'Read the per-residue column beside the per-domain column. There the null’s median is ' +
-      '0.0079 against 0.1012, and none of its 43 high concepts clears 0.5.',
+      'whether or not Swiss-Prot annotates anything there. A latent that fires on ' +
+        `${num(f.mostProteins)} of them tells you about the crosscoder and not about biology, so ` +
+        'read a large count as a warning.',
     ),
   ],
 };
@@ -424,14 +500,15 @@ const BODIES: Record<string, () => Node[]> = {
 export function renderGlossary(d: Data, host: HTMLElement, slug?: string): void {
   host.textContent = '';
   const views = el('div', 'views');
+  const f = facts(d);
 
   const intro = panel(
     'Glossary',
-    'Every number on this site',
-    'Each entry is the definition this site uses, not the general one. Where a number could be ' +
-      'counted in more than one way, the entry says which way it is counted here. This page ' +
-      'says what a word means. The method page says why the number is measured that way, and ' +
-      'every entry links to the part of it that argues for the entry.',
+    'Every word and number on this site',
+    'Each entry is the definition this site uses, not the general one. The words of the model ' +
+      'come first, then the scores of a pairing, then the numbers about one latent or one ' +
+      'protein. Where a number could be counted in more than one way, the entry says which way ' +
+      'it is counted here. The method page says why it is measured that way.',
   );
   const toc = el('div', 'gl-toc');
   for (const m of METRIC_INFO) {
@@ -449,9 +526,9 @@ export function renderGlossary(d: Data, host: HTMLElement, slug?: string): void 
   for (const m of METRIC_INFO) {
     const p = panel('', m.title);
     p.id = `gl-${m.slug}`;
-    p.append(el('p', 'lede', m.short));
+    p.append(el('p', 'lede', fill(m.short)));
     const body = el('div', 'gl-body');
-    body.append(...(BODIES[m.slug]?.() ?? []));
+    body.append(...(BODIES[m.slug]?.(f) ?? []));
     // The one link that ties the two pages: this entry, and the argument for measuring it.
     const sct = METHOD_SECTIONS.find((x) => x.id === m.section);
     if (sct) {

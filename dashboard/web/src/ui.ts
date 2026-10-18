@@ -1,5 +1,6 @@
 /** Small DOM and drawing helpers. No framework: the site builds elements directly. */
 
+import { fill } from './facts';
 import { metricForHeader } from './metrics';
 
 export function el<K extends keyof HTMLElementTagNameMap>(
@@ -240,7 +241,7 @@ function openPopover(anchor: HTMLElement, slug: string | undefined, title: strin
   box.setAttribute('role', 'dialog');
   box.append(el('strong', undefined, title));
   // A long explanation comes in as several sentences split by a blank line, one paragraph each.
-  for (const part of short.split('\n\n')) box.append(el('p', undefined, part));
+  for (const part of fill(short).split('\n\n')) box.append(el('p', undefined, part));
   if (slug) {
     const more = link(`/glossary/${slug}`, 'Full definition');
     more.addEventListener('click', () => closePopover());

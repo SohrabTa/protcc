@@ -6,7 +6,8 @@
   "description": "Static feature dashboard for the ProtT5 sparse crosscoder",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "node tools/check-numbers.mjs && tsc --noEmit && vite build",
+    "check:numbers": "node tools/check-numbers.mjs",
     "postbuild": "ln -sfn ../../data/web dist/data",
     "preview": "vite preview",
     "serve": "ln -sfn ../../data/web dist/data && vite preview --port 4173 --open",

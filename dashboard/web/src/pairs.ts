@@ -40,7 +40,7 @@ export function pairCells(d: Data, fid: number): PairCells {
   if (pairs.length === 0) {
     // 'zzz' puts the unnamed latents after every name when the column sorts A to Z.
     return {
-      concept: el('span', 'muted', 'nothing named it'),
+      concept: el('span', 'muted', 'not paired'),
       f1: '—',
       conceptKey: 'zzz',
       f1Key: undefined,
@@ -83,7 +83,7 @@ export function pairCells(d: Data, fid: number): PairCells {
 /** One line for a hover text: the best concept, "X and 1 more", or "nothing named it". */
 export function bestConceptLabel(d: Data, fid: number): string {
   const pairs = d.pairsOf(fid);
-  if (pairs.length === 0) return 'nothing named it';
+  if (pairs.length === 0) return 'not paired';
   const best = show(pairs[0].concept.c);
   return pairs.length === 1 ? best : `${best} and ${pairs.length - 1} more`;
 }

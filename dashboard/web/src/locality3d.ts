@@ -24,6 +24,7 @@
 
 import type { Data, Feature } from './data';
 import { bestConceptLabel } from './pairs';
+import { metricBySlug } from './metrics';
 import { cssVar, el, figures, num } from './ui';
 
 /** Below this the firing residues are close along the chain, against the protein's own spread. */
@@ -266,8 +267,8 @@ export function latentLocalityPlot(d: Data, self?: Feature): HTMLElement {
     textSide.append(
       figures(
         [
-          [mine.seq.toFixed(2), 'spread along the chain'],
-          [mine.space.toFixed(2), 'spread in space'],
+          [mine.seq.toFixed(2), 'spread along the chain', metricBySlug('spread')],
+          [mine.space.toFixed(2), 'spread in space', metricBySlug('spread')],
           [String(mine.n), 'proteins measured'],
         ],
         `This latent ${SHAPE_PROSE[shape]}. Both numbers are medians over the ${mine.n} proteins ` +
@@ -280,7 +281,7 @@ export function latentLocalityPlot(d: Data, self?: Feature): HTMLElement {
   const legend = el('div', 'loc-legend');
   const keys: [string, string][] = [
     ['pairs with a concept', cssVar('--signal')],
-    ['nothing named it', cssVar('--line-strong')],
+    ['not paired', cssVar('--line-strong')],
   ];
   if (mine) keys.push(['this latent', cssVar('--ink')]);
   for (const [name, color] of keys) {

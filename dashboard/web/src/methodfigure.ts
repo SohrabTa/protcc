@@ -94,8 +94,8 @@ function crosscoderPicture(total: number): SVGSVGElement {
     x: 116, y: 4, width: 6, height: 76, rx: 1.5, fill: 'var(--surface-2)', stroke: 'var(--line)',
   });
   add(svg, 'text', { x: 132, y: 30, 'font-size': 12, fill: 'var(--muted)' }, `${num(total)} latents`);
-  add(svg, 'text', { x: 132, y: 48, 'font-size': 12, fill: 'var(--signal)' }, '32 fire at once');
-  add(svg, 'text', { x: 132, y: 66, 'font-size': 12, fill: 'var(--muted)' }, 'per residue');
+  add(svg, 'text', { x: 132, y: 48, 'font-size': 12, fill: 'var(--signal)' }, '32 per residue');
+  add(svg, 'text', { x: 132, y: 66, 'font-size': 12, fill: 'var(--muted)' }, 'fire on average');
   return svg;
 }
 
@@ -158,21 +158,23 @@ export function methodFigure(d: Data): HTMLElement {
       2, 'ProtT5 encoder', 'one-dictionary', 'Why one dictionary for 24 layers',
       layersPicture(h.layers),
       String(h.layers),
-      'encoder layers. Each layer holds its own vector for every residue.',
+      'layers in the encoder of ProtT5, a protein language model. Each layer passes on a vector ' +
+        'of 1,024 numbers for every residue, its residual stream.',
     ),
     step(
-      3, 'One crosscoder for all layers', 'one-dictionary', 'Why one dictionary for 24 layers',
+      3, 'One dictionary for all 24 layers', 'one-dictionary', 'Why one dictionary for 24 layers',
       crosscoderPicture(h.latents_total),
       num(h.latents_alive),
-      `of the ${num(h.latents_total)} latents fire at least once. Each latent writes into ` +
-        'every layer, so it has a depth profile.',
+      `of the ${num(h.latents_total)} latents fire at least once. A latent is one entry of a ` +
+        'dictionary that all 24 layers share, so its depth profile shows where in ProtT5 it is ' +
+        'written. Separate autoencoders would learn it once for each layer, with no link.',
     ),
     step(
-      4, 'Swiss-Prot names the latents', 'naming', 'How a latent gets a name',
+      4, 'Latents pair with Swiss-Prot concepts', 'naming', 'How a latent is paired with a concept',
       namingPicture(),
       `${h.concepts_identified} of ${h.concepts_total}`,
-      `concepts have at least one latent. ${num(h.features_paired)} latents pair with a ` +
-        `concept. Mean best F1: ${h.avg_best_test_f1.toFixed(3)}.`,
+      `concepts have at least one paired latent. ${num(h.features_paired)} latents pair with a ` +
+        `concept. Average best F1 per domain: ${h.avg_best_test_f1.toFixed(3)}.`,
     ),
   );
   box.append(steps, el('p', 'methodfoot', 'Click a step to read that part of the method.'));

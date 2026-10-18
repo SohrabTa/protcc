@@ -49,6 +49,8 @@ Reads
 <stage3>/{depth_norms.npy, depth_cos.npy, depth_summary.csv}
 <stage5>/{concept_offsets.npy, concept_protein.npy, concepts.txt}   optional
 <pairings>/heldout_{top,all_top}_pairings.csv
+<residue-counts>  residue_level_pairing_counts.json, optional. Refused when its per-domain headline
+                  differs from the one computed here.
 
 Writes
 ------
@@ -56,7 +58,8 @@ Writes
 
 Repro
 -----
-uv run python build_indexes.py --stage0 … --stage1 … --stage3 … --pairings … --out …
+uv run python build_indexes.py --stage0 … --stage1 … --stage3 … --pairings … \
+  --residue-counts … --out …
 Deterministic, no randomness, no seed.
 """
 
@@ -76,6 +79,24 @@ def q255(a):
     return np.clip(np.rint(np.asarray(a, dtype=np.float64) * 255), 0, 255).astype(np.uint8)
 
 
+def add_residue_headline(manifest, path):
+    """The same pairing rule, counted with the residue-level F1, from its precomputed file.
+
+    The site prints these two numbers beside the headline, so they must come from the same eval
+    data and the same rule. The file repeats the per-domain headline it was made with, and a file
+    whose per-domain numbers differ from the ones this stage computed is refused.
+    """
+    real = json.loads(path.read_text())["models"]["real"]
+    h = manifest["headline"]
+    made_with = (real["per_domain"]["concepts_identified"], real["per_domain"]["features_paired"],
+                 round(real["per_domain"]["avg_best_test_f1"], 4))
+    if made_with != (h["concepts_identified"], h["features_paired"], h["avg_best_test_f1"]):
+        raise SystemExit(f"{path} was made with another headline: {made_with}")
+    h["concepts_identified_per_residue"] = int(real["per_residue"]["concepts_identified"])
+    h["features_paired_per_residue"] = int(real["per_residue"]["features_paired"])
+    manifest["sources"]["residue_counts"] = str(path)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--stage0", type=Path, required=True, help="concept_categories.csv")
@@ -85,6 +106,8 @@ def main():
     ap.add_argument("--stage6", type=Path, default=None,
                     help="the structure directory, read only for its missing.txt count")
     ap.add_argument("--pairings", type=Path, required=True, help="the test_counts directory")
+    ap.add_argument("--residue-counts", type=Path, default=None,
+                    help="residue_level_pairing_counts.json, for the per-residue headline")
     ap.add_argument("--out", type=Path, required=True)
     a = ap.parse_args()
     (a.out / "feature").mkdir(parents=True, exist_ok=True)
@@ -191,7 +214,12 @@ def main():
                "f1": round(float(r.f1_per_domain), 4),
                "nf": int(len(g)) if g is not None else 0}
         if g is not None and len(g):
-            row["bf"] = int(g.feature.iloc[0])
+            # The latent the validation half chose, as in the paper: Best F1 is its score on the
+            # held-out half, so the two always belong together. It is one of the paired latents
+            # for every concept that has any. The highest held-out F1 picked another latent for
+            # 27 of the 187 concepts.
+            chosen = int(r.feature)
+            row["bf"] = chosen if chosen in set(g.feature.astype(int)) else int(g.feature.iloc[0])
             # latent, F1 per domain, precision, recall per residue, recall per domain. The
             # last one is what makes the gap between the two recalls readable on the site: the
             # median pairing recalls 98% of the regions and 3% of their residues.
@@ -263,6 +291,8 @@ def main():
                     "stage5": str(a.stage5) if a.stage5 else None,
                     "stage6": str(a.stage6) if a.stage6 else None},
     }
+    if a.residue_counts:
+        add_residue_headline(manifest, a.residue_counts)
     (a.out / "manifest.json").write_text(json.dumps(manifest, indent=2))
 
     total = sum(p.stat().st_size for p in a.out.rglob("*") if p.is_file())

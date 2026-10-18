@@ -10,6 +10,7 @@ import { Data, type Concept } from '../data';
 import { localityHowto, localityView, type LocalityHandle } from '../locality';
 import { proteinChooser, type ChooserSource } from '../chooser';
 import { conceptName } from '../pairs';
+import { metricForHeader } from '../metrics';
 import { drawStructure } from '../structpanel';
 import type { StructureHandle } from '../structure';
 import {
@@ -30,13 +31,21 @@ export async function renderConcept(d: Data, name: string, host: HTMLElement): P
   const p = panel('Concept', c.c.replace('_', ' · '));
   p.classList.add('pagehead');
   p.append(
-    el('p', 'lede', `${c.fam} · ${c.role}. Swiss-Prot records it as a ${c.fld.toLowerCase()}.`),
+    el(
+      'p',
+      'lede',
+      `Family: ${c.fam}. Role: ${c.role}. Swiss-Prot records it as a ${c.fld.toLowerCase()}.`,
+    ),
   );
   p.append(
     figures([
-      [String(c.nf), c.nf === 1 ? 'latent pairs with it' : 'latents pair with it'],
-      [c.f1.toFixed(3), 'best F1 per domain'],
-      [c.npr === undefined ? '—' : num(c.npr), 'proteins carry it'],
+      [
+        String(c.nf),
+        c.nf === 1 ? 'latent pairs with it' : 'latents pair with it',
+        metricForHeader('latents'),
+      ],
+      [c.f1.toFixed(3), 'best F1 per domain', metricForHeader('best f1')],
+      [c.npr === undefined ? '—' : num(c.npr), 'proteins carry it', metricForHeader('proteins')],
     ]),
   );
 
@@ -44,8 +53,7 @@ export async function renderConcept(d: Data, name: string, host: HTMLElement): P
   p.append(
     howto(
       'Each row is one latent that pairs with this concept. The rows start with the highest F1 ' +
-        'per domain. Click a column header to sort by it, a second time to reverse, and a third ' +
-        'time for this order.',
+        'per domain. The depth column draws each latent’s depth profile, layer 1 on the left.',
     ),
   );
   // Recall per domain sits beside precision, because F1 per domain is made of those two. Recall
@@ -94,10 +102,13 @@ export async function renderConcept(d: Data, name: string, host: HTMLElement): P
   ev.classList.add('evpanel');
   ev.append(
     howto(
-      'Pick a protein that carries the concept. Each row is one latent on that protein, in the ' +
-        'order of the table above. Amber is how hard the latent fires at a residue, and teal is ' +
-        'where Swiss-Prot annotates the concept. Click a latent row to read it residue by ' +
-        'residue in the next panel.',
+      'Step through the proteins that carry the concept with the arrows, or pick one at ' +
+        'random. Order sorts them by how hard one latent fires on them, and Part keeps one ' +
+        'slice of that order. Each row is one latent, in the order of the table above. With more ' +
+        'than one latent, the last row is the strongest of them at each residue. Amber is how ' +
+        'hard a latent fires, and teal is where Swiss-Prot annotates the concept. Reads is the ' +
+        'share of the teal residues where the latent fires above 0.3 of its maximum. Click a ' +
+        'row to read it residue by residue in the next panel.',
     ),
   );
   const all = c.po ? d.carriersOf(c) : [];

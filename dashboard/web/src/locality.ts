@@ -166,7 +166,7 @@ export function localityView(
           [
             [`${Math.round(e.top.inFiring * 100)}%`, `of the firing site is ${e.top.prose}`],
             [`${Math.round(e.top.inProtein * 100)}%`, 'of the whole protein is'],
-            [String(e.nFiring), 'residues fire'],
+            [String(e.nFiring), 'residues fire above 0.3 of its maximum'],
           ],
           'One protein, so this describes this protein. It does not show a rule.',
         ),
@@ -174,7 +174,7 @@ export function localityView(
     } else {
       chem.append(
         figures(
-          [[String(e.nFiring), 'residues fire']],
+          [[String(e.nFiring), 'residues fire above 0.3 of its maximum']],
           'No chemical class stands out here. That is the common case, and a domain ' +
             'detector is not expected to prefer one.',
         ),

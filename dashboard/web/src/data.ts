@@ -32,6 +32,9 @@ export interface Manifest {
     latents_total: number;
     latents_alive: number;
     layers: number;
+    /** The same pairing rule with the residue-level F1. Absent when stage 4 had no counts file. */
+    concepts_identified_per_residue?: number;
+    features_paired_per_residue?: number;
   };
   counts: {
     proteins: number;
@@ -53,9 +56,9 @@ export interface Concept {
   fld: string; // Swiss-Prot field, "Domain"
   fam: string; // biological family, the primary grouping
   role: string; // catalytic | binding | structural | PTM | targeting | disorder
-  f1: number; // best per-domain F1 any latent reaches
+  f1: number; // held-out F1 per domain of the latent the validation half chose: the Best F1
   nf: number; // how many latents pair with it
-  bf?: number; // the best latent
+  bf?: number; // the latent the validation half chose: the Best latent
   // latent, F1 per domain, precision, recall per residue, recall per domain. The last entry is
   // absent in a tree built before stage 4 wrote it.
   feats?: [number, number, number, number, number?][];

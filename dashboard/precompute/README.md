@@ -49,6 +49,7 @@ The cluster is reachable as `ssh ai`. Cluster paths under
 | Crosscoder | `model_checkpoints/crosscoder_l8192_k32_bs512_full_uniref50/jumprelu_global_10990182/` |
 | Activation store | `data/crosscoder_activations/uniprotkb_modern_score345/shard_*/` |
 | Concept pairings | `data/crosscoder_eval/full_uniref/normalized/uniprotkb_modern_score345/test_counts/` |
+| Per-residue pairing counts | `data/dashboard_cache/pairing_metric/residue_level_pairing_counts.json`, from `documentation/scripts/residue_level_pairing_counts.py` in the paper repo |
 | Eval set | `data/eval_dataset/uniprotkb_modern_score345/` |
 
 The store holds 2,068,021,126 non-zero activations over 62,655,684 residues in 208 shards, at a

@@ -35,6 +35,12 @@ Three ways in, over one set of data.
   proteins it fires on.
 - **By protein.** Which latents fire where along one protein of the evaluation set.
 
+## Every number comes from the data
+
+The site prints only numbers of the crosscoder and eval set that the data tree describes, and the text reads them from the data: the header from the manifest, the sentences from `web/src/facts.ts`. A number typed into a sentence can belong to another crosscoder, eval set or counting rule and stay there unseen. `npm run build` runs `web/tools/check-numbers.mjs` first, and it fails when a measured number is typed into the site text.
+
+The concepts and latents come from the eval tables by design. Stage 4 reads InterPLM's own pairings (`heldout_top_pairings.csv` for each concept's pick and Best F1, `heldout_all_top_pairings.csv` for every pair) and computes no pairing of its own.
+
 ## Offline
 
 The site is meant to run with no network at all, from a folder or a USB drive. Fonts, the structure

@@ -21,6 +21,7 @@ import {
   cssVar, el, figures, holdHeight, howto, infoButton, inkOn, link, num, panel, pct, proteinName,
   rampRGB, row, stepper, table, uniprotLink,
 } from '../ui';
+import { metricForHeader } from '../metrics';
 
 /**
  * The five ranges of a protein's peak, as a share of the latent's strongest anywhere.
@@ -133,13 +134,11 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
   const spacePanel = panel('Locality', 'A stretch of the chain, or a site in the fold');
   spacePanel.append(
     howto(
-      'One dot for each live latent. Each axis is a ratio. Take the median distance between the ' +
-        'residues the latent fires on, and divide it by the median distance between two random ' +
-        'residues of the same protein. Across, the distance is counted along the chain in ' +
-        'residues. Up, it is measured in space, between the alpha carbons of the AlphaFold ' +
-        'model. 1 means that the firing residues are as far apart as random residues. Less ' +
-        'than 1 is closer together, and more than 1 is further apart. Point at a dot to name its ' +
-        'latent, and click it to open it.',
+      'One dot for each measured latent. Each axis is a ratio: the median distance between the ' +
+        'residues the latent fires on above 0.3 of its maximum, divided by the same median for ' +
+        'random residues of the protein. Across counts the distance along the chain, and up ' +
+        'measures it in space between alpha carbons. 1 is like random residues. The shaded ' +
+        'areas start at 0.7. Point at a dot to name its latent, and click it to open it.',
     ),
     latentLocalityPlot(d, f),
   );
@@ -180,9 +179,13 @@ function latentPanel(d: Data, f: Feature, paired: LatentPair[]): HTMLElement {
   // The same three numbers on every latent, so that a latent with no concept still says what it is.
   p.append(
     figures([
-      [num(f.np), `proteins it fires on, ${pct(f.pp, 2)} of ${num(d.manifest.counts.proteins)}`],
-      [pct(f.pw), 'mean coverage per protein'],
-      [`${f.pk} of ${d.nLayers}`, 'peak layer'],
+      [
+        num(f.np),
+        `proteins it fires on, ${pct(f.pp, 2)} of ${num(d.manifest.counts.proteins)}`,
+        metricForHeader('proteins it fires on'),
+      ],
+      [pct(f.pw), 'mean coverage per protein', metricForHeader('mean cover')],
+      [`${f.pk} of ${d.nLayers}`, 'peak layer', metricForHeader('peak layer')],
     ]),
   );
   if (paired.length === 0) {
@@ -246,13 +249,11 @@ function depthPanel(d: Data, f: Feature): HTMLElement {
   );
   p.append(
     howto(
-      `The crosscoder reads all ${d.nLayers} layers at once. When this latent fires, it adds ` +
-        'one vector to the reconstruction of the residual stream of each layer. ' +
-        'Solid line: the length of that vector in each layer, as a share of its longest. The ' +
-        'longer the vector, the more this latent adds to the reconstruction of that layer. ' +
-        'The lengths are corrected for the growth of the residual stream from layer to layer. ' +
-        'Dashed line, right axis: the cosine similarity between the vector of this latent in ' +
-        'each layer and its vector in the peak layer. 1 is the same direction, 0 is unrelated.',
+      'Solid line, left axis: the length of the vector this latent adds to the crosscoder’s ' +
+        'rebuilt copy of each layer’s residual stream, as a share of its longest, corrected for ' +
+        'the growth of the residual stream. Dashed line, right axis: the cosine between the ' +
+        'vector at each layer and the vector at the peak layer. 1 is the same direction, 0 is ' +
+        'unrelated, and -1 is the opposite.',
     ),
     depthChart(d, f),
   );
@@ -275,14 +276,10 @@ function selectivityPanel(d: Data, f: Feature): HTMLElement {
   const p = panel('How selective it is', `This latent against all ${num(n)}`);
   p.append(
     howto(
-      `One dot for each of the ${num(n)} live latents. The ringed dot is this latent. ` +
-        `Across: the share of the ${num(proteins)} proteins that a latent fires on. A dot at ` +
-        'the left fires on few proteins, and a dot at the right fires on almost all of them. ' +
-        'Up: the share of a protein that a latent covers, as the mean over the proteins it ' +
-        'fires on. A dot at the bottom fires on a few residues of each protein, and a dot at ' +
-        'the top fires on most of the chain. ' +
-        'Thus the most specific latents are at the bottom left. No annotation can name a ' +
-        'latent at the top right, because it fires almost everywhere.',
+      `One dot for each of the ${num(n)} live latents, and the ringed dot is this latent. ` +
+        'Across is the share of the proteins a latent fires on. Up is the share of each protein ' +
+        'it covers, as the mean over those proteins. Both axes are log scales. The most ' +
+        'specific latents sit at the bottom left.',
     ),
     selectivityPlot(d, f),
   );
@@ -599,8 +596,9 @@ function drawExamples(
         (concept
           ? `A teal line under a letter marks where Swiss-Prot annotates ${conceptName(concept)}. `
           : '') +
-        'Peak is the strongest it fires on the protein, as a share of its strongest anywhere. ' +
-        'Pick a range to see weaker examples. Click a row to read the whole protein below.',
+        'The number before the letters is the position of the first letter. Peak is the ' +
+        'strongest it fires on the protein, as a share of its strongest anywhere. Pick a range ' +
+        'to see weaker examples. Click a row to read the whole protein below.',
     ),
   );
   const controls = el('div', 'chips');
@@ -982,7 +980,7 @@ function selectivityPlot(d: Data, self: Feature): HTMLElement {
   const legend = el('div', 'loc-legend');
   for (const [label, color] of [
     ['pairs with a concept', cssVar('--signal')],
-    ['nothing named it', cssVar('--line-strong')],
+    ['not paired', cssVar('--line-strong')],
     ['this latent', cssVar('--ink')],
   ] as [string, string][]) {
     const item = el('span', 'loc-key');
