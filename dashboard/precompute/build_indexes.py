@@ -65,6 +65,7 @@ Deterministic, no randomness, no seed.
 
 import argparse
 import json
+import os
 import struct
 from datetime import date
 from pathlib import Path
@@ -94,7 +95,9 @@ def add_residue_headline(manifest, path):
         raise SystemExit(f"{path} was made with another headline: {made_with}")
     h["concepts_identified_per_residue"] = int(real["per_residue"]["concepts_identified"])
     h["features_paired_per_residue"] = int(real["per_residue"]["features_paired"])
-    manifest["sources"]["residue_counts"] = str(path)
+    # Relative to the working folder, like the other sources: the manifest goes into a public
+    # release, and an absolute path names the home folder of the machine that built it.
+    manifest["sources"]["residue_counts"] = os.path.relpath(path)
 
 
 def main():

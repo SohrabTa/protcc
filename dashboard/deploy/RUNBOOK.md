@@ -107,7 +107,7 @@ again. The parts that arrived are recorded, so it downloads only the parts that 
 Check, when `docker compose up -d` is complete:
 
 - `docker compose logs fetch-data` has the line `207,463 proteins, 207,459 structures, … GB free.`
-- The log ends with `Release 2026-10-13 is in place, … GB in … min.`
+- The log ends with `Release 2026-10-20 is in place, … GB in … min.`
 - `docker compose ps -a` shows `fetch-data` as `Exited (0)` and `web` as `healthy`. The health
   check needs up to 40 seconds after the start of `web`.
 
@@ -180,7 +180,7 @@ Report these items to the operator:
 
 - The public address
 - The commit from step 2
-- The release from the log, `2026-10-13`
+- The release from the log, `2026-10-20`
 - The output of the smoke test against the public address
 - The output of `docker compose ps -a`
 

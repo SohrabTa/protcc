@@ -39,6 +39,7 @@ from __future__ import annotations
 import argparse
 import gzip
 import json
+import os
 import time
 import urllib.error
 import urllib.request
@@ -159,7 +160,8 @@ def main() -> None:
         "alphafold_versions": versions,
         "bytes": total_bytes,
         "seconds": round(time.time() - started, 1),
-        "missing_txt_rewritten": str(a.stage6 / "missing.txt") if a.stage6 else None,
+        # Relative, because this file goes into the public release (see build_indexes.py).
+        "missing_txt_rewritten": os.path.relpath(a.stage6 / "missing.txt") if a.stage6 else None,
         "structures_now": have,
         "no_structure_now": len(lookup) - have,
         "script": "dashboard/precompute/fetch_missing_structures.py",
