@@ -253,8 +253,7 @@ passed. The log is `qa/qa_compose_2026-10-13.log` in this folder. The checks:
 - A wrong checksum: the start failed, and `web` did not start
 
 In a browser, the latent page and the concept page showed the 3D model, directly and under
-`/protcc/`. The download from Zenodo itself is not tested yet, because the record is a draft until
-it is published.
+`/protcc/`. The download from the published record ran on 2026-10-20 on the LRZ cluster, with `fetch/fetch_data.py`: 33 parts, 8.6 GB in 7 min, with one retry after "unexpected end of data". `VERIFY=1` then found every part complete.
 
 We did not test a Linux host, Podman, or rootless Docker.
 
