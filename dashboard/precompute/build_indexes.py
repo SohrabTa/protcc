@@ -51,6 +51,9 @@ Reads
 <pairings>/heldout_{top,all_top}_pairings.csv
 <residue-counts>  residue_level_pairing_counts.json, optional. Refused when its per-domain headline
                   differs from the one computed here.
+<training-config> experiment_config.yaml of the last training job, optional, with
+<training-corpus> manifest.json of the UniRef50 chunks it trained on. Refused when the two disagree
+                  on the batch size or the length cut, or when the latent count is not the headline's.
 
 Writes
 ------
@@ -59,19 +62,21 @@ Writes
 Repro
 -----
 uv run python build_indexes.py --stage0 … --stage1 … --stage3 … --pairings … \
-  --residue-counts … --out …
+  --residue-counts … --training-config … --training-corpus … --out …
 Deterministic, no randomness, no seed.
 """
 
 import argparse
 import json
 import os
+import re
 import struct
 from datetime import date
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import yaml
 
 MAGIC_RANK, MAGIC_DEPTH, MAGIC_CONCEPT = 0x50435231, 0x50434431, 0x50434331
 
@@ -100,6 +105,51 @@ def add_residue_headline(manifest, path):
     manifest["sources"]["residue_counts"] = os.path.relpath(path)
 
 
+
+class _ConfigLoader(yaml.SafeLoader):
+    """A safe loader that also reads the Python tuple the trainer writes for the Adam betas."""
+
+
+_ConfigLoader.add_constructor(
+    "tag:yaml.org,2002:python/tuple", lambda loader, node: tuple(loader.construct_sequence(node))
+)
+
+
+def add_training(manifest, config_path, corpus_path):
+    """How the crosscoder was trained: the model it read, the corpus, and the training settings.
+
+    The header and the method page print these, so they come from the files of the training run.
+    The config and the corpus manifest must describe the same run, and the run must have the
+    latent count of the headline.
+    """
+    cfg = yaml.load(config_path.read_text(), Loader=_ConfigLoader)
+    corpus = json.loads(corpus_path.read_text())
+    loader = cfg["data"]["token_sequence_loader"]
+    train = cfg["train"]
+    n_latents = cfg["crosscoder"]["n_latents"]
+    if corpus["batch_size"] != train["batch_size"] or corpus["max_length"] != loader["max_sequence_length"]:
+        raise SystemExit(f"{corpus_path} does not describe the corpus of {config_path}")
+    if n_latents != manifest["headline"]["latents_total"]:
+        raise SystemExit(f"{config_path} trained {n_latents} latents, not the headline's")
+    manifest["training"] = {
+        "model": cfg["data"]["activations_harvester"]["llms"][0]["hf_model_name"],
+        "corpus": "UniRef50",
+        "corpus_release": re.search(r"release-([^/]+)", corpus["input"]).group(1),
+        "max_length": corpus["max_length"],
+        "sequences": corpus["total_sequences_kept"],
+        "residues": corpus["total_residues_kept"],
+        "layers": len(cfg["hookpoints"]),
+        "latents": n_latents,
+        "k": cfg["crosscoder"]["k"],
+        "sparsity": train["topk_style"],
+        "batch_size": train["batch_size"],
+        "k_aux": train["k_aux"],
+        "lambda_aux": train["lambda_aux"],
+    }
+    manifest["sources"]["training_config"] = os.path.relpath(config_path)
+    manifest["sources"]["training_corpus"] = os.path.relpath(corpus_path)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--stage0", type=Path, required=True, help="concept_categories.csv")
@@ -111,6 +161,10 @@ def main():
     ap.add_argument("--pairings", type=Path, required=True, help="the test_counts directory")
     ap.add_argument("--residue-counts", type=Path, default=None,
                     help="residue_level_pairing_counts.json, for the per-residue headline")
+    ap.add_argument("--training-config", type=Path, default=None,
+                    help="experiment_config.yaml of the last training job")
+    ap.add_argument("--training-corpus", type=Path, default=None,
+                    help="manifest.json of the training corpus chunks")
     ap.add_argument("--out", type=Path, required=True)
     a = ap.parse_args()
     (a.out / "feature").mkdir(parents=True, exist_ok=True)
@@ -296,6 +350,8 @@ def main():
     }
     if a.residue_counts:
         add_residue_headline(manifest, a.residue_counts)
+    if a.training_config and a.training_corpus:
+        add_training(manifest, a.training_config, a.training_corpus)
     (a.out / "manifest.json").write_text(json.dumps(manifest, indent=2))
 
     total = sum(p.stat().st_size for p in a.out.rglob("*") if p.is_file())

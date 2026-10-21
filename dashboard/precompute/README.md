@@ -13,7 +13,7 @@ Heavy stages read data that only exists on the LRZ cluster. Everything else runs
 | 1. Feature ranking | `build_feature_ranking.py` | cluster | the activation store, 208 shards | every latent-protein pair, ranked, plus the firing statistics |
 | 2. Track store | `build_track_store.py` + `submit_track_store.sh` | cluster | the activation store | one file per protein, every latent that fires on it |
 | 3. Depth profiles | `build_depth_profiles.py` | local | the checkpoint | 8192 x 24 decoder norms and cosine to peak |
-| 4. Indexes | `build_indexes.py` | local | stages 0, 1, 3 and 5 plus the eval tables | the data contract the site reads |
+| 4. Indexes | `build_indexes.py` | local | stages 0, 1, 3 and 5, the eval tables, and the training config and corpus manifest | the data contract the site reads |
 | 5. Protein bundles | `build_protein_bundles.py` + `submit_protein_bundles.sh` | cluster | the eval set annotations | sequence, name, concept ranges, and the concept-to-proteins index |
 | 6. Structures | `build_structures.py` + `submit_structures.sh` | cluster | AlphaFold via Foldcomp | backbone mmCIF, gzipped |
 | 6b. Structure backfill | `fetch_missing_structures.py` | local | AlphaFold at EBI, one model at a time | the same backbone mmCIF, for the proteins stage 6 could not find |

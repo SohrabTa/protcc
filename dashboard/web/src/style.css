@@ -92,37 +92,43 @@ header.top { border-bottom: 1px solid var(--line); background: var(--surface); }
 }
 .figs { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 12px; }
 
-/* The method in four steps, in the header of the landing page. Each step is one link. The text
-   is HTML and not part of the drawing, so it keeps its size at every width and wraps. */
+/* The header of the landing page: a small schematic of the training and the evaluation. ProtT5
+   and the crosscoder span the two lanes, because one model serves both. Every box is a link, in
+   text at reading size. */
 .mf {
-  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 28px;
+  display: grid; gap: 8px 0; align-items: stretch;
+  grid-template-columns: 5.5rem minmax(0, 1fr) 1.75rem minmax(0, 1fr) 1.75rem minmax(0, 1fr) 1.75rem minmax(0, 1fr);
+  grid-template-areas:
+    'lt td a1 pt a3 cc a5 tg'
+    'le ed a2 pt a4 cc a6 ep';
   margin: 0 0 4px;
 }
-.mf-step {
-  position: relative; display: flex; flex-direction: column; gap: 6px;
-  padding: 10px 12px 12px; border: 1px solid transparent; border-radius: 4px;
-  color: inherit; text-decoration: none;
+.mf-lt { grid-area: lt; } .mf-le { grid-area: le; }
+.mf-td { grid-area: td; } .mf-ed { grid-area: ed; }
+.mf-pt { grid-area: pt; } .mf-cc { grid-area: cc; }
+.mf-tg { grid-area: tg; } .mf-ep { grid-area: ep; }
+.mf-a1 { grid-area: a1; } .mf-a2 { grid-area: a2; } .mf-a3 { grid-area: a3; }
+.mf-a4 { grid-area: a4; } .mf-a5 { grid-area: a5; } .mf-a6 { grid-area: a6; }
+.mf-lane { align-self: center; font-size: var(--fs-md); font-weight: 600; color: var(--muted); }
+.mf-node {
+  display: flex; flex-direction: column; justify-content: center; gap: 2px;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px;
+  background: var(--surface); color: inherit; text-decoration: none;
 }
-.mf-step:hover { border-color: var(--line-strong); background: var(--surface-2); }
-.mf-step:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
-/* The arrow from one step to the next sits in the gap between the two. */
-.mf-step:not(:last-child)::after {
-  content: '\2192'; position: absolute; right: -22px; top: 52px;
-  color: var(--muted); font-size: var(--fs-body);
-}
-.mf-head { display: flex; align-items: baseline; gap: 8px; font-size: var(--fs-sm); font-weight: 600; color: var(--ink-2); }
-.mf-n {
-  display: inline-flex; align-items: center; justify-content: center; flex: none;
-  width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--line-strong);
-  font-size: var(--fs-xs); color: var(--muted); font-weight: 500;
-}
-.mf-pic svg { display: block; width: 100%; max-width: 230px; height: auto; }
-.mf-value { font-size: var(--fs-h1); font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
-.mf-cap { font-size: var(--fs-md); color: var(--ink-2); line-height: 1.45; }
-.methodfoot { margin: 0 12px 12px; font-size: var(--fs-sm); color: var(--muted); }
+/* The two boxes that both lanes use. */
+.mf-pt, .mf-cc { background: var(--surface-2); }
+.mf-node:hover { border-color: var(--line-strong); }
+.mf-node:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.mf-name { font-size: var(--fs-md); font-weight: 600; }
+.mf-detail { font-size: var(--fs-md); color: var(--ink-2); line-height: 1.4; }
+.mf-arrow { align-self: center; text-align: center; color: var(--muted); }
+.mf-lane-note { display: none; font-weight: 400; }
+.methodfoot { margin: 8px 0 12px; font-size: var(--fs-md); color: var(--ink-2); }
 @media (max-width: 900px) {
-  .mf { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  .mf-step::after { display: none; }
+  .mf { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'lt' 'td' 'pt' 'cc' 'tg' 'le' 'ed' 'ep'; }
+  .mf-arrow { display: none; }
+  .mf-le { margin-top: 8px; }
+  .mf-lane-note { display: inline; }
 }
 
 /* The two lines that tie the method page and the glossary together. */
@@ -455,6 +461,7 @@ h3.sub { font-size: var(--fs-body); font-weight: 600; color: var(--ink); margin:
   margin: 12px 0; padding: 12px; background: var(--surface-2); border-radius: 3px;
   overflow-x: auto;
 }
+.gl-cap { margin: 10px 0 0; max-width: 72ch; font-size: var(--fs-md); color: var(--ink-2); line-height: 1.5; }
 .gl-formula {
   background: var(--surface-2); border-left: 2px solid var(--line-strong); padding: 7px 11px;
   border-radius: 0 2px 2px 0; font-size: var(--fs-md) !important; color: var(--ink) !important;
@@ -875,3 +882,31 @@ h3.sub { font-size: var(--fs-body); font-weight: 600; color: var(--ink); margin:
 .ovnext:hover { background: var(--surface-2); border-color: var(--ink-2); }
 .ovnext-k { font-size: var(--fs-sm); color: var(--muted); }
 .ovnext-k::after { content: ' \2192'; }
+
+/* The architecture figure on the method page: step buttons, the drawing, and one caption. */
+.arch { margin: 16px 0 4px; }
+.arch-steps { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.arch-step {
+  display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--surface);
+  color: var(--ink-2); font: inherit; font-size: var(--fs-md); cursor: pointer;
+}
+.arch-step:hover { border-color: var(--line-strong); }
+.arch-step[aria-selected='true'] { border-color: var(--ink); color: var(--ink); font-weight: 600; }
+.arch-n {
+  display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;
+  border-radius: 50%; background: var(--surface-2); font-size: var(--fs-xs); font-weight: 600;
+}
+.arch-step[aria-selected='true'] .arch-n { background: var(--ink); color: var(--ground); }
+.arch-pic { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; padding: 12px; background: var(--surface); }
+.arch-pic svg { display: block; width: 100%; min-width: 760px; height: auto; }
+.arch-cap { margin-top: 12px; max-width: 70ch; }
+.arch-title { margin: 0 0 4px; font-size: var(--fs-body); }
+.arch-text { margin: 0 0 10px; line-height: 1.55; min-height: 4.65em; }
+.arch-bar { display: flex; gap: 8px; flex-wrap: wrap; }
+.arch-nav {
+  padding: 5px 12px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface);
+  color: var(--ink); font: inherit; font-size: var(--fs-md); cursor: pointer;
+}
+.arch-nav:hover { background: var(--surface-2); }
+.arch-save { margin-left: auto; color: var(--muted); }

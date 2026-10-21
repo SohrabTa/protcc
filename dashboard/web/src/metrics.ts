@@ -23,7 +23,14 @@ export interface MetricInfo {
   section?: SectionId;
 }
 
-export type SectionId = 'why' | 'sparse' | 'one-dictionary' | 'training' | 'naming' | 'limits';
+export type SectionId =
+  | 'why'
+  | 'sparse'
+  | 'one-dictionary'
+  | 'architecture'
+  | 'training'
+  | 'naming'
+  | 'limits';
 
 /**
  * The method page, section by section.
@@ -37,6 +44,7 @@ export const METHOD_SECTIONS: { id: SectionId; title: string }[] = [
   { id: 'why', title: 'Why read the inside of ProtT5' },
   { id: 'sparse', title: 'Why sparse latents' },
   { id: 'one-dictionary', title: 'Why one dictionary for 24 layers' },
+  { id: 'architecture', title: 'How the crosscoder is built, step by step' },
   { id: 'training', title: 'How this crosscoder was trained' },
   { id: 'naming', title: 'How a latent is paired with a concept' },
   { id: 'limits', title: 'What these numbers cannot say' },
