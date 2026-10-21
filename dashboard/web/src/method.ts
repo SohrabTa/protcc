@@ -14,6 +14,17 @@
 import type { Data } from './data';
 import { METHOD_SECTIONS, METRIC_INFO, type SectionId } from './metrics';
 import { peakBand } from './depthmap';
+import { archFigure } from './archfigure';
+import {
+  batchTopKPicture,
+  dataSetsPicture,
+  densePicture,
+  generousPicture,
+  latentsPicture,
+  pairingRulePicture,
+  superpositionPicture,
+} from './explainers';
+import { facts } from './facts';
 import { el, link, num, panel, pct, withContents } from './ui';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -184,6 +195,7 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
   const views = el('div', 'views');
   const h = d.manifest.headline;
   const band = peakBand(d);
+  const t = d.manifest.training;
 
   const intro = panel(
     'Method',
@@ -236,6 +248,7 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
         cite('(Yang and others, 2025)', 'https://doi.org/10.1038/s41467-025-55987-8'),
         '. Neither is possible while the vector is one dense block of 1,024 numbers.',
       ),
+      densePicture(),
     ]),
   );
 
@@ -258,6 +271,7 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
           'two things: the rebuild must match the vector, and it may use only a few directions ' +
           'at once.',
       ),
+      superpositionPicture(h.latents_total),
       para(
         'Each direction is what this site calls a latent. The weight a latent gets at a residue ' +
           'is its activation there, and 0 means the latent is off. The site divides each ' +
@@ -322,14 +336,27 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
     ]),
   );
 
-  // ---- 4. training ----------------------------------------------------
+  // ---- 4. architecture ------------------------------------------------
+  views.append(
+    section('architecture', [
+      para(
+        'The figure follows one residue through the crosscoder. Click a step, or use the arrow ' +
+          'keys. Step 5 is the full architecture, and step 6 shows how the depth profile of a ' +
+          'latent comes out of it.',
+      ),
+      archFigure(d),
+    ]),
+  );
+
+  // ---- 5. training ----------------------------------------------------
   views.append(
     section('training', [
       para(
         'The input is the residual stream after each of the 24 encoder layers of ',
         el('span', 'mono', 'Rostlab/prot_t5_xl_uniref50'),
-        ', over UniRef50 sequences of at most 512 residues. The residual stream is the vector ' +
-          'each layer passes on for a residue. The crosscoder has ',
+        `, over all ${num(t.sequences)} ${t.corpus} sequences (release ${t.corpus_release}) of ` +
+          `at most ${t.max_length} residues: ${num(t.residues)} residues, read once. The ` +
+          'residual stream is the vector each layer passes on for a residue. The crosscoder has ',
         el('span', 'mono', num(h.latents_total)),
         ' latents and is trained with BatchTopK ',
         cite('(Bussmann and others, 2024)', 'https://arxiv.org/abs/2412.06410'),
@@ -338,6 +365,7 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
           'sparse autoencoders put a penalty on all activations instead. An auxiliary term ' +
           'pushes dead latents back into use.',
       ),
+      batchTopKPicture(t),
       para(
         'At inference the model changes to JumpReLU with one global threshold. A latent then ' +
           'fires whenever it clears that threshold, and a residue still uses about 32 latents on ' +
@@ -345,12 +373,13 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
           'evaluation set, and the pairing cuts apply to that scale.',
       ),
       para(
-        'The evaluation set is separate from the training data: ',
+        'The evaluation set is a different set of proteins: ',
         el('strong', undefined, `${num(d.manifest.counts.proteins)} Swiss-Prot proteins`),
         ' of annotation score 3, 4 or 5, at most 512 residues. The set is split into two ' +
           'halves. The validation half chooses the pairings, and every pairing score on this ' +
           'site is measured on the other, held-out half.',
       ),
+      dataSetsPicture(t, d.manifest.counts.proteins),
       para(
         'The exact checkpoint, the evaluation set and the build date are at the end of the ',
         link('/glossary', 'glossary'),
@@ -359,7 +388,7 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
     ]),
   );
 
-  // ---- 5. naming ------------------------------------------------------
+  // ---- 6. naming ------------------------------------------------------
   views.append(
     section('naming', [
       para(
@@ -377,6 +406,7 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
           'when its F1 per domain is more than 0.5 on the validation half and again on the ' +
           'held-out half.',
       ),
+      pairingRulePicture(),
       para(
         el(
           'strong',
@@ -387,7 +417,7 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
         ` The average best F1 per domain over all ${h.concepts_total} concepts, on the held-out ` +
           'half, is ',
         el('strong', undefined, h.avg_best_test_f1.toFixed(3)),
-        '. Those three numbers are the ones in the four steps at the top of the landing page.',
+        '. The last box of the schematic at the top of the landing page shows the first of these numbers.',
       ),
       para(
         'A concept is rarely one latent. Most found concepts are split across a group, and each ' +
@@ -409,6 +439,7 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
           'is the main methodological result of this project, and every concept page prints ' +
           'both.',
       ),
+      generousPicture(),
       para(
         el('strong', undefined, 'The set is one set. '),
         'Everything here is Swiss-Prot, at most 512 residues, with an annotation score of 3 or ' +
@@ -418,6 +449,7 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
         ' pair with no concept. They are not noise. This evaluation set has no concept for ' +
           'them.',
       ),
+      latentsPicture(facts(d)),
       para(
         el('strong', undefined, 'A correlation is not a mechanism. '),
         'Every number on this site says that a latent fires where an annotation is. None of ' +

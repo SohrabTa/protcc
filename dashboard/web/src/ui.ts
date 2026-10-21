@@ -130,6 +130,12 @@ export const fmt = (x: number, d = 3) => x.toFixed(d);
  */
 export const pct = (x: number, d = 1) => `${x.toFixed(x > 0 && x < 1 ? 2 : d)}%`;
 export const num = (x: number) => x.toLocaleString('en-US');
+/** A large count in words, to one decimal: 5,627,100,434 is "5.6 billion". */
+export function amount(x: number): string {
+  if (x >= 1e9) return `${(x / 1e9).toFixed(1)} billion`;
+  if (x >= 1e6) return `${(x / 1e6).toFixed(1)} million`;
+  return num(x);
+}
 
 /** A horizontal bar showing a part of a whole, with the numbers beside it. */
 export function coverageBar(part: number, whole: number, width = 150): HTMLElement {

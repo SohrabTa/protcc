@@ -12,6 +12,21 @@ import { METHOD_SECTIONS, METRIC_INFO } from './metrics';
 import { facts, fill, type Facts } from './facts';
 import { conceptName } from './pairs';
 import { el, link, num, panel, withContents } from './ui';
+import {
+  activationScalePicture,
+  bestLatentPicture,
+  conceptPicture,
+  cosinePicture,
+  coversPicture,
+  crosscoderPicture,
+  cutsPicture,
+  decoderVectorPicture,
+  latentsPicture,
+  pairingRulePicture,
+  peakActivationPicture,
+  residualStreamPicture,
+  spreadPicture,
+} from './explainers';
 
 const ns = 'http://www.w3.org/2000/svg';
 
@@ -203,6 +218,7 @@ function formula(text: string): HTMLElement {
 /** The drawn entry for each slug in `metrics.ts`. A slug with no body gets its short line only. */
 const BODIES: Record<string, (f: Facts) => Node[]> = {
   crosscoder: (f) => [
+    crosscoderPicture(f.layers),
     para(
       'A sparse autoencoder learns a dictionary for one layer: a list of directions, of which a ' +
       'few rebuild each residue vector. Learning such a list is called dictionary learning. A ' +
@@ -217,6 +233,7 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
     ),
   ],
   activation: (f) => [
+    activationScalePicture(),
     para(
       'The crosscoder gives each latent one raw number for each residue. The site divides it by ' +
       'the largest raw number that latent reaches anywhere in the evaluation set, so every ' +
@@ -233,6 +250,7 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
     ),
   ],
   'residual-stream': (f) => [
+    residualStreamPicture(f.layers),
     para(
       'ProtT5 passes the vector of each residue from layer to layer, and each layer adds to it. ' +
       'The crosscoder reads this vector after each of the 24 layers. It does not change ProtT5: ' +
@@ -240,6 +258,7 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
     ),
   ],
   'decoder-vector': (f) => [
+    decoderVectorPicture(),
     para(
       'When a latent fires, the crosscoder adds its decoder vector for each layer, scaled by the ' +
       'activation, to its rebuilt copy of that layer’s residual stream. The direction of the ' +
@@ -248,6 +267,7 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
     ),
   ],
   spread: (f) => [
+    spreadPicture(),
     formula('spread  =  median distance between firing residues / median distance between random residues'),
     para(
       'Along the chain, the distance is counted in residues. In space, it is measured between ' +
@@ -262,6 +282,7 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
     ),
   ],
   pairing: (f) => [
+    pairingRulePicture(),
     para(
       'The proteins are split into two halves. A pair must clear 0.5 on the validation half and ' +
       'again on the held-out half, so a score that is high by chance on one half does not ' +
@@ -273,6 +294,7 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
       'cuts, 0, 0.15, 0.5, 0.6 and 0.8 of the latent’s maximum, and keeps the cut with the best ' +
       'F1 per domain. The precision and the recalls in the tables use that cut.',
     ),
+    cutsPicture(),
     para(
       `${num(f.conceptsFound)} of the ${num(f.conceptsTotal)} concepts get at least one ` +
         'latent. Some latents pair with more than one concept, so the ' +
@@ -344,6 +366,7 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
     ),
   ],
   'f1-per-residue': (f) => [
+    residuePicture(true),
     para('It asks whether the latent covers the region, not whether it notices the region.'),
     formula('F1 per residue = 2 · precision · recall per residue / (precision + recall per residue)'),
     ...(f.conceptsFoundPerResidue !== undefined && f.latentsPairedPerResidue !== undefined
@@ -394,6 +417,7 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
     ),
   ],
   'cosine-similarity': (f) => [
+    cosinePicture(),
     para('The latent page draws it as the dashed line of the Depth panel.'),
     formula('1 = the same direction   ·   0 = unrelated   ·   -1 = the opposite direction'),
     para(
@@ -404,6 +428,7 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
     ),
   ],
   covers: (f) => [
+    coversPicture(),
     para(
       `It is small for almost every latent, because 32 of the ${num(f.latentsTotal)} latents ` +
         'fire at each residue, on average. A latent that covers 3% of a 300-residue protein ' +
@@ -415,12 +440,14 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
     ),
   ],
   'peak-activation': (f) => [
+    peakActivationPicture(),
     para(
       'It is on the scale of every activation on this site, so a peak of 0.50 is half the ' +
       'latent’s own strongest. The Activation entry says more about that scale.',
     ),
   ],
   latents: (f) => [
+    latentsPicture(f),
     para(
       `${num(f.latentsAlive)} of the latents fire at least once on the evaluation set and are ` +
         `called live. The other ${num(f.latentsDead)} are dead and have no page.`,
@@ -441,6 +468,7 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
     ),
   ],
   'best-latent': (f) => [
+    bestLatentPicture(),
     para(
       'This is the paper’s rule. For each concept, the validation half chooses one latent, and ' +
         'the held-out half scores it. That score is the Best F1, and its average over the ' +
@@ -463,6 +491,7 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
     ),
   ],
   concept: (f) => [
+    conceptPicture(),
     para(
       'A concept is one annotation type from Swiss-Prot, written as the field and the value. ' +
       'Domain_CN hydrolase is the Domain field with the value CN hydrolase, and the site prints ' +

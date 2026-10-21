@@ -30,6 +30,7 @@ export interface ExampleLatent {
 }
 
 export interface Facts {
+  layers: number;
   latentsTotal: number;
   latentsAlive: number;
   latentsDead: number;
@@ -89,6 +90,7 @@ export function facts(d: Data): Facts {
   }
   const [field, inField] = [...fields.entries()].reduce((a, b) => (b[1] > a[1] ? b : a));
   const out: Facts = {
+    layers: h.layers,
     latentsTotal: h.latents_total,
     latentsAlive: h.latents_alive,
     latentsDead: h.latents_total - h.latents_alive,

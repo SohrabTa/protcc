@@ -48,6 +48,28 @@ export interface Manifest {
     /** Written from stage 6b: why the proteins with no model have none. */
     no_structure_note?: string;
   };
+  /** How the crosscoder was trained, from the files of the training run (stage 4). */
+  training: Training;
+}
+
+export interface Training {
+  /** The Hugging Face name of the model whose residual stream the crosscoder reads. */
+  model: string;
+  corpus: string;
+  corpus_release: string;
+  /** The length cut of the corpus, in residues. */
+  max_length: number;
+  sequences: number;
+  residues: number;
+  layers: number;
+  latents: number;
+  /** The average number of latents a residue uses in training. */
+  k: number;
+  sparsity: string;
+  /** Residues in one training batch. */
+  batch_size: number;
+  k_aux: number;
+  lambda_aux: number;
 }
 
 /** One row of concepts.json. Short keys: the file holds 408 of these. */
@@ -191,6 +213,9 @@ export class Data {
         getBuffer(`${this.base}/concept_coverage.bin`).catch(() => null),
         getBuffer(`${this.base}/latent_locality.bin`).catch(() => null),
       ]);
+    if (!manifest.training) {
+      throw new Error('manifest.json has no training block. Build stage 4 again with --training-config.');
+    }
     this.manifest = manifest;
     this.conceptColumns = columns;
     this.concepts = concepts;
