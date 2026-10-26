@@ -199,8 +199,8 @@ export const METRIC_INFO: MetricInfo[] = [
     slug: 'spread',
     title: 'Spread along the chain and in space',
     short:
-      'The median distance between the residues a latent fires on above 0.3 of its maximum, ' +
-      'divided by the same median for random residues of the protein. 1 is like random residues.',
+      'The median distance between the residues a latent fires on, divided by the same median ' +
+      'for random residues of the protein. 1 is like random residues.',
   },
   {
     slug: 'concept',

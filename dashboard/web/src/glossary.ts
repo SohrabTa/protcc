@@ -244,9 +244,10 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
       'own strongest. They say nothing about which of the two fires harder in raw numbers.',
     ),
     para(
-      'A latent fires on a residue when its activation is above a cut. The cut differs by ' +
-      'place: the pairing tries five cuts, the concept page counts a residue above 0.3, ' +
-      'and Covers counts any activation above 0.',
+      'A latent fires on a residue when its activation is above 0: the JumpReLU gate of the ' +
+      'crosscoder decides it. The latent page, Covers and Spread count this way. A pairing is ' +
+      'stricter. It tries five cuts and keeps one for each pair, and the concept page counts a ' +
+      'residue above the cut of its pairing.',
     ),
   ],
   'residual-stream': (f) => [

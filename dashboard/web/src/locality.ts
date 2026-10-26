@@ -31,6 +31,19 @@ export function localityHowto(teal: boolean): string {
   );
 }
 
+/**
+ * When a residue counts as fired on: above `byte` on the 0 to 255 scale, and `text` says so in
+ * a sentence. A concept page passes the cut of the pairing. A latent page has no pairing, and
+ * it counts every residue where the JumpReLU gate lets the latent fire, which in the tracks is
+ * every stored activation above 0.
+ */
+export interface Cut {
+  byte: number;
+  text: string;
+}
+
+const LATENT_CUT: Cut = { byte: 0, text: 'above 0' };
+
 /** The concept whose residues the teal marks show, and a sentence to add after its note. */
 export interface Marks {
   name: string;
@@ -70,7 +83,7 @@ export interface LocalityHandle {
    */
   mount(): void;
   /** Point the view at a different latent on the same protein. */
-  update(values: Uint8Array, ranges: [number, number][]): void;
+  update(values: Uint8Array, ranges: [number, number][], cut?: Cut): void;
   /** Called with the 0-based residue under the pointer, or null when it leaves. */
   onHover(fn: (index: number | null) => void): void;
 }
@@ -83,10 +96,11 @@ export function localityView(
   seq: string,
   values: Uint8Array,
   ranges: [number, number][],
-  opts: { marks?: Marks } = {},
+  opts: { marks?: Marks; cut?: Cut } = {},
 ): LocalityHandle {
   const n = Math.min(seq.length, values.length);
   let vals = values;
+  let cut = opts.cut ?? LATENT_CUT;
   let mask = annotationMask(n, ranges);
 
   const root = el('div', 'loc');
@@ -145,7 +159,7 @@ export function localityView(
   /** What the residues under the firing site are, since the stripe alone invites a guess. */
   function describeChemistry(): void {
     chem.textContent = '';
-    const e = enrichment(seq, vals);
+    const e = enrichment(seq, vals, cut.byte);
     if (!e) {
       // Under 20 firing residues a share moves by more than 5 points per residue, so there is no
       // share worth printing. An empty column reads as a broken panel, so it says why instead.
@@ -166,7 +180,7 @@ export function localityView(
           [
             [`${Math.round(e.top.inFiring * 100)}%`, `of the firing site is ${e.top.prose}`],
             [`${Math.round(e.top.inProtein * 100)}%`, 'of the whole protein is'],
-            [String(e.nFiring), 'residues fire above 0.3 of its maximum'],
+            [String(e.nFiring), `residues fire ${cut.text}`],
           ],
           'One protein, so this describes this protein. It does not show a rule.',
         ),
@@ -174,7 +188,7 @@ export function localityView(
     } else {
       chem.append(
         figures(
-          [[String(e.nFiring), 'residues fire above 0.3 of its maximum']],
+          [[String(e.nFiring), `residues fire ${cut.text}`]],
           'No chemical class stands out here. That is the common case, and a domain ' +
             'detector is not expected to prefer one.',
         ),
@@ -400,8 +414,9 @@ export function localityView(
     onHover(fn) {
       hovered = fn;
     },
-    update(nextValues, nextRanges) {
+    update(nextValues, nextRanges, nextCut) {
       vals = nextValues;
+      cut = nextCut ?? cut;
       mask = annotationMask(n, nextRanges);
       ranges = nextRanges;
       hover = -1;

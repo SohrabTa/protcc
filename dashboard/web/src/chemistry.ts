@@ -63,7 +63,7 @@ export interface Enrichment {
 export function enrichment(
   seq: string,
   values: Uint8Array,
-  threshold = 76, // 0.3 of the latent's own maximum, the same cut the coverage figure uses
+  threshold: number, // the caller's cut on the 0 to 255 scale (`Cut` in locality.ts)
 ): Enrichment | null {
   const n = Math.min(seq.length, values.length);
   const firing = new Map<string, number>();

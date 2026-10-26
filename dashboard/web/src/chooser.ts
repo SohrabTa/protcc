@@ -144,7 +144,7 @@ export function proteinChooser(opts: {
     rand,
     el('span', 'small muted chooser-label', 'order:'),
     sourceSelect,
-    el('span', 'small muted chooser-label', 'part:'),
+    el('span', 'small muted chooser-label', 'show:'),
     bandSelect,
   );
 
@@ -179,11 +179,19 @@ export function proteinChooser(opts: {
     const s = sources[source];
     pos.textContent = `${label} ${at + 1} of ${slice.length.toLocaleString('en-US')}`;
     name.textContent = items[idx];
-    // One sentence: the number the order uses, and how many latents fire here.
+    // The number the order uses, and how many latents fire here. When the latent's strongest
+    // protein is not in this list, a third sentence says so, because the first protein of the
+    // order is then not the latent's strongest case. 1 is the latent's own maximum.
+    const who = s.label.split(' ')[0];
+    const top = s.values ? s.values[order[0]] : 1;
     note.textContent =
-      (s.values ? `${s.label.split(' ')[0]} fires at ${s.format(s.values[idx])} here. ` : '') +
+      (s.values ? `${who} fires at ${s.format(s.values[idx])} here. ` : '') +
       (firing && firing.length === items.length
         ? `${firing[idx]} of the ${nLatents} latents fire on this protein.`
+        : '') +
+      (s.values && top < 1
+        ? ` On these proteins ${who} reaches at most ${s.format(top)} of its maximum, so it ` +
+          'fires harder on proteins that do not carry the concept.'
         : '');
     opts.onPick(items[idx]);
   }

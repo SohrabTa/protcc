@@ -14,10 +14,12 @@ stage computes it once for all 627,067 concept-protein pairs and stores one byte
 
 `round(255 * covered / total)`, where `total` is the number of residues the concept's Swiss-Prot
 annotation covers on that protein, and `covered` is how many of those residues at least one of
-the concept's paired latents fires on at more than 0.3 of that latent's own maximum.
+the concept's paired latents fires on above the cut of its pairing.
 
-0.3 is the same cut the dashboard uses everywhere else (`locality.ts`, `structure.ts`,
-`concept.ts`), so the stored number and the number the page computes live agree.
+The cut is the share of the latent's own maximum that the pairing search chose for that pair
+(the sixth value of each pair in `concepts.json`). A stored activation byte fires when it is
+above `floor(255 * cut)`. The concept page counts with the same cut, so the stored number, the
+number the page computes live, and the scores in the concept table agree.
 
 A pair whose annotation covers no residue stores 0 and is counted in the manifest. It is a real
 case: a concept column can exist on a protein with an empty range list.
@@ -45,7 +47,7 @@ Writes
 
 The layout, little-endian, matching the other four formats:
 
-    concept_coverage.bin  "PCV1"  uint32 magic, uint32 n_pairs, uint32 threshold, uint32 n_arrays,
+    concept_coverage.bin  "PCV1"  uint32 magic, uint32 n_pairs, uint32 reserved, uint32 n_arrays,
                                   uint8 coverage[n_pairs], uint8 n_firing[n_pairs]
 
 `coverage` is the share of the annotated residues the concept's latents read, 0 to 255.
@@ -77,8 +79,14 @@ MAGIC_CONCEPT = 0x50434331  # PCC1
 MAGIC_TRACK = 0x50435431  # PCT1
 MAGIC_COVER = 0x50435631  # PCV1
 
-THRESHOLD = 76  # 0.3 of a latent's own maximum, the cut every other view uses
 N_LATENTS = 8192
+# No stored byte is above this, so a latent that is not a concept's own never fires for it.
+NOT_MINE = 255
+
+
+def cut_byte(cut: float) -> int:
+    """The pairing cut, a share of the latent's maximum, on the 0 to 255 scale of the tracks."""
+    return int(255 * cut)
 
 
 def read_concept_proteins(path: Path) -> np.ndarray:
@@ -131,6 +139,7 @@ def main() -> None:
     # written back to, so the output stays in the order `concept_proteins.bin` defines.
     by_protein: dict[int, list[tuple[int, int]]] = {}
     latents_of: dict[int, np.ndarray] = {}
+    cuts_of: dict[int, np.ndarray] = {}
     column_index: dict[int, int] = {}
     skipped_no_column = 0
     for ci, c in enumerate(concepts):
@@ -144,6 +153,7 @@ def main() -> None:
             continue
         column_index[ci] = col
         latents_of[ci] = np.array([f[0] for f in feats], dtype=np.int64)
+        cuts_of[ci] = np.array([cut_byte(f[5]) for f in feats], dtype=np.int16)
         lo, hi = span
         for pos in range(lo, hi):
             by_protein.setdefault(int(pair_protein[pos]), []).append((ci, pos))
@@ -152,9 +162,10 @@ def main() -> None:
     firing = np.zeros(n_pairs, dtype=np.uint8)
     done = np.zeros(n_pairs, dtype=bool)
 
-    # A membership table rather than `np.isin`. The latent ids are small and dense, so one fancy
-    # index over a boolean table of 8192 entries replaces a sort per concept per protein.
-    lut = np.zeros(N_LATENTS, dtype=bool)
+    # The cut of each latent for the concept at hand, and NOT_MINE for every other latent. The
+    # latent ids are small and dense, so one fancy index over a table of 8192 entries replaces a
+    # sort per concept per protein.
+    cut_lut = np.full(N_LATENTS, NOT_MINE, dtype=np.int16)
 
     order = sorted(by_protein.keys(), key=lambda p: (shard_of.get(protein_ids[p], -1), p))
     if a.limit:
@@ -191,7 +202,7 @@ def main() -> None:
         # concept that protein carries.
         counts = np.diff(indptr.astype(np.int64))
         resid = np.repeat(np.arange(length, dtype=np.int64), counts)
-        strong = value > THRESHOLD
+        value16 = value.astype(np.int16)
 
         for ci, pos in by_protein[pidx]:
             ranges = info.get("c", {}).get(str(column_index[ci])) or []
@@ -205,18 +216,18 @@ def main() -> None:
                 n_empty += 1
                 done[pos] = True
                 ids = latents_of[ci]
-                lut[ids] = True
-                firing[pos] = min(255, int(np.unique(latent[lut[latent] & strong]).size))
-                lut[ids] = False
+                cut_lut[ids] = cuts_of[ci]
+                firing[pos] = min(255, int(np.unique(latent[value16 > cut_lut[latent]]).size))
+                cut_lut[ids] = NOT_MINE
                 continue
 
             ids = latents_of[ci]
-            lut[ids] = True
-            sel = lut[latent] & strong
-            lut[ids] = False
+            cut_lut[ids] = cuts_of[ci]
+            sel = value16 > cut_lut[latent]
+            cut_lut[ids] = NOT_MINE
 
-            # How many of the concept's own latents fire anywhere on this protein, above the
-            # same cut. It is the filter the concept page needs: a carrier that one of nine
+            # How many of the concept's own latents fire anywhere on this protein, each above
+            # the cut of its pairing. It is the filter the concept page needs: a carrier that one of nine
             # latents touches is a different case from one that all nine touch.
             firing[pos] = min(255, int(np.unique(latent[sel]).size))
 
@@ -236,7 +247,7 @@ def main() -> None:
             rate = (n_done + 1) / (time.time() - started)
             print(f"  {n_done + 1:,} of {len(order):,} proteins, {rate:.0f}/s", flush=True)
 
-    header = struct.pack("<IIII", MAGIC_COVER, n_pairs, THRESHOLD, 2)
+    header = struct.pack("<IIII", MAGIC_COVER, n_pairs, 0, 2)
     (web / "concept_coverage.bin").write_bytes(header + out.tobytes() + firing.tobytes())
 
     filled = int(done.sum())
@@ -249,7 +260,7 @@ def main() -> None:
         "pairs_no_track": int(n_missing_track),
         "pairs_no_bundle": int(n_missing_bundle),
         "concepts_without_column": int(skipped_no_column),
-        "threshold": THRESHOLD,
+        "cut": "the pairing cut of each pair, from concepts.json",
         "arrays": ["coverage", "n_firing"],
         "max_latents_firing": int(firing.max()),
         "seconds": round(time.time() - started, 1),

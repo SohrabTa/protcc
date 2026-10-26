@@ -96,8 +96,8 @@ def main() -> None:
 
     status, headers, body = get(base)
     page = body.decode(errors="replace")
-    report(status == 200 and "<title>ProtCC Latent Browser</title>" in page, "the page loads",
-           f"HTTP {status}")
+    # The element the site mounts into, and not the title, which is wording that changes.
+    report(status == 200 and 'id="app"' in page, "the page loads", f"HTTP {status}")
     scripts = [part.split('"')[0] for part in page.split('src="')[1:] if ".js" in part[:120]]
     for src in scripts:
         status, headers, _ = get(base + src.removeprefix("./"))

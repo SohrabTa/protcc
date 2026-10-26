@@ -277,12 +277,16 @@ def main():
             # 27 of the 187 concepts.
             chosen = int(r.feature)
             row["bf"] = chosen if chosen in set(g.feature.astype(int)) else int(g.feature.iloc[0])
-            # latent, F1 per domain, precision, recall per residue, recall per domain. The
-            # last one is what makes the gap between the two recalls readable on the site: the
-            # median pairing recalls 98% of the regions and 3% of their residues.
+            # latent, F1 per domain, precision, recall per residue, recall per domain, cut. The
+            # recall per domain makes the gap between the two recalls readable on the site: the
+            # median pairing recalls 98% of the regions and 3% of their residues. The cut is the
+            # share of the latent's maximum that the pairing search chose for this pair. The
+            # concept page counts a residue as fired on with this cut, so its counts agree
+            # with the scores in the same table.
             row["feats"] = [[int(x.feature), round(float(x.f1_per_domain), 4),
                              round(float(x.precision), 4), round(float(x.recall), 4),
-                             round(float(x.recall_per_domain), 4)]
+                             round(float(x.recall_per_domain), 4),
+                             round(float(x.threshold_pct), 2)]
                             for x in g.itertuples()]
         if name in carriers:
             lo, hi = carriers[name]

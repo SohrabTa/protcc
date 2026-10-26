@@ -135,7 +135,7 @@ export async function renderFeature(d: Data, fid: number, host: HTMLElement): Pr
   spacePanel.append(
     howto(
       'One dot for each measured latent. Each axis is a ratio: the median distance between the ' +
-        'residues the latent fires on above 0.3 of its maximum, divided by the same median for ' +
+        'residues the latent fires on, divided by the same median for ' +
         'random residues of the protein. Across counts the distance along the chain, and up ' +
         'measures it in space between alpha carbons. 1 is like random residues. The shaded ' +
         'areas start at 0.7. Point at a dot to name its latent, and click it to open it.',

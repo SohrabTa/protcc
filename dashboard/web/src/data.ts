@@ -81,11 +81,20 @@ export interface Concept {
   f1: number; // test-set F1 per domain of the latent the validation set picked: the Best F1
   nf: number; // how many latents pair with it
   bf?: number; // the latent the validation set picked: the Best latent
-  // latent, F1 per domain, precision, recall per residue, recall per domain. The last entry is
-  // absent in a tree built before stage 4 wrote it.
-  feats?: [number, number, number, number, number?][];
+  // latent, F1 per domain, precision, recall per residue, recall per domain, pairing cut. The
+  // cut is the share of the latent's maximum that the pairing search chose for this pair.
+  feats?: [number, number, number, number, number, number][];
   po?: [number, number]; // its slice of concept_proteins.bin
   npr?: number; // how many proteins carry it
+}
+
+/**
+ * The pairing cut on the 0 to 255 scale of the tracks: a stored activation fires for the pair
+ * when it is above this byte. Stage 7 (`cut_byte` in build_concept_coverage.py) uses the same
+ * rule, so the counts it stores and the counts the concept page makes agree.
+ */
+export function cutByte(cut: number): number {
+  return Math.floor(255 * cut);
 }
 
 export interface Feature {
@@ -215,6 +224,9 @@ export class Data {
       ]);
     if (!manifest.training) {
       throw new Error('manifest.json has no training block. Build stage 4 again with --training-config.');
+    }
+    if (concepts.some((c) => c.feats?.some((f) => f.length < 6))) {
+      throw new Error('concepts.json has no pairing cuts. Build stage 4 again.');
     }
     this.manifest = manifest;
     this.conceptColumns = columns;

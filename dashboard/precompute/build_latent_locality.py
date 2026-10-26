@@ -13,8 +13,9 @@ on screen.
 
 ## The two numbers
 
-For one latent on one protein, take every pair of residues it fires on above 0.3 of its own
-maximum.
+For one latent on one protein, take every pair of residues it fires on. A residue counts when the
+track stores an activation for it at all: the JumpReLU gate of the crosscoder decides when a
+latent fires, and stage 2 stores every activation the gate lets through.
 
     sequence spread = the median of |i - j| over those pairs
     spatial spread  = the median distance between their alpha carbons
@@ -49,8 +50,10 @@ Reads
 
 Writes
 ------
-<web>/latent_locality.bin      PCL1, two float32 arrays and one count, indexed by latent id
-<web>/latent_locality.json     the manifest for this stage
+<out>/latent_locality.bin      PCL1, two float32 arrays and one count, indexed by latent id
+<out>/latent_locality.json     the manifest for this stage
+
+`<out>` is `<web>` unless `--out` names another folder, for a run to compare against.
 
 The layout, little-endian:
 
@@ -81,7 +84,9 @@ MAGIC_RANK = 0x50435231  # PCR1
 MAGIC_TRACK = 0x50435431  # PCT1
 MAGIC_LOCALITY = 0x5043_4C31  # PCL1
 
-THRESHOLD = 76  # 0.3 of a latent's own maximum, the cut every other view uses
+# A stored byte above this counts as firing. Stage 2 never stores 0, so 0 keeps every activation
+# the JumpReLU gate let through.
+THRESHOLD = 0
 MIN_FIRING = 6
 MIN_PAIRS = 10
 BASE_PAIRS = 4000
@@ -188,6 +193,7 @@ def ratios(
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--web", type=Path, required=True)
+    ap.add_argument("--out", type=Path, default=None, help="where to write, if not into --web")
     ap.add_argument("--proteins", type=int, default=20, help="proteins measured per latent")
     ap.add_argument("--scan", type=int, default=120, help="how far down a ranking to look")
     ap.add_argument("--paired-only", action="store_true", help="skip latents with no concept")
@@ -272,7 +278,9 @@ def main() -> None:
                   flush=True)
 
     header = struct.pack("<IIII", MAGIC_LOCALITY, n_latents, THRESHOLD, 0)
-    (web / "latent_locality.bin").write_bytes(
+    out = a.out if a.out is not None else web
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "latent_locality.bin").write_bytes(
         header + out_seq.tobytes() + out_space.tobytes() + out_n.tobytes()
     )
 
@@ -300,7 +308,7 @@ def main() -> None:
         "seconds": round(time.time() - started, 1),
         "script": "dashboard/precompute/build_latent_locality.py",
     }
-    (web / "latent_locality.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (out / "latent_locality.json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(json.dumps(manifest, indent=2))
 
 

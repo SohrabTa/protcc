@@ -6,8 +6,8 @@
  * stage 7 turns it into a choice by giving every carrier a number.
  */
 
-import { Data, type Concept } from '../data';
-import { localityHowto, localityView, type LocalityHandle } from '../locality';
+import { cutByte, Data, type Concept } from '../data';
+import { localityHowto, localityView, type Cut, type LocalityHandle } from '../locality';
 import { proteinChooser, type ChooserSource } from '../chooser';
 import { conceptName } from '../pairs';
 import { metricForHeader } from '../metrics';
@@ -103,12 +103,14 @@ export async function renderConcept(d: Data, name: string, host: HTMLElement): P
   ev.append(
     howto(
       'Step through the proteins that carry the concept with the arrows, or pick one at ' +
-        'random. Order sorts them by how hard one latent fires on them, and Part keeps one ' +
+        'random. Order sorts them by how hard one latent fires on them, and Show keeps one ' +
         'slice of that order. Each row is one latent, in the order of the table above. With more ' +
-        'than one latent, the last row is the strongest of them at each residue. Amber is how ' +
-        'hard a latent fires, and teal is where Swiss-Prot annotates the concept. Reads is the ' +
-        'share of the teal residues where the latent fires above 0.3 of its maximum. Click a ' +
-        'row to read it residue by residue in the next panel.',
+        'than one latent, the last row joins them: at each residue, the strongest latent that ' +
+        'fires above its pairing cut. Amber is how hard a latent fires, and teal is where ' +
+        'Swiss-Prot annotates the concept. Fires on is the share of the teal residues where the ' +
+        'latent fires above its pairing cut. The cut is the share of the latent’s maximum that ' +
+        'the pairing search chose for this concept, as in the table above. Click a row to read ' +
+        'it residue by residue in the next panel.',
     ),
   );
   const all = c.po ? d.carriersOf(c) : [];
@@ -198,17 +200,25 @@ export async function renderConcept(d: Data, name: string, host: HTMLElement): P
 /** A latent of the concept, or every latent together. */
 type Pick = number | 'all';
 
-/** The share of the annotated residues where an activation is above 0.3 of its maximum. */
-function readShare(values: Uint8Array, ranges: [number, number][]): number | null {
+/** The share of the annotated residues where the activation is above the cut byte. */
+function readShare(values: Uint8Array, cut: number, ranges: [number, number][]): number | null {
   let covered = 0;
   let total = 0;
   for (const [a, b] of ranges) {
     for (let i = a; i <= b; i++) {
       total++;
-      if (values[i] > 76) covered++; // 0.3 of the latent maximum
+      if (values[i] > cut) covered++;
     }
   }
   return total ? (covered / total) * 100 : null;
+}
+
+/** The cut of one pairing, for the residue view and the chemistry count. */
+function pairCut(cut: number): Cut {
+  return {
+    byte: cutByte(cut),
+    text: cut === 0 ? 'above 0, its pairing cut' : `above ${cut} of its maximum, its pairing cut`,
+  };
 }
 
 async function drawEvidence(
@@ -262,23 +272,31 @@ async function drawEvidence(
       infoButton(
         'fires on',
         'What "fires on" means',
-        'The share of the annotated residues on this protein where the latent fires at more ' +
-          'than 0.3 of its own maximum. The last row counts a residue when any of the latents ' +
-          'fires there.',
+        'The share of the annotated residues on this protein where the latent fires above its ' +
+          'pairing cut: the share of its maximum that the pairing search chose for this concept. ' +
+          'The last row counts a residue when any of the latents fires there above its cut.',
       ),
     );
   }
   rows.append(el('div', 'lab strong', 'Swiss-Prot'), annotationStrip(info.l, ranges), swissEnd);
 
+  // The last row keeps, at each residue, the strongest latent above its own cut, so its share and
+  // its chemistry count with every latent's own cut and need no cut of their own.
   const union = new Uint8Array(info.l);
   const values = new Map<Pick, Uint8Array>();
+  const cuts = new Map<Pick, Cut>();
   const feats = c.feats ?? [];
-  for (const [fid] of feats) {
+  for (const [fid, , , , , cut] of feats) {
     const v = Data.activationOf(track, fid);
+    const byte = cutByte(cut);
     values.set(fid, v);
-    for (let i = 0; i < v.length; i++) if (v[i] > union[i]) union[i] = v[i];
+    cuts.set(fid, pairCut(cut));
+    for (let i = 0; i < v.length; i++) if (v[i] > byte && v[i] > union[i]) union[i] = v[i];
   }
-  if (feats.length > 1) values.set('all', union);
+  if (feats.length > 1) {
+    values.set('all', union);
+    cuts.set('all', { byte: 0, text: 'above the pairing cut of at least one latent' });
+  }
 
   const buttons = new Map<Pick, { button: HTMLButtonElement; strip: HTMLElement }>();
   const addRow = (key: Pick, label: string, v: Uint8Array) => {
@@ -286,12 +304,11 @@ async function drawEvidence(
     button.type = 'button';
     button.title = 'Read this row residue by residue in the next panel.';
     const strip = activationStrip(v);
-    const share = readShare(v, ranges);
-    rows.append(
-      button,
-      strip,
-      el('div', 'end', share === null ? '' : `fires on ${pct(share, 0)}`),
-    );
+    const cut = cuts.get(key)!;
+    const share = readShare(v, cut.byte, ranges);
+    const end = el('div', 'end', share === null ? '' : `fires on ${pct(share, 0)}`);
+    end.title = `Counts the annotated residues where it fires ${cut.text}.`;
+    rows.append(button, strip, end);
     button.addEventListener('click', () => select(key));
     buttons.set(key, { button, strip });
   };
@@ -321,6 +338,7 @@ async function drawEvidence(
 
   const loc: LocalityHandle = localityView(info.s, values.get(picked.row)!, ranges, {
     marks: { name: conceptName(c.c) },
+    cut: cuts.get(picked.row),
   });
   resHost.append(loc.root);
   loc.mount();
@@ -339,7 +357,7 @@ async function drawEvidence(
     mark();
     writeResLine();
     const v = values.get(key)!;
-    loc.update(v, ranges);
+    loc.update(v, ranges, cuts.get(key));
     structure?.update(v);
   }
 

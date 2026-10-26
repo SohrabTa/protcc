@@ -1,6 +1,6 @@
 {
-  "release": "2026-10-20",
-  "zenodo_record": "23335033",
+  "release": "2026-10-26",
+  "zenodo_record": "23665561",
   "source": "dashboard/deploy/make_release.sh",
   "expect": {
     "proteins": 207463,
@@ -24,9 +24,9 @@
   "parts": {
     "indexes.tar.gz": {
       "dir": "proteins",
-      "bytes": 58405455,
+      "bytes": 58431514,
       "files": 208,
-      "sha256": "772e89eeed4d2485868ea174ee995612dcd9366bc734997869581c40c327bc70"
+      "sha256": "88261bef7d36db94662b7cb776c5c5fc88b1bf819d701f40fd1221b3d0068838"
     },
     "feature.tar.gz": {
       "dir": "feature",
