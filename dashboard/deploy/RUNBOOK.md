@@ -16,7 +16,7 @@ Docker Compose runs two containers:
 | `fetch-data` | It downloads the data release from Zenodo into a Docker volume, then it stops. At each later start, it compares checksums and stops in less than 1 second. |
 | `web` | nginx. It serves the site and the data volume on `127.0.0.1:8080`, as plain HTTP. |
 
-The data release is Zenodo record [23665561](https://zenodo.org/records/23665561): 33 parts,
+The data release is Zenodo record [23668222](https://zenodo.org/records/23668222): 33 parts,
 8.6 GB, and 423,258 files. `data-release.json` in this folder gives the record id, and the name, the size
 and the sha256 of each part.
 
@@ -41,7 +41,7 @@ Your reverse proxy terminates TLS and forwards the requests to `127.0.0.1:8080`.
 | Docker Compose | `docker compose version` | A version line. The old `docker-compose` (version 1) is not tested. |
 | Disk | `df -h "$(docker info --format '{{.DockerRootDir}}')"` | At least 20 GB available |
 | The port | `ss -ltn \| grep ':8080 '` | No output. If 8080 is in use, use another port in step 3. |
-| Zenodo | `curl -sS -o /dev/null -w '%{http_code}\n' https://zenodo.org/api/records/23665561` | `200` |
+| Zenodo | `curl -sS -o /dev/null -w '%{http_code}\n' https://zenodo.org/api/records/23668222` | `200` |
 
 The host must connect to these addresses over HTTPS:
 

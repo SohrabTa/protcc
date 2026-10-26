@@ -1,0 +1,23 @@
+15:22:11  Release 2026-10-26.2 from /Users/sohrab.tawana/private/crosscoder/repos/protcc/dashboard/data/release
+15:22:11  Code from b3835a8, with the changes of the working tree
+15:22:11  Docker 29.8.0, Docker Compose version v5.5.1
+15:26:06  QA PASS  first start with an empty volume: 233 s
+  tracks-06.tar.gz is in place, 0.19 GB
+207,463 proteins, 207,459 structures, 699 GB free.
+Release 2026-10-26.2 is in place, 8.6 GB in 4 min.
+15:26:11  QA PASS  web is healthy 5 s after the first start
+15:26:11  QA PASS  smoke test from the host: All checks passed.
+15:26:12  QA PASS  smoke test on the network of the containers: All checks passed.
+15:26:13  QA PASS  second start: 0.72 s, nothing to fetch
+15:26:26  QA PASS  VERIFY=1 after deleting tracks/Q9/Q90214.bin: 1 part fetched again, the file is back
+15:26:28  QA PASS  the proxy sends /protcc to /protcc/
+15:26:28  QA PASS  smoke test behind nginx under /protcc/: All checks passed.
+15:26:28  QA PASS  the port is 127.0.0.1:8090, and 192.168.178.152:8090 does not answer
+15:26:29  QA PASS  a part that the server does not have: exit 1 after 1 s, "not found"
+15:26:48  QA PASS  a wrong checksum: up exits 1, and web does not run
+15:26:54  QA PASS  after the repair of the release file, web is healthy again
+15:26:54  volume: 12110868 KiB, 12.4 GB
+15:26:55  image web: 77.4 MB
+15:26:55  image fetch-data: 87.9 MB
+15:26:55  QA: all checks passed.
+./qa_compose.sh: line 47: 96533 Terminated: 15          python3 -m http.server "$MIRROR_PORT" --bind 127.0.0.1 --directory "$REL" > /dev/null 2>&1
