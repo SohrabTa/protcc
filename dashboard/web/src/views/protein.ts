@@ -70,7 +70,7 @@ export async function renderProtein(d: Data, acc: string, host: HTMLElement): Pr
       'p',
       'small muted',
       `The table holds the ${shownRows} paired latents that cover the most of this protein. ` +
-        'It answers what else the crosscoder reads here, beside the annotation you came for.',
+        'It shows what else the crosscoder finds on this protein, beside the annotation you came for.',
     ),
     howto(
       'The rows start with the latent that covers the most of the protein. Covers counts every ' +
@@ -117,8 +117,8 @@ export async function renderProtein(d: Data, acc: string, host: HTMLElement): Pr
   const ev = panel(
     'Along the sequence',
     'What fires where',
-    'Teal rows are Swiss-Prot annotations. Under each one, the amber rows are the latents ' +
-      'that pair with it. The stronger the amber, the harder the latent fires, from 0 to its ' +
+    'Teal rows are the concepts of the evaluation set that this protein carries. Under each ' +
+      'one, the amber rows are all the latents that pair with it. The stronger the amber, the harder the latent fires, from 0 to its ' +
       'strongest anywhere. Where amber lines up with teal, the latent fires on the annotated ' +
       'residues.',
   );
@@ -187,15 +187,18 @@ export async function renderProtein(d: Data, acc: string, host: HTMLElement): Pr
     redrawStrips(group);
   }
   if (nAnnotations === 0) {
-    ev.append(el('p', 'small muted', 'Swiss-Prot annotates no region of this protein.'));
+    ev.append(
+      el('p', 'small muted', `${acc} carries none of the ${d.concepts.length} concepts of the evaluation set.`),
+    );
   } else {
     ev.append(
       el(
         'p',
         'small muted',
-        `Swiss-Prot annotates ${nAnnotations} region type${nAnnotations === 1 ? '' : 's'} of ` +
-          `${acc}` +
-          (nUnread ? `, and ${nUnread} of them no latent reads.` : '.'),
+        `${acc} carries ${nAnnotations} of the ${d.concepts.length} concepts of the evaluation ` +
+          'set' +
+          (nUnread ? `, and ${nUnread} of them ${nUnread === 1 ? 'has' : 'have'} no paired latent.` : '.') +
+          ' A Swiss-Prot annotation that is not one of these concepts does not show here.',
       ),
     );
   }

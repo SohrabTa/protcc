@@ -34,6 +34,12 @@ const COL_W = 16;
 const GATE_W = 100;
 const LOSS_W = 210;
 
+/** A fixed pseudo-random number in [0, 1), so the drawing looks the same on every load. */
+const rnd = (i: number) => {
+  const x = Math.sin(i * 12.9898 + 4.1414) * 43758.5453;
+  return x - Math.floor(x);
+};
+
 type Part = 'input' | 'encode' | 'gate' | 'fan' | 'rebuilt' | 'loss' | 'latent';
 type Look = 'on' | 'dim' | 'off';
 
@@ -107,7 +113,9 @@ function draw(d: Data, fid: number): Drawing {
   const group = (name: Part) => add(svg, 'g', { 'data-part': name }) as SVGGElement;
   const parts = {} as Record<Part, SVGGElement>;
   const rows = [...Array(t.layers).keys()];
-  const quiet = (j: number) => 0.15 + ((j * 37) % 11) / 30;
+  // Every latent has a pre-activation, drawn as the strength of the amber. The gate keeps the
+  // strongest ones, so the latents after it are the brightest cells of the column before it.
+  const strength = (j: number) => (LIT.includes(j) ? 0.85 + 0.15 * rnd(j) : 0.06 + 0.6 * rnd(j) ** 1.6);
   const line = (g: Element, x1: number, y1: number, x2: number, y2: number, stroke: string, opacity = 1) =>
     add(g, 'line', { x1, y1, x2, y2, stroke, opacity });
   const plus = (g: Element, cx: number) => {
@@ -137,7 +145,7 @@ function draw(d: Data, fid: number): Drawing {
   plus(encode, X.sum1);
   line(encode, X.sum1 + 12, MID, X.pre, MID, 'var(--ink-2)');
   title(encode, X.pre + COL_W / 2, 'pre-activations', num(t.latents));
-  column(encode, X.pre, (j) => (LIT.includes(j) ? ['var(--ink-2)', 0.95] : ['var(--line-strong)', quiet(j)]));
+  column(encode, X.pre, (j) => ['var(--signal)', strength(j)]);
   foot(encode, X.encoder + COL_W / 2, 'W', 'enc,ℓ');
 
   // The gate keeps a few latents.
@@ -150,7 +158,7 @@ function draw(d: Data, fid: number): Drawing {
   add(gate, 'text', { x: gx, y: MID + 27, 'font-size': FS - 1, 'text-anchor': 'middle', fill: 'var(--muted)' }, 'or JumpReLU');
   line(gate, X.gate + GATE_W, MID, X.latents, MID, 'var(--ink-2)');
   title(gate, X.latents + COL_W / 2, 'latents', `${t.k} on average`);
-  column(gate, X.latents, (j) => (LIT.includes(j) ? ['var(--signal)', 1] : ['var(--line-strong)', 0.12]));
+  column(gate, X.latents, (j) => (LIT.includes(j) ? ['var(--signal)', strength(j)] : ['var(--line-strong)', 0.12]));
 
   // Decode: one matrix per layer.
   const fan = (parts.fan = group('fan'));
@@ -315,11 +323,25 @@ export function archFigure(d: Data): HTMLElement {
     head.textContent = `${at + 1}. ${steps[at][0]}`;
     text.replaceChildren(...steps[at][1]);
   };
-  nav.addEventListener('keydown', (e) => {
+  // The arrow keys step through the figure while it is on screen, wherever the focus is. A key
+  // in a text field or with a modifier is left alone. The listener removes itself once the page
+  // no longer holds the figure.
+  let onScreen = false;
+  new IntersectionObserver(([e]) => {
+    onScreen = e.isIntersecting;
+  }, { threshold: 0.3 }).observe(svg);
+  const onKey = (e: KeyboardEvent) => {
+    if (!box.isConnected) {
+      removeEventListener('keydown', onKey);
+      return;
+    }
     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    if (!onScreen || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    if ((e.target as HTMLElement).closest('input, textarea, select, [contenteditable]')) return;
+    e.preventDefault();
     go(at + (e.key === 'ArrowRight' ? 1 : -1));
-    buttons[at].focus();
-  });
+  };
+  addEventListener('keydown', onKey);
   nav.append(...buttons);
 
   const pic = el('div', 'arch-pic');

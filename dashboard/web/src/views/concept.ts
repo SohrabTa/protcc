@@ -260,8 +260,8 @@ async function drawEvidence(
   if (annotated) {
     swissEnd.append(
       infoButton(
-        'reads',
-        'What "reads" means',
+        'fires on',
+        'What "fires on" means',
         'The share of the annotated residues on this protein where the latent fires at more ' +
           'than 0.3 of its own maximum. The last row counts a residue when any of the latents ' +
           'fires there.',
@@ -290,7 +290,7 @@ async function drawEvidence(
     rows.append(
       button,
       strip,
-      el('div', 'end', share === null ? '' : `reads ${pct(share, 0)}`),
+      el('div', 'end', share === null ? '' : `fires on ${pct(share, 0)}`),
     );
     button.addEventListener('click', () => select(key));
     buttons.set(key, { button, strip });

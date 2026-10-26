@@ -97,18 +97,24 @@ header.top { border-bottom: 1px solid var(--line); background: var(--surface); }
    text at reading size. */
 .mf {
   display: grid; gap: 8px 0; align-items: stretch;
-  grid-template-columns: 5.5rem minmax(0, 1fr) 1.75rem minmax(0, 1fr) 1.75rem minmax(0, 1fr) 1.75rem minmax(0, 1fr);
+  grid-template-columns: 5.5rem minmax(0, 1fr) 1.75rem minmax(0, 1fr) 8rem minmax(0, 1fr) 1.75rem minmax(0, 1fr);
   grid-template-areas:
-    'lt td a1 pt a3 cc a5 tg'
-    'le ed a2 pt a4 cc a6 ep';
+    'lt td a1 pt rs cc a5 tg'
+    'le ed a2 pt rs cc a6 ep';
   margin: 0 0 4px;
 }
 .mf-lt { grid-area: lt; } .mf-le { grid-area: le; }
 .mf-td { grid-area: td; } .mf-ed { grid-area: ed; }
 .mf-pt { grid-area: pt; } .mf-cc { grid-area: cc; }
 .mf-tg { grid-area: tg; } .mf-ep { grid-area: ep; }
-.mf-a1 { grid-area: a1; } .mf-a2 { grid-area: a2; } .mf-a3 { grid-area: a3; }
-.mf-a4 { grid-area: a4; } .mf-a5 { grid-area: a5; } .mf-a6 { grid-area: a6; }
+.mf-a1 { grid-area: a1; } .mf-a2 { grid-area: a2; }
+.mf-a5 { grid-area: a5; } .mf-a6 { grid-area: a6; }
+.mf-stream {
+  grid-area: rs; align-self: center; display: flex; flex-direction: column; align-items: center;
+  gap: 2px; padding: 0 8px; text-align: center; font-size: var(--fs-sm); color: var(--ink-2);
+  line-height: 1.35;
+}
+.mf-stream-arrow { color: var(--muted); }
 .mf-lane { align-self: center; font-size: var(--fs-md); font-weight: 600; color: var(--muted); }
 .mf-node {
   display: flex; flex-direction: column; justify-content: center; gap: 2px;
@@ -125,7 +131,9 @@ header.top { border-bottom: 1px solid var(--line); background: var(--surface); }
 .mf-lane-note { display: none; font-weight: 400; }
 .methodfoot { margin: 8px 0 12px; font-size: var(--fs-md); color: var(--ink-2); }
 @media (max-width: 900px) {
-  .mf { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'lt' 'td' 'pt' 'cc' 'tg' 'le' 'ed' 'ep'; }
+  .mf { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'lt' 'td' 'pt' 'rs' 'cc' 'tg' 'le' 'ed' 'ep'; }
+  .mf-stream { flex-direction: row; justify-content: flex-start; padding: 0 10px; }
+  .mf-stream-arrow { order: -1; transform: rotate(90deg); }
   .mf-arrow { display: none; }
   .mf-le { margin-top: 8px; }
   .mf-lane-note { display: inline; }
@@ -195,7 +203,7 @@ th[aria-sort='descending'], th[aria-sort='ascending'] { color: var(--ink); }
 th .th-info { width: 13px; height: 13px; }
 .famtabs-info { align-self: center; margin-left: 2px; }
 .famhead .info-btn { margin-left: 0; }
-.stat .v .info-btn { vertical-align: 3px; margin-left: 6px; }
+.stat .info-btn { vertical-align: 1px; margin-left: 6px; }
 .metricpop {
   position: absolute; z-index: 40; width: 270px; padding: 9px 11px 10px;
   background: var(--surface); border: 1px solid var(--line-strong); border-radius: 3px;
@@ -321,7 +329,7 @@ h3.sub { font-size: var(--fs-body); font-weight: 600; color: var(--ink); margin:
 .navrow { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .jump-box { position: relative; }
 .jump-box input {
-  width: 230px; padding: 5px 9px; font-size: var(--fs-md);
+  width: 19rem; max-width: 100%; padding: 5px 9px; font-size: var(--fs-md);
   color: var(--ink); background: var(--surface); border: 1px solid var(--line-strong);
   border-radius: 3px; font-family: inherit;
 }
@@ -351,23 +359,28 @@ h3.sub { font-size: var(--fs-body); font-weight: 600; color: var(--ink); margin:
 }
 .anngroup .rows { grid-template-columns: 78px 1fr; }
 
-/* Figures, for the numbers that used to sit inside a sentence. */
+/* Figures, for the numbers that used to sit inside a sentence. Each one reads as a short phrase,
+   the number first, in the size of the text around it: a page of measurements, not a row of
+   large figures. */
 .statbox { margin-top: 10px; }
-/* One row of columns that shrink to fit, so six figures do not wrap as five and one, and three
-   figures in a narrow column stay in one row. A phone gets two columns. */
-.statrow {
-  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 180px); gap: 8px 22px;
-}
-.stat { min-width: 0; }
-@media (max-width: 640px) {
-  .statrow { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
+.statrow { display: flex; flex-wrap: wrap; gap: 4px 28px; }
+.stat { min-width: 0; font-size: var(--fs-body); color: var(--ink-2); }
 .stat .v {
-  font-size: var(--fs-h2); font-weight: 600; display: block;
-  font-variant-numeric: tabular-nums; line-height: 1.25; color: var(--ink);
+  font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums;
+  display: inline-flex; align-items: center; gap: 4px;
 }
-.stat .k { font-size: var(--fs-sm); color: var(--muted); display: block; max-width: 24ch; }
+.stat .k { margin-left: 0.35em; }
 .statnote { margin: 8px 0 0; max-width: 70ch; }
+
+/* The spread of a few values: median, middle half, range and a small box plot per row. */
+.spread-box { margin: 10px 0 14px; }
+table.spread { border-collapse: collapse; font-size: var(--fs-md); }
+table.spread th { text-align: left; font-weight: 500; color: var(--muted); font-size: var(--fs-sm); padding: 4px 14px 4px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.spread td { padding: 5px 14px 5px 0; border-bottom: 1px solid var(--line); vertical-align: middle; white-space: nowrap; }
+table.spread td.num { font-variant-numeric: tabular-nums; }
+table.spread td svg { display: block; }
+table.spread td.spread-name { color: var(--ink); text-align: left; }
+table.spread td.num { text-align: right; }
 
 /* A colour reference inside a line of text. */
 .inlinekey {
@@ -474,6 +487,13 @@ h3.sub { font-size: var(--fs-body); font-weight: 600; color: var(--ink); margin:
 
 /* The header link to the glossary. */
 .navtools { display: flex; align-items: center; gap: 14px; }
+/* On a phone the search box takes its own line, at full width, so the page does not scroll
+   sideways. */
+@media (max-width: 640px) {
+  .navrow { flex-wrap: wrap; }
+  .navtools { flex-wrap: wrap; width: 100%; }
+  .jump, .jump-box, .jump-box input { width: 100%; }
+}
 .glosslink { font-size: var(--fs-md); white-space: nowrap; }
 /* The theme switch: two icon halves in one frame, the current half filled. */
 .themeswitch {

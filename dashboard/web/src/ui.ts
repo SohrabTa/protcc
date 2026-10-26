@@ -456,9 +456,8 @@ export function figures(
   const row_ = el('div', 'statrow');
   for (const [v, k, info] of items) {
     const f = el('div', 'stat');
-    const value = el('span', 'v', v);
-    if (info) value.append(infoButton(k, info.title, info.short, info.slug));
-    f.append(value, el('span', 'k', k));
+    f.append(el('span', 'v', v), el('span', 'k', k));
+    if (info) f.append(infoButton(k, info.title, info.short, info.slug));
     row_.append(f);
   }
   box.append(row_);

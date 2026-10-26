@@ -22,8 +22,8 @@ export function mountJump(d: Data, host: HTMLElement): void {
   const box = el('div', 'jump-box');
   const input = el('input');
   input.type = 'search';
-  input.placeholder = 'Search concepts';
-  input.setAttribute('aria-label', 'Search concepts');
+  input.placeholder = 'Search concepts, latents or proteins';
+  input.setAttribute('aria-label', 'Search concepts, latents (f/1819) or proteins (UniProt accession)');
   const list = el('div', 'jump-list');
   list.hidden = true;
   box.append(input, list);

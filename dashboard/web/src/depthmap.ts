@@ -638,7 +638,9 @@ export function depthMap(d: Data): DepthMapHandle {
         help,
         'Point at an amber dot to see its latent, and click the dot to open it. Click ' +
         'anywhere else inside the plot to open that layer alone. Drag a rectangle inside the ' +
-        'plot to zoom into it and to list its latents. Point at a bar to see its share.',
+        'plot to zoom into it. In the two cases, a table under the plot lists the latents in ' +
+        'view. Point at a bar to see how many of the latents that peak at that layer pair with ' +
+        'a concept.',
       );
       return;
     }

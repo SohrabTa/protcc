@@ -78,9 +78,9 @@ export interface Concept {
   fld: string; // Swiss-Prot field, "Domain"
   fam: string; // biological family, the primary grouping
   role: string; // catalytic | binding | structural | PTM | targeting | disorder
-  f1: number; // held-out F1 per domain of the latent the validation half chose: the Best F1
+  f1: number; // test-set F1 per domain of the latent the validation set picked: the Best F1
   nf: number; // how many latents pair with it
-  bf?: number; // the latent the validation half chose: the Best latent
+  bf?: number; // the latent the validation set picked: the Best latent
   // latent, F1 per domain, precision, recall per residue, recall per domain. The last entry is
   // absent in a tree built before stage 4 wrote it.
   feats?: [number, number, number, number, number?][];

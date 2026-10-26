@@ -21,11 +21,12 @@ const ALLOWED = new Map([
 
 const MEASURED = /\b\d{1,3}(?:,\d{3})+\b|\b\d+\.\d{3,}\b|\b\d+\.\d+%|\b\d{3,}\b/g;
 
-/** Parts of a text that hold digits but no measurement: links, arXiv numbers, citation years. */
+/** Parts of a text that hold digits but no measurement: links, arXiv numbers, proceedings volumes, citation years. */
 function strip(text) {
   return text
     .replace(/\S*:\/\/\S*/g, ' ')
     .replace(/arXiv \d{4}\.\d{4,5}/g, ' ')
+    .replace(/PMLR \d+/g, ' ')
     .replace(/,\s(?:19|20)\d{2}\b/g, ' ');
 }
 

@@ -68,8 +68,9 @@ export const METRIC_INFO: MetricInfo[] = [
     section: 'sparse',
     title: 'Latent',
     short:
-      'One of the {latents_total} directions in the crosscoder’s dictionary. In a concept ' +
-      'table, the Latents column counts the latents that pair with the concept in that row.',
+      'One of the {latents_total} entries of the crosscoder’s dictionary. At each residue a ' +
+      'latent is off, or it fires with some strength: its activation. In a concept table, the ' +
+      'Latents column counts the latents that pair with the concept in that row.',
   },
   {
     slug: 'activation',
@@ -100,8 +101,8 @@ export const METRIC_INFO: MetricInfo[] = [
     section: 'naming',
     title: 'What a pairing is',
     short:
-      'A latent pairs with a concept when its F1 per domain is more than 0.5 on two separate ' +
-      'halves of the proteins: the validation half and the held-out half. {latents_paired} of ' +
+      'A latent pairs with a concept when its F1 per domain is more than 0.5 on the validation ' +
+      'set and again on the test set, the two halves of the evaluation set. {latents_paired} of ' +
       'the {latents_alive} live latents pair with at least one concept.',
   },
   {
@@ -118,7 +119,7 @@ export const METRIC_INFO: MetricInfo[] = [
     title: 'Recall per residue',
     short:
       'Count the residues the annotation covers. Recall per residue is the share of them that ' +
-      'the latent fires on. It says how much of the region the latent reads.',
+      'the latent fires on. It says how much of the region the latent fires on.',
   },
   {
     slug: 'recall-per-domain',
@@ -150,9 +151,8 @@ export const METRIC_INFO: MetricInfo[] = [
     section: 'naming',
     title: 'Best latent',
     short:
-      'Of the latents that pair with this concept, the one the validation half chose. Its F1 per ' +
-      'domain on the held-out half is the Best F1. It is not always the one that reads the most ' +
-      'of the region.',
+      'The latent with the highest F1 per domain for this concept on the validation set. Its F1 ' +
+      'per domain on the test set is the Best F1.',
   },
   {
     slug: 'peak-layer',
@@ -213,10 +213,18 @@ export const METRIC_INFO: MetricInfo[] = [
   {
     slug: 'proteins',
     section: 'naming',
-    title: 'Proteins',
+    title: 'Proteins with a concept',
     short:
-      'How many proteins of the {proteins} in the evaluation set Swiss-Prot annotates with this ' +
-      'concept. These are the proteins the evidence panel steps through.',
+      'How many of the {proteins} proteins in the evaluation set carry this concept in their ' +
+      'Swiss-Prot annotation.',
+  },
+  {
+    slug: 'proteins-fired',
+    section: 'naming',
+    title: 'Proteins a latent fires on',
+    short:
+      'How many of the {proteins} proteins in the evaluation set a latent fires on, whether or ' +
+      'not Swiss-Prot annotates anything there.',
   },
 ];
 
@@ -252,25 +260,21 @@ const BY_KEY: Record<string, { slug: string; short: string }> = {
   latent: {
     slug: 'latents',
     short:
-      'One of the {latents_total} directions in the crosscoder’s dictionary. Each row is one ' +
+      'One of the {latents_total} entries of the crosscoder’s dictionary. Each row is one ' +
       'latent, and the link opens its page.',
   },
   // The Best F1 of a concept follows the paper's rule, which is not the highest F1 of a table.
   'best f1': {
     slug: 'f1-per-domain',
     short:
-      'The F1 per domain, on the held-out half, of the latent that the validation half chose ' +
-      'for this concept. The average over all {concepts_total} concepts is {avg_best_f1}. A ' +
-      'concept can have a Best ' +
-      'F1 above 0.5 and no paired latent, when that latent scored 0.5 or less on the validation ' +
-      'half.',
+      'The F1 per domain on the test set of the Best latent, the latent that the validation set ' +
+      'picked for this concept. The average over all {concepts_total} concepts is {avg_best_f1}.',
   },
   'proteins it fires on': {
-    slug: 'proteins',
+    slug: 'proteins-fired',
     short:
-      'How many of the {proteins} proteins in the evaluation set this latent fires on. ' +
-      'Swiss-Prot does not have to annotate anything there, so a latent that pairs with no concept also ' +
-      'has a count.',
+      'How many of the {proteins} proteins in the evaluation set this latent fires on, whether ' +
+      'or not Swiss-Prot annotates anything there.',
   },
   'paired concept': {
     slug: 'concept',
@@ -283,14 +287,14 @@ const BY_KEY: Record<string, { slug: string; short: string }> = {
     slug: 'covers',
     short:
       'The share of a protein’s residues where this latent is active, as the mean over ' +
-      'the proteins it fires on. A latent that reads a short motif covers a few percent. In the ' +
+      'the proteins it fires on. A latent that fires on a short motif covers a few percent. In the ' +
       'view of one layer, this value is the axis across.',
   },
   'best pair f1': {
     slug: 'f1-per-domain',
     short:
       'The F1 per domain of this latent with its best concept. A latent pairs with a concept ' +
-      'when this score is more than 0.5 on the validation half and on the held-out half.',
+      'when this score is more than 0.5 on the validation set and on the test set.',
   },
 };
 

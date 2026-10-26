@@ -183,26 +183,26 @@ export function batchTopKPicture(t: Training): HTMLElement {
 
 /** The two data sets: the training corpus, and the evaluation set with its two halves. */
 export function dataSetsPicture(t: Training, proteins: number): HTMLElement {
-  const s = svg(660, 132, 'UniRef50 trains the crosscoder. Swiss-Prot, split into two halves, evaluates it.');
+  const s = svg(660, 132, 'UniRef50 trains the crosscoder. Swiss-Prot, divided into a validation set and a test set, evaluates it.');
   label(s, 0, 16, `${t.corpus}, for the training`, { fill: 'var(--ink-2)', 'font-weight': 600 });
   add(s, 'rect', { x: 0, y: 24, width: 660, height: 22, rx: 3, fill: 'var(--line-strong)', opacity: 0.5 });
   label(s, 10, 40, `${amount(t.sequences)} sequences, ${amount(t.residues)} residues, no annotations`, { fill: 'var(--ink)' });
   label(s, 0, 80, 'Swiss-Prot, for the evaluation', { fill: 'var(--ink-2)', 'font-weight': 600 });
   add(s, 'rect', { x: 0, y: 88, width: 327, height: 22, rx: 3, fill: 'var(--accent)', opacity: 0.35 });
   add(s, 'rect', { x: 333, y: 88, width: 327, height: 22, rx: 3, fill: 'var(--accent)', opacity: 0.6 });
-  label(s, 10, 104, 'validation half: chooses each pairing', { fill: 'var(--ink)' });
-  label(s, 343, 104, 'held-out half: scores it', { fill: 'var(--ink)' });
+  label(s, 10, 104, 'validation set: picks each pairing', { fill: 'var(--ink)' });
+  label(s, 343, 104, 'test set: scores it', { fill: 'var(--ink)' });
   label(s, 0, 128, `${num(proteins)} proteins with annotations, divided into two halves`, { 'font-size': 12 });
-  return pic(s, 'The two data sets. The bars are not to scale. The training never sees an annotation. Some Swiss-Prot sequences are also in UniRef50, so the evaluation tests what the latents encode, not how they do on unseen proteins.');
+  return pic(s, 'The two data sets. The bars are not to scale. Some Swiss-Prot sequences are also in UniRef50, so the evaluation tests what the latents encode, not how they do on unseen proteins.');
 }
 
-/** The pairing rule as two cases: one latent clears 0.5 on the two halves, one does not. */
+/** The pairing rule as two cases: one latent clears 0.5 on the two sets, one does not. */
 export function pairingRulePicture(): HTMLElement {
-  const s = svg(680, 118, 'Two latents scored on the two halves. Only the first clears 0.5 on both.');
+  const s = svg(680, 118, 'Two latents scored on the validation set and the test set. Only the first clears 0.5 on both.');
   const bw = 170;
   const cols = [110, 330];
-  label(s, cols[0], 14, 'validation half', { 'font-size': 12 });
-  label(s, cols[1], 14, 'held-out half', { 'font-size': 12 });
+  label(s, cols[0], 14, 'validation set', { 'font-size': 12 });
+  label(s, cols[1], 14, 'test set', { 'font-size': 12 });
   label(s, 570, 14, 'result', { 'font-size': 12 });
   const cases: [string, number, number][] = [['latent A', 0.71, 0.66], ['latent B', 0.62, 0.41]];
   cases.forEach(([name, a, b], r) => {
@@ -220,7 +220,7 @@ export function pairingRulePicture(): HTMLElement {
   });
   label(s, cols[0] + bw / 2, 112, '0.5', { 'font-size': 12, 'text-anchor': 'middle' });
   label(s, cols[1] + bw / 2, 112, '0.5', { 'font-size': 12, 'text-anchor': 'middle' });
-  return pic(s, 'The F1 per domain of two latents with one concept, made-up values. A latent pairs only when it clears 0.5 on the validation half and again on the held-out half.');
+  return pic(s, 'The F1 per domain of two latents with one concept, made-up values. A latent pairs only when it clears 0.5 on the validation set and again on the test set.');
 }
 
 /** Why F1 per domain is generous: one firing residue recalls the whole region. */
@@ -235,7 +235,7 @@ export function generousPicture(): HTMLElement {
   track(s, x0, 26, n, cw, (i) => (i === 19 ? 'var(--signal)' : null));
   label(s, x0, 70, 'recall per domain: 1 of 1 region = 1.00', { fill: 'var(--ink)' });
   label(s, x0, 92, 'recall per residue: 1 of 24 residues = 0.04', { fill: 'var(--ink)' });
-  return pic(s, 'One protein, made up. The latent fires on one residue inside a domain of 24. Per domain, it recalls the domain. Per residue, it reads almost none of it.');
+  return pic(s, 'One protein, made up. The latent fires on one residue inside a domain of 24. Per domain, it recalls the domain. Per residue, it covers almost none of it.');
 }
 
 /** The latents of this crosscoder: dead, live with no pair, and paired. Measured. */
@@ -380,7 +380,7 @@ export function spreadPicture(): HTMLElement {
   label(s, 360, 22, 'one site in the fold', { fill: 'var(--ink-2)', 'font-weight': 600 });
   label(s, 360, 116, 'spread along the chain: high', { 'font-size': 12 });
   label(s, 360, 134, 'spread in space: low', { 'font-size': 12 });
-  return pic(s, 'Two made-up latents, with the firing residues in amber. The left one reads one stretch of the chain. The right one fires at residues that are far apart along the chain but next to each other in the fold.');
+  return pic(s, 'Two made-up latents, with the firing residues in amber. The left one fires on one stretch of the chain. The right one fires at residues that are far apart along the chain but next to each other in the fold.');
 }
 
 /** The five cuts the pairing tries on one latent's activation. */
@@ -453,12 +453,12 @@ export function peakActivationPicture(): HTMLElement {
   return pic(s, 'Made-up values. The peak is the largest activation on this protein, on the scale where 1 is the strongest the latent fires anywhere.');
 }
 
-/** The validation half picks one latent; the held-out half scores it. */
+/** The validation set picks one latent, and the test set scores it. */
 export function bestLatentPicture(): HTMLElement {
-  const s = svg(620, 150, 'The validation half picks the latent with the best F1, and the held-out half scores it.');
+  const s = svg(620, 150, 'The validation set picks the latent with the best F1, and the test set scores it.');
   const rows: [string, number][] = [['latent A', 0.58], ['latent B', 0.74], ['latent C', 0.52], ['latent D', 0.66]];
   const best = 1;
-  label(s, 90, 14, 'F1 per domain, validation half', { 'font-size': 12 });
+  label(s, 90, 14, 'F1 per domain, validation set', { 'font-size': 12 });
   rows.forEach(([name, v], r) => {
     const y = 26 + r * 28;
     const on = r === best;
@@ -470,9 +470,9 @@ export function bestLatentPicture(): HTMLElement {
   const y = 26 + best * 28 + 9;
   arrow(s, 340, y, 420, y);
   label(s, 380, y - 8, 'picked', { 'font-size': 12, 'text-anchor': 'middle' });
-  label(s, 430, y - 10, 'held-out half scores it', { 'font-size': 12 });
+  label(s, 430, y - 10, 'test set scores it', { 'font-size': 12 });
   label(s, 430, y + 12, 'Best F1 = 0.69', { fill: 'var(--ink)', 'font-weight': 600 });
-  return pic(s, 'One concept with four paired latents, made-up values. The validation half picks the Best latent, and the held-out half gives its score, the Best F1. The pick never sees the held-out half.');
+  return pic(s, 'One concept with four paired latents, made-up values. The validation set picks the Best latent, and the test set gives its score, the Best F1. The pick never sees the test set.');
 }
 
 /** A Swiss-Prot field, its values, and the "any" concept that joins them. */

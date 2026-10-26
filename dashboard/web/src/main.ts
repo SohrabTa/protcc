@@ -6,6 +6,7 @@
  * kept as an alias of `#/latent/<id>` so that links sent before the rename still resolve.
  */
 
+import './fonts.css';
 import './style.css';
 import { Data } from './data';
 import { el, link } from './ui';

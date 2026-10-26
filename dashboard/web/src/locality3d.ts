@@ -43,9 +43,9 @@ export function shapeOf(seq: number, space: number): Shape {
 }
 
 const SHAPE_PROSE: Record<Shape, string> = {
-  stretch: 'reads one stretch of the chain',
-  'fold-site': 'reads one site in the fold',
-  neither: 'reads no single place',
+  stretch: 'fires on one stretch of the chain',
+  'fold-site': 'fires on one site in the fold',
+  neither: 'fires on no single place',
 };
 
 const SHAPE_SHORT: Record<Shape, string> = {
@@ -300,17 +300,17 @@ export function latentLocalityPlot(d: Data, self?: Feature): HTMLElement {
   };
   put(
     `left, ${num(counts.stretch)}`,
-    'The firing residues are close along the chain. The latent reads one stretch. Its spread in ' +
+    'The firing residues are close along the chain. The latent fires on one stretch. Its spread in ' +
       'space follows from the fold and can be anything, so the height says nothing here.',
   );
   put(
     `lower right, ${num(counts['fold-site'])}`,
-    'The firing residues are far apart along the chain and close in space. The latent reads one ' +
+    'The firing residues are far apart along the chain and close in space. The latent fires on one ' +
       'site in the fold. The letter row shows this case as scatter and cannot tell it from noise.',
   );
   put(
     `upper right, ${num(counts.neither)}`,
-    'The firing residues are far apart both ways. The latent reads no single place on the ' +
+    'The firing residues are far apart both ways. The latent fires on no single place on the ' +
       'proteins measured.',
   );
   textSide.append(key);

@@ -284,7 +284,7 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
         'The same idea is already in use on protein language models, one layer at a time ',
         cite('(Simon and Zou, 2025)', 'https://doi.org/10.1038/s41592-025-02836-7'),
         ' ',
-        cite('(Adams and others, 2025)', 'https://doi.org/10.1101/2025.02.06.636901'),
+        cite('(Adams and others, 2025)', 'https://proceedings.mlr.press/v267/adams25a.html'),
         '. What follows is where this project departs from that.',
       ),
     ]),
@@ -375,9 +375,9 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
       para(
         'The evaluation set is a different set of proteins: ',
         el('strong', undefined, `${num(d.manifest.counts.proteins)} Swiss-Prot proteins`),
-        ' of annotation score 3, 4 or 5, at most 512 residues. The set is split into two ' +
-          'halves. The validation half chooses the pairings, and every pairing score on this ' +
-          'site is measured on the other, held-out half.',
+        ' of annotation score 3, 4 or 5, at most 512 residues. The set is divided into two ' +
+          'halves, a validation set and a test set. The validation set picks the pairings, and ' +
+          'every pairing score on this site is measured on the test set.',
       ),
       dataSetsPicture(t, d.manifest.counts.proteins),
       para(
@@ -403,8 +403,8 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
           'a motif, an active site, a zinc finger. For every concept and every latent, the ' +
           'pipeline compares the residues the latent fires on against the residues the concept ' +
           'covers. That comparison gives precision and recall. A latent pairs with a concept ' +
-          'when its F1 per domain is more than 0.5 on the validation half and again on the ' +
-          'held-out half.',
+          'when its F1 per domain is more than 0.5 on the validation set and again on the ' +
+          'test set.',
       ),
       pairingRulePicture(),
       para(
@@ -414,14 +414,14 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
           `${h.concepts_identified} of the ${h.concepts_total} concepts have at least one ` +
             `latent, and ${num(h.features_paired)} latents pair with at least one concept.`,
         ),
-        ` The average best F1 per domain over all ${h.concepts_total} concepts, on the held-out ` +
-          'half, is ',
+        ` The average best F1 per domain over all ${h.concepts_total} concepts, on the test ` +
+          'set, is ',
         el('strong', undefined, h.avg_best_test_f1.toFixed(3)),
         '. The last box of the schematic at the top of the landing page shows the first of these numbers.',
       ),
       para(
-        'A concept is rarely one latent. Most found concepts are split across a group, and each ' +
-          'latent in the group reads a part of the region. The Splitting panel on the ',
+        'A concept rarely pairs with only one latent. Most paired concepts pair with a group of ' +
+          'latents, and each latent in the group fires on a part of the region. The Splitting panel on the ',
         link('/', 'landing page'),
         ' is that result, and the next section says why it matters for reading any single score.',
       ),
@@ -434,7 +434,7 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
       para(
         el('strong', undefined, 'F1 per domain is a generous score. '),
         'One firing residue inside a region counts as recalling the whole region. So a latent ' +
-          'that fires on a single conserved glycine scores near the top, and reads almost none ' +
+          'that fires on a single conserved glycine scores near the top, and fires on almost none ' +
           'of the domain. Read recall per residue beside it, always. The gap between the two ' +
           'is the main methodological result of this project, and every concept page prints ' +
           'both.',
@@ -443,7 +443,7 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
       para(
         el('strong', undefined, 'The set is one set. '),
         'Everything here is Swiss-Prot, at most 512 residues, with an annotation score of 3 or ' +
-          'more. A latent that reads something Swiss-Prot does not annotate cannot pair here, ' +
+          'more. A latent that fires on something Swiss-Prot does not annotate cannot pair here, ' +
           'and ',
         el('strong', undefined, `${num(h.latents_alive - h.features_paired)} live latents`),
         ' pair with no concept. They are not noise. This evaluation set has no concept for ' +
@@ -485,8 +485,8 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
     [
       'Adams and others, 2025',
       'From mechanistic interpretability to mechanistic biology: training, evaluating and ' +
-        'interpreting sparse autoencoders on protein language models. Bioinformatics.',
-      'https://doi.org/10.1101/2025.02.06.636901',
+        'interpreting sparse autoencoders on protein language models. ICML, PMLR 267.',
+      'https://proceedings.mlr.press/v267/adams25a.html',
     ],
     [
       'Lindsey and others, 2024',

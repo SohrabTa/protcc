@@ -2,10 +2,11 @@
  * The header of the landing page: how the data on this site was made, as one small schematic.
  *
  * Two lanes share one model. The top lane is the training: UniRef50 goes through ProtT5, and the
- * crosscoder learns to rebuild all 24 layers. The bottom lane is the evaluation: Swiss-Prot goes
- * through the same ProtT5 and the same crosscoder, now frozen, and its latents pair with
- * concepts. ProtT5 and the crosscoder span the two lanes, so the reader sees that one model serves
- * both, and that the training never sees an annotation.
+ * crosscoder learns to rebuild the residual stream after each of the 24 layers. The bottom lane
+ * is the evaluation: Swiss-Prot goes through the same ProtT5 and the trained crosscoder, and its
+ * latents pair with concepts. ProtT5 and the crosscoder span the two lanes, so the reader sees
+ * that one model serves both. The link between them names the residual stream, because that is
+ * all the crosscoder reads.
  *
  * Every box is plain text at reading size, with its numbers inside the sentence, and one link into
  * the method page. The pictures are on the method page, where there is room to explain them.
@@ -28,10 +29,23 @@ function arrow(area: string): HTMLElement {
   return s;
 }
 
+/**
+ * The link between ProtT5 and the crosscoder. It names what passes along it, because the
+ * crosscoder reads only the residual stream between the layers, not what is inside a layer.
+ */
+function stream(layers: number): HTMLElement {
+  const s = el('span', 'mf-stream');
+  s.append(
+    el('span', 'mf-stream-text', `residual stream after each of the ${layers} layers`),
+    el('span', 'mf-stream-arrow', '\u2192'),
+  );
+  return s;
+}
+
 /** In one column the two lanes no longer share their boxes, so the label says it instead. */
 function evaluateLabel(): HTMLElement {
   const s = el('span', 'mf-lane mf-le', 'Evaluate');
-  s.append(el('span', 'mf-lane-note', ', with the same ProtT5 and the crosscoder frozen'));
+  s.append(el('span', 'mf-lane-note', ', with the same ProtT5 and the trained crosscoder'));
   return s;
 }
 
@@ -44,46 +58,27 @@ export function methodFigure(d: Data): HTMLElement {
   grid.append(
     el('span', 'mf-lane mf-lt', 'Train'),
     evaluateLabel(),
+    node('td', t.corpus, `${amount(t.sequences)} sequences, ${amount(t.residues)} residues`, 'training'),
+    node('ed', 'Swiss-Prot', `${num(d.manifest.counts.proteins)} annotated proteins`, 'naming'),
+    node('pt', 'ProtT5 encoder', `${t.layers} layers, frozen. 1,024 numbers per residue between layers.`, 'why'),
+    stream(t.layers),
+    node('cc', 'Crosscoder', `one dictionary of ${num(t.latents)} latents for all ${t.layers} layers`, 'one-dictionary'),
     node(
-      'td', t.corpus,
-      `${amount(t.sequences)} sequences, ${amount(t.residues)} residues, no labels`,
-      'training',
-    ),
-    node(
-      'ed', 'Swiss-Prot',
-      `${num(d.manifest.counts.proteins)} proteins with annotations`,
-      'naming',
-    ),
-    node(
-      'pt', 'ProtT5 encoder',
-      `${t.layers} layers, frozen. Each layer passes on 1,024 numbers per residue.`,
-      'why',
-    ),
-    node(
-      'cc', 'Crosscoder',
-      `${num(t.latents)} latents in one dictionary for all ${t.layers} layers`,
-      'one-dictionary',
-    ),
-    node(
-      'tg', `Learns to rebuild all ${t.layers} layers`,
+      'tg', `Learns to rebuild the ${t.layers} residual streams`,
       `from ${t.k} latents per residue, on average`,
       'architecture',
     ),
     node(
-      'ep', 'Latents pair with concepts',
+      'ep', 'Its latents pair with concepts',
       `${h.concepts_identified} of ${h.concepts_total} concepts have a paired latent`,
       'naming',
     ),
-    arrow('a1'), arrow('a2'), arrow('a3'), arrow('a4'), arrow('a5'), arrow('a6'),
+    arrow('a1'), arrow('a2'), arrow('a5'), arrow('a6'),
   );
   const foot = el('p', 'methodfoot');
   const how = el('a', undefined, 'How the crosscoder is built, step by step');
   how.href = '#/method/architecture';
-  foot.append(
-    'The training never sees a Swiss-Prot annotation. Each box opens its part of the method. ',
-    how,
-    '.',
-  );
+  foot.append('Each box opens its part of the method. ', how, '.');
   box.append(grid, foot);
   return box;
 }

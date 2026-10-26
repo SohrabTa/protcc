@@ -13,7 +13,7 @@
 import type { Concept, Data } from '../data';
 import { depthMap, peakBand } from '../depthmap';
 import {
-  coverageBar, el, figures, howto, infoButton, link, num, panel, pct, row, table,
+  coverageBar, el, howto, infoButton, link, num, panel, pct, row, table,
 } from '../ui';
 
 export function renderOverview(d: Data, host: HTMLElement): void {
@@ -31,15 +31,16 @@ export function renderOverview(d: Data, host: HTMLElement): void {
 
   const p = panel(
     'Concepts',
-    `${found} of ${d.concepts.length} concepts have at least one latent`,
-    'Every Swiss-Prot concept in the evaluation set, grouped by what the annotation is ' +
-      'biologically. A concept counts as found when at least one latent pairs with it. A latent ' +
-      'pairs with a concept when its F1 per domain is more than 0.5 on two separate halves of ' +
-      'the proteins. Open a concept to see which latents detect it, and where.',
+    `${found} of ${d.concepts.length} concepts have a paired latent`,
+    `Every Swiss-Prot concept in the evaluation set, in ${famOrder.length} concept families. ` +
+      'A latent pairs with a concept when its F1 per domain is more than 0.5 on the validation ' +
+      'set and again on the test set of the evaluation set. Open a concept to see each paired ' +
+      'latent with its scores and depth profile, the proteins that carry the concept, and where ' +
+      'each latent fires on them.',
   );
   p.append(
     howto(
-      'Pick a family above to show one family, or type in the filter box. The filter searches ' +
+      'Pick a family above to show one family, or type in the filter box below. The filter searches ' +
         'all families, so it sets the family to All families. The rows start with the best F1, ' +
         'highest first.',
     ),
@@ -135,7 +136,7 @@ export function renderOverview(d: Data, host: HTMLElement): void {
     }
     if (!any) body.append(el('p', 'loading', 'Nothing matches that filter.'));
     status.textContent = searching
-      ? `${hits} found concept${hits === 1 ? '' : 's'} in ${hitFamilies} ` +
+      ? `${hits} paired concept${hits === 1 ? '' : 's'} in ${hitFamilies} ` +
         `famil${hitFamilies === 1 ? 'y' : 'ies'} match.`
       : '';
   }
@@ -148,11 +149,12 @@ export function renderOverview(d: Data, host: HTMLElement): void {
   const depthPanel = panel(
     'Depth',
     `${pct(band.share * 100, 0)} of the live latents peak in layers ${band.from} to ${band.to}`,
-    'Each latent sits across at its peak layer, the layer it writes into hardest after a ' +
-      'correction for the growth of the residual stream. It sits up at the number of proteins ' +
-      'it fires on, on a log scale. Amber dots pair with a concept, and the gray field holds the ' +
-      'latents that pair with no concept. The bars on top show the share of each layer’s ' +
-      'latents that pair.',
+    'Where in the encoder each latent writes, and how many proteins it fires on. One dot is one ' +
+      'live latent. Across is its peak layer: the layer where its decoder vector is longest, after ' +
+      'a correction for the growth of the residual stream. Up is the number of proteins it fires ' +
+      'on, on a log scale. Amber dots are latents that pair with a concept. The gray area holds ' +
+      'the latents that pair with none, and darker gray means more of them. Each bar above the ' +
+      'plot is one layer: the share of the latents that peak there and pair with a concept.',
   );
   const map = depthMap(d);
   depthPanel.append(map.howto, map.root);
@@ -300,11 +302,13 @@ function familyBar(
   const info = infoButton(
     'the family chips',
     'The family chips',
-    'Each chip is one biological family of Swiss-Prot concepts. The first number counts the ' +
-      'concepts of the family that at least one latent pairs with. The second number counts ' +
-      'all the concepts of the family. The bar shows the same share.\n\n' +
+    'Each chip is one concept family. We made the families for this site: Swiss-Prot gives ' +
+      'only the field of a concept, such as Domain, so each concept name was put into a family ' +
+      'by enzyme family and function, by rule or by hand. The first number counts the concepts ' +
+      'of the family that have a paired latent. The second number counts all the concepts of ' +
+      'the family. The bar shows the same share.\n\n' +
       `For all families that is ${found} of ${d.concepts.length}. A latent pairs with a ` +
-      'concept when its F1 per domain is more than 0.5 on two separate halves of the proteins.',
+      'concept when its F1 per domain is more than 0.5 on the validation set and on the test set.',
     'pairing',
   );
   info.classList.add('famtabs-info');
@@ -387,12 +391,11 @@ function splitPanel(d: Data): SplitHandle {
   const allMulti = allFound.filter((c) => c.nf >= 2);
   const p = panel(
     'Splitting: one concept, several latents',
-    'Most latents read only a small part of their concept',
-    `A concept is rarely one latent. ${allMulti.length} of the ${allFound.length} found ` +
-      'concepts pair with more than one latent, and the median pair reads ' +
-      `${pct(median(pairs.map((x) => x.rec)) * 100)} of the annotated residues. The plot shows ` +
-      'each pair of a latent and a concept. Up is how often the latent is right when it fires, ' +
-      'and across is how much of the annotated region it reads.',
+    'A paired latent fires on a small part of its concept’s residues',
+    `A concept rarely pairs with only one latent. ${allMulti.length} of the ${allFound.length} ` +
+      'paired concepts pair with more than one latent, and the median pair fires on ' +
+      `${pct(median(pairs.map((x) => x.rec)) * 100)} of the annotated residues. The plot has one ` +
+      'dot for each pair of a latent and a concept: precision up, recall per residue across.',
   );
   const stats = el('div');
   // The names sit beside the plot and not above it. Above it, a long list pushed the plot out of
@@ -404,7 +407,8 @@ function splitPanel(d: Data): SplitHandle {
   const note = el('p', 'small muted');
   p.append(
     howto(
-      'Point at a concept name to light up its latents, and click the name to keep them lit. ' +
+      'Point at a concept name in the list beside the plot to light up its latents, and click ' +
+        'the name to keep them lit. ' +
         'The arrow after a name opens the concept page. Point at a dot to name its latent, and ' +
         'click it to open it. Drag a rectangle to zoom in, and press Escape to go back one step.',
     ),
@@ -418,90 +422,52 @@ function splitPanel(d: Data): SplitHandle {
     const multi = found.filter((c) => c.nf >= 2);
     const mine = fam ? pairs.filter((x) => x.fam === fam) : pairs;
 
-    // Every figure says how it is counted, because "3.5 latents" and "0.035" mean nothing to a
-    // reader who does not know what was counted and over what.
+    // A median alone hides how far the values spread, so each row also gives the middle half and
+    // the range, and draws them.
     const ofFam = fam ? ` of the ${fam} family` : '';
-    const pairsIn = (n: number) =>
-      `A pair is one latent and one concept it pairs with. The value is the middle one over ` +
-      (fam ? `the ${num(n)} pairs${ofFam}.` : `all ${num(n)} pairs.`);
-    const recRes = median(mine.map((x) => x.rec));
     const withDom = mine.filter((x) => x.recd !== undefined);
+    const most = found.length ? Math.max(...found.map((c) => c.nf)) : 0;
     stats.textContent = '';
     stats.append(
-      figures([
-        [
-          `${multi.length} of ${found.length}`,
-          'found concepts take more than one latent',
-          {
-            title: 'Concepts that take more than one latent',
-            short:
-              'A concept is found when at least one latent pairs with it. The first number ' +
-              'counts the found concepts that two or more latents pair with. The second number ' +
-              `counts all the found concepts${ofFam}.`,
-            slug: 'pairing',
-          },
-        ],
-        [
-          String(median(found.map((c) => c.nf))),
-          'latents for the median found concept',
-          {
-            title: 'Latents for the median found concept',
-            short:
-              'Count the latents that pair with each found concept, and sort the counts. This ' +
-              'is the middle count. When the number of concepts is even, it is the mean of the ' +
-              'two middle counts, so it can end in .5.',
-          },
-        ],
-        [
-          String(found.length ? Math.max(...found.map((c) => c.nf)) : 0),
-          'latents for the most split concept',
-          {
-            title: 'The most split concept',
-            short:
-              `The largest number of latents that pair with one concept${ofFam}. It is the ` +
-              'first name in the list beside the plot.',
-          },
-        ],
-        [
-          median(mine.map((x) => x.prec)).toFixed(2),
-          'median precision of a pair',
-          {
-            title: 'Median precision of a pair',
-            short:
-              'Precision is the share of the residues the latent fires on that the annotation ' +
-              `covers. It is the vertical axis of the plot.\n\n${pairsIn(mine.length)}`,
-            slug: 'precision',
-          },
-        ],
-        [
-          recRes.toFixed(3),
-          'median recall per residue',
-          {
-            title: 'Median recall per residue',
-            short:
-              'Recall per residue is the share of the annotated residues that the latent fires ' +
-              `on. It is the horizontal axis of the plot. ${recRes.toFixed(3)} means that the ` +
-              `middle pair fires on ${(recRes * 100).toFixed(1)}% of the annotated residues.` +
-              `\n\n${pairsIn(mine.length)}`,
-            slug: 'recall-per-residue',
-          },
-        ],
+      el(
+        'p',
+        'small',
+        `${multi.length} of the ${found.length} paired concepts${ofFam} pair with more than one ` +
+          `latent. The most split concept pairs with ${most}, and it is the first name in the ` +
+          'list beside the plot.',
+      ),
+      spreadTable([
+        {
+          label: 'Latents per paired concept',
+          values: found.map((c) => c.nf),
+          digits: 0,
+          log: true,
+          info: ['Latents per paired concept', `How many latents pair with one concept. One value for each of the ${found.length} paired concepts${ofFam}.`, 'latents'],
+        },
+        {
+          label: 'Precision of a pair',
+          values: mine.map((x) => x.prec),
+          digits: 2,
+          domain: [0, 1],
+          info: ['Precision', 'Of the residues the latent fires on, the share that the annotation covers. The vertical axis of the plot.', 'precision'],
+        },
+        {
+          label: 'Recall per residue of a pair',
+          values: mine.map((x) => x.rec),
+          digits: 3,
+          domain: [0, 1],
+          info: ['Recall per residue', 'Of the annotated residues, the share that the latent fires on. The horizontal axis of the plot.', 'recall-per-residue'],
+        },
         ...(withDom.length
-          ? ([[
-              median(withDom.map((x) => x.recd!)).toFixed(3),
-              'median recall per domain',
-              {
-                title: 'Median recall per domain',
-                short:
-                  'Recall per domain is the share of the annotated regions where the latent ' +
-                  'fires at least once. One residue is enough to recall a whole region, so ' +
-                  'this value is high while recall per residue is low.' +
-                  `\n\n${pairsIn(withDom.length)}`,
-                slug: 'recall-per-domain',
-              },
-            ]] as [string, string, { title: string; short: string; slug: string }][])
+          ? [{
+              label: 'Recall per domain of a pair',
+              values: withDom.map((x) => x.recd!),
+              digits: 3,
+              domain: [0, 1] as [number, number],
+              info: ['Recall per domain', 'Of the annotated regions, the share where the latent fires at least once.', 'recall-per-domain'] as [string, string, string],
+            }]
           : []),
-      ]),
+      ], `A pair is one latent with one concept it pairs with. The three pair rows count the ${num(mine.length)} pairs${ofFam}.`),
     );
 
     const scatter = splitScatter(pairs, fam);
@@ -514,13 +480,99 @@ function splitPanel(d: Data): SplitHandle {
       (fam
         ? `The amber dots pair with a concept of ${fam}, and the gray dots with another. `
         : '') +
-      'A crosscoder that had learned whole concepts would fill the top right corner. A latent ' +
-      'there is right when it fires and also reads the whole region. This one fills the top ' +
-      'left.';
+      'A crosscoder that had learned whole concepts would fill the top right corner. Most pairs ' +
+      'of this crosscoder are in the top left: high precision and low recall per residue.';
   }
 
   setFamily('');
   return { root: p, setFamily };
+}
+
+interface SpreadRow {
+  label: string;
+  values: number[];
+  digits: number;
+  /** Draw the row on a log scale, for counts that run over two orders of magnitude. */
+  log?: boolean;
+  /** The ends of the drawn axis. Absent, the row's own range. Shares use 0 to 1, so rows compare. */
+  domain?: [number, number];
+  info: [title: string, short: string, slug: string];
+}
+
+/** The q-quantile of sorted values, with linear interpolation. */
+function quantile(sorted: number[], q: number): number {
+  if (sorted.length === 0) return 0;
+  const at = (sorted.length - 1) * q;
+  const lo = Math.floor(at);
+  const hi = Math.ceil(at);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (at - lo);
+}
+
+/** A small box plot: the line is the range, the box the middle half, the tick the median. */
+function boxPlot(sorted: number[], log: boolean, domain?: [number, number]): SVGSVGElement {
+  const W = 180;
+  const H = 18;
+  const [lo, hi] = domain ?? [sorted[0], sorted[sorted.length - 1]];
+  const f = (v: number) => (log ? Math.log(v) : v);
+  const span = f(hi) - f(lo) || 1;
+  const X = (v: number) => 4 + ((f(v) - f(lo)) / span) * (W - 8);
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('width', String(W));
+  svg.setAttribute('height', String(H));
+  svg.setAttribute('aria-hidden', 'true');
+  const [q1, md, q3] = [0.25, 0.5, 0.75].map((q) => quantile(sorted, q));
+  if (domain) svgNode(svg, 'line', { x1: X(lo), y1: H / 2, x2: X(hi), y2: H / 2, stroke: 'var(--line)' });
+  svgNode(svg, 'line', {
+    x1: X(sorted[0]), y1: H / 2, x2: X(sorted[sorted.length - 1]), y2: H / 2, stroke: 'var(--line-strong)',
+  });
+  svgNode(svg, 'rect', {
+    x: X(q1), y: 3, width: Math.max(1.5, X(q3) - X(q1)), height: H - 6, rx: 1.5,
+    fill: 'var(--surface-2)', stroke: 'var(--ink-2)',
+  });
+  svgNode(svg, 'line', { x1: X(md), y1: 1, x2: X(md), y2: H - 1, stroke: 'var(--signal)', 'stroke-width': 2 });
+  return svg;
+}
+
+/**
+ * Each row: the median, the middle half (25th to 75th percentile), the range, and a box plot of
+ * the same. One table instead of a row of large figures, because a median without its spread
+ * says nothing about how typical it is.
+ */
+function spreadTable(rows: SpreadRow[], caption: string): HTMLElement {
+  const box = el('div', 'tbl-scroll');
+  const t = el('table', 'spread');
+  const head = el('tr');
+  for (const h of ['', 'Median', 'Middle half', 'Range', 'Box: middle half, line: range, tick: median']) {
+    head.append(el('th', undefined, h));
+  }
+  const thead = el('thead');
+  thead.append(head);
+  const tbody = el('tbody');
+  for (const r of rows) {
+    const sorted = [...r.values].sort((x, y) => x - y);
+    if (sorted.length === 0) continue;
+    const fmt = (v: number) => (r.digits === 0 && !Number.isInteger(v) ? v.toFixed(1) : v.toFixed(r.digits));
+    const tr = el('tr');
+    const name = el('td', 'spread-name', r.label);
+    name.append(infoButton(r.label, r.info[0], r.info[1], r.info[2]));
+    const plot = el('td');
+    plot.append(boxPlot(sorted, r.log === true, r.domain));
+    tr.append(
+      name,
+      el('td', 'num', fmt(quantile(sorted, 0.5))),
+      el('td', 'num', `${fmt(quantile(sorted, 0.25))} to ${fmt(quantile(sorted, 0.75))}`),
+      el('td', 'num', `${fmt(sorted[0])} to ${fmt(sorted[sorted.length - 1])}`),
+      plot,
+    );
+    tbody.append(tr);
+  }
+  t.append(thead, tbody);
+  box.append(t);
+  const wrap = el('div', 'spread-box');
+  wrap.append(box, el('p', 'small muted', `${caption} Middle half: the 25th to the 75th percentile.` +
+    (rows.some((r) => r.log) ? ' The first row is drawn on a log scale, the others from 0 to 1.' : '')));
+  return wrap;
 }
 
 /**
@@ -983,13 +1035,9 @@ function splitScatter(pairs: Pair[], family: string): ScatterHandle {
     corners.append(el('dt', undefined, k));
     corners.append(el('dd', undefined, v));
   };
-  put('top left', 'right when it fires, and reads a sliver of the region.');
-  put('top right', 'right when it fires, and reads all of the region.');
-  put(
-    'bottom',
-    'wrong more often than right. No pair sits below 1/3, because a precision that low cannot ' +
-      'reach an F1 per domain above 0.5.',
-  );
+  put('top left', 'high precision, low recall per residue: the latent fires on a small part of the region.');
+  put('top right', 'high precision, high recall per residue: the latent fires on all of the region.');
+  put('lower half', 'precision below 0.5: most residues the latent fires on are outside the annotation.');
   wrap.append(corners);
 
   render();

@@ -3,6 +3,8 @@
 A static site that shows what the crosscoder learned. No backend, no GPU, no live inference. Every
 value it displays is computed once by [`precompute/`](precompute/) and shipped as data files.
 
+The dashboard belongs to the preprint and the full paper after it, not to the Guided-Research hand-in. It shows the full-UniRef50 crosscoder on the score-{3,4,5} Swiss-Prot eval set. The hand-in uses another crosscoder and another eval set, so its numbers and figures do not apply here.
+
 Roadmap item `DEP-01`. Running the crosscoder on a sequence the evaluation never saw is `DEP-02`
 and is out of scope here.
 

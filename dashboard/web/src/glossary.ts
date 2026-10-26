@@ -245,7 +245,7 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
     ),
     para(
       'A latent fires on a residue when its activation is above a cut. The cut differs by ' +
-      'place: the pairing tries five cuts, the concept page counts a residue as read above 0.3, ' +
+      'place: the pairing tries five cuts, the concept page counts a residue above 0.3, ' +
       'and Covers counts any activation above 0.',
     ),
   ],
@@ -284,11 +284,11 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
   pairing: (f) => [
     pairingRulePicture(),
     para(
-      'The proteins are split into two halves. A pair must clear 0.5 on the validation half and ' +
-      'again on the held-out half, so a score that is high by chance on one half does not ' +
-      'count. InterPLM sets this rule, and this site keeps it.',
+      'The evaluation set is divided into two halves, the validation set and the test set. A ' +
+      'pair must clear 0.5 on the validation set and again on the test set, so a score that is ' +
+      'high by chance on one set does not count. InterPLM sets this rule, and this site keeps it.',
     ),
-    formula('pairs with the concept  =  F1 per domain > 0.5 on the validation half and on the held-out half'),
+    formula('pairs with the concept  =  F1 per domain > 0.5 on the validation set and on the test set'),
     para(
       'A latent fires on a residue when its activation is above a cut. The search tries five ' +
       'cuts, 0, 0.15, 0.5, 0.6 and 0.8 of the latent’s maximum, and keeps the cut with the best ' +
@@ -320,14 +320,14 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
     formula('recall per residue = 5 right / (5 right + 11 missed) = 0.31'),
     para(
       'This number shows concept splitting. Most paired latents have a high precision and a ' +
-      'low recall per residue. Each one reads a part of the region, and no single latent reads ' +
+      'low recall per residue. Each one fires on a part of the region, and no single latent fires on ' +
       `all of it. Over the ${num(f.pairs)} pairs the median is ` +
         `${f.medianRecallResidue.toFixed(3)}.`,
     ),
   ],
   'recall-per-domain': (f) => [
     domainPicture(),
-    formula('recall per domain = 1 region read / 2 regions = 0.50'),
+    formula('recall per domain = 1 region recalled / 2 regions = 0.50'),
     para(
       'This is the metric InterPLM reports, and it is the one that decides a pairing here. It ' +
       'answers a detection question: does this latent tell you that the region is present?',
@@ -356,7 +356,7 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
               `${f.example.best.reads} of the annotated residues. Latent ${f.example.reader.id} ` +
               `scores ${f.example.reader.f1.toFixed(3)} and reads ${f.example.reader.reads}. The ` +
               `metric ranks ${f.example.best.id} first, and ${f.example.reader.id} is the one ` +
-              'that reads the domain.',
+              'that covers the domain.',
           ),
         ]
       : []),
@@ -435,7 +435,7 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
         'fires on 9 residues.',
     ),
     para(
-      'Small values keep two digits. Rounded to whole percent, a motif latent reads as 0% and ' +
+      'Small values keep two digits. Rounded to whole percent, a motif latent shows as 0% and ' +
       'appears to do nothing.',
     ),
   ],
@@ -454,7 +454,7 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
     ),
     para(
       'A concept with 11 in the Latents column has 11 latents that each clear the pairing cut. ' +
-      'Each one reads a part of the region.',
+      'Each one fires on a part of the region.',
     ),
     para(
       `${num(f.latentsPaired)} of the live latents pair with a concept, and ` +
@@ -470,9 +470,13 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
   'best-latent': (f) => [
     bestLatentPicture(),
     para(
-      'This is the paper’s rule. For each concept, the validation half chooses one latent, and ' +
-        'the held-out half scores it. That score is the Best F1, and its average over the ' +
+      'This is the paper’s rule. For each concept, the validation set picks one latent, and ' +
+        'the test set scores it. That score is the Best F1, and its average over the ' +
         `${num(f.conceptsTotal)} concepts is ${f.avgBestF1.toFixed(3)}.`,
+    ),
+    para(
+      'A concept can have a Best F1 above 0.5 and still no paired latent. This happens when its ' +
+        'Best latent scored 0.5 or less on the validation set.',
     ),
     ...(f.example
       ? [
@@ -518,10 +522,16 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
         'them, so a protein count on this site is a full count and not a sample.',
     ),
     para(
-      'On a latent page the count is different. There it is the proteins the latent fires on, ' +
-      'whether or not Swiss-Prot annotates anything there. A latent that fires on ' +
-        `${num(f.mostProteins)} of them tells you about the crosscoder and not about biology, so ` +
-        'read a large count as a warning.',
+      'In a concept table, the Proteins column counts the proteins whose Swiss-Prot annotation ' +
+        'carries the concept. On a concept page, the Evidence panel steps through these proteins. ' +
+        'A latent page counts something else: see Proteins a latent fires on.',
+    ),
+  ],
+  'proteins-fired': (f) => [
+    para(
+      'A latent page shows this count. A latent that pairs with no concept also has one. A ' +
+        `latent that fires on ${num(f.mostProteins)} of the ${num(f.proteins)} proteins tells ` +
+        'you about the crosscoder and not about biology, so read a large count as a warning.',
     ),
   ],
 };
@@ -593,7 +603,7 @@ export function renderGlossary(d: Data, host: HTMLElement, slug?: string): void 
   put('Proteins', num(man.counts.proteins));
   put('Latent-protein pairs', num(man.counts.latent_protein_pairs));
   put('Latents', `${num(man.headline.latents_alive)} live of ${num(man.headline.latents_total)}`);
-  put('Concepts', `${man.headline.concepts_identified} found of ${man.headline.concepts_total}`);
+  put('Concepts', `${man.headline.concepts_identified} of ${man.headline.concepts_total} have a paired latent`);
   put('Average best test F1', man.headline.avg_best_test_f1.toFixed(3));
   const fromEbi = man.counts.structures_from_ebi ?? 0;
   const missing = man.counts.no_structure ?? 0;
