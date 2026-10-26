@@ -83,7 +83,8 @@ header.top { border-bottom: 1px solid var(--line); background: var(--surface); }
 .top-in { max-width: 1140px; margin: 0 auto; padding: 16px 20px 0; }
 .brandrow { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 /* The title is the way home. It reads as the title, not as a link, until the pointer is on it. */
-.brandrow h1 a { color: inherit; text-decoration: none; }
+.brandrow h1 a { color: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 7px; }
+.brandrow h1 svg { width: 1.125em; height: 1.125em; flex: none; }
 .brandrow h1 a:hover { text-decoration: underline; text-decoration-color: var(--ink); }
 .brandrow p { margin: 0; color: var(--muted); font-size: var(--fs-md); }
 .partial {

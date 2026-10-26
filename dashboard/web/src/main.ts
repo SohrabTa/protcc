@@ -19,10 +19,13 @@ import { renderMethod } from './method';
 import { methodFigure } from './methodfigure';
 import { mountJump } from './jump';
 import { useFacts } from './facts';
+import logo from './logo.svg?raw';
 
 const data = new Data('./data');
 const app = document.getElementById('app')!;
 const crumbs = document.getElementById('crumbs')!;
+// The favicon and the header logo are the same file.
+document.getElementById('home')!.insertAdjacentHTML('afterbegin', logo);
 
 function header(): void {
   // The five numbers used to stand alone here, and a number with no context says nothing. Each
