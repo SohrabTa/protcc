@@ -34,7 +34,8 @@ export async function renderConcept(d: Data, name: string, host: HTMLElement): P
     el(
       'p',
       'lede',
-      `Family: ${c.fam}. Role: ${c.role}. Swiss-Prot records it as a ${c.fld.toLowerCase()}.`,
+      `Family: ${c.fam || 'unassigned'}. Role: ${c.role || 'unassigned'}. ` +
+        `Swiss-Prot records it as a ${c.fld.toLowerCase()}.`,
     ),
   );
   p.append(
@@ -45,17 +46,20 @@ export async function renderConcept(d: Data, name: string, host: HTMLElement): P
         metricForHeader('latents'),
       ],
       [c.f1.toFixed(3), 'best F1 per domain', metricForHeader('best f1')],
-      [c.npr === undefined ? '—' : num(c.npr), 'proteins carry it', metricForHeader('proteins')],
+      [c.npr === undefined ? '—' : num(c.npr),
+       c.npr === 1 ? 'protein carries it' : 'proteins carry it', metricForHeader('proteins')],
     ]),
   );
 
   const feats = c.feats ?? [];
-  p.append(
-    howto(
-      'Each row is one latent that pairs with this concept. The rows start with the highest F1 ' +
-        'per domain. The depth column draws each latent’s depth profile, layer 1 on the left.',
-    ),
-  );
+  if (feats.length) {
+    p.append(
+      howto(
+        'Each row is one latent that pairs with this concept. The rows start with the highest ' +
+          'F1 per domain. The depth column draws each latent’s depth profile, layer 1 on the left.',
+      ),
+    );
+  }
   // Recall per domain sits beside precision, because F1 per domain is made of those two. Recall
   // per residue comes after it, so the two recalls can be read against each other.
   const { root, body } = table(
@@ -91,7 +95,7 @@ export async function renderConcept(d: Data, name: string, host: HTMLElement): P
   }
   const scroll = el('div', 'tbl-scroll');
   scroll.append(root);
-  p.append(scroll);
+  if (feats.length) p.append(scroll);
   views.append(p);
 
   // ---- evidence -------------------------------------------------------
@@ -103,7 +107,8 @@ export async function renderConcept(d: Data, name: string, host: HTMLElement): P
   ev.append(
     howto(
       'Step through the proteins that carry the concept with the arrows, or pick one at ' +
-        'random. Order sorts them by how hard one latent fires on them, and Show keeps one ' +
+        'random. Order sorts them by how hard one latent fires on them, or by how much of the ' +
+        'region all latents together fire on. Show keeps one ' +
         'slice of that order. Each row is one latent, in the order of the table above. With more ' +
         'than one latent, the last row joins them: at each residue, the strongest latent that ' +
         'fires above its pairing cut. Amber is how hard a latent fires, and teal is where ' +
@@ -155,9 +160,17 @@ export async function renderConcept(d: Data, name: string, host: HTMLElement): P
   const lo = c.po![0];
   const globalIndex = keep.map((i) => d.conceptProtein[lo + i]);
 
-  const sources: ChooserSource[] = feats.map(([fid, f1]) => ({
-    label: `f/${fid} · F1 ${f1.toFixed(3)}`,
-    format: (v) => v.toFixed(2),
+  // One order for each latent. When the latent's strongest protein is not in this list, the
+  // note says so, because the first protein of the order is then not its strongest case. 1 is
+  // the latent's own maximum.
+  const sources: ChooserSource[] = feats.map(([fid]) => ({
+    option: `f/${fid} fires hardest first`,
+    says: (v) => `f/${fid} fires at ${v.toFixed(2)} here.`,
+    saysTop: (top) =>
+      top < 1
+        ? `On these proteins f/${fid} reaches at most ${top.toFixed(2)} of its maximum, so it ` +
+          'fires harder on proteins that do not carry the concept.'
+        : '',
     async load() {
       const rank = await d.ranking(fid);
       const byIndex = new Map<number, number>();
@@ -169,6 +182,21 @@ export async function renderConcept(d: Data, name: string, host: HTMLElement): P
       return out;
     },
   }));
+
+  // And one order for all the latents together: the share of the annotated residues of a
+  // protein where at least one of them fires above its pairing cut (stage 7). The last row of
+  // the panel shows the same share for the protein on screen.
+  const coverage = d.coverageOf(c);
+  if (coverage && feats.length > 1) {
+    sources.push({
+      option: `all ${feats.length} latents cover the most first`,
+      first: true,
+      says: (v) =>
+        `All ${feats.length} latents together fire on ${pct(v * 100, 0)} of the annotated ` +
+        'residues here.',
+      values: Float32Array.from(keep.map((i) => coverage[i])),
+    });
+  }
 
   const firing = firingAll ? Uint8Array.from(keep.map((i) => firingAll[i])) : null;
 

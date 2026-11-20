@@ -25,6 +25,8 @@ export function renderOverview(d: Data, host: HTMLElement): void {
   let family = '';
   const famOrder = familyOrder(d);
   const found = d.concepts.filter((c) => c.nf > 0).length;
+  const families = famOrder.filter(([fam]) => fam !== 'unassigned').length;
+  const unassigned = famOrder.find(([fam]) => fam === 'unassigned')?.[1].length ?? 0;
 
   const bar = familyBar(d, famOrder, (key) => setFamily(key));
   views.append(bar.root);
@@ -32,7 +34,8 @@ export function renderOverview(d: Data, host: HTMLElement): void {
   const p = panel(
     'Concepts',
     `${found} of ${d.concepts.length} concepts have a paired latent`,
-    `Every Swiss-Prot concept in the evaluation set, in ${famOrder.length} concept families. ` +
+    `Every Swiss-Prot concept in the evaluation set, in ${families} concept families` +
+      (unassigned ? ` and ${unassigned} concepts without a family yet. ` : '. ') +
       'A latent pairs with a concept when its F1 per domain is more than 0.5 on the validation ' +
       'set and again on the test set of the evaluation set. Open a concept to see each paired ' +
       'latent with its scores and depth profile, the proteins that carry the concept, and where ' +
@@ -302,7 +305,8 @@ function familyBar(
   const info = infoButton(
     'the family chips',
     'The family chips',
-    'Each chip is one concept family. We made the families for this site: Swiss-Prot gives ' +
+    'Each chip is one concept family, except the chip "unassigned", which holds the concepts ' +
+      'that nobody has put into a family yet. We made the families for this site: Swiss-Prot gives ' +
       'only the field of a concept, such as Domain, so each concept name was put into a family ' +
       'by enzyme family and function, by rule or by hand. The first number counts the concepts ' +
       'of the family that have a paired latent. The second number counts all the concepts of ' +

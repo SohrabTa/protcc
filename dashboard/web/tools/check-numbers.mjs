@@ -12,7 +12,8 @@ import ts from 'typescript';
 
 const ALLOWED = new Map([
   ['1,024', 'the width of the ProtT5 residual stream'],
-  ['512', 'the length limit of the training and evaluation sequences'],
+  ['512', 'the length limit of the training sequences'],
+  ['10,000', 'the residue cap of the PP-18 evaluation set, a property of the set definition'],
   ['300', 'the length of the protein in a worked example'],
   ['600', 'the growth of the ProtT5 residual stream, a property of the model (build_depth_profiles.py)'],
   ['1819', 'the latent number in the example of the search hint'],

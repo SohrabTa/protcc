@@ -8,9 +8,10 @@
  * What makes a choice possible is one number per protein. The reader then picks a part of the
  * range rather than a name, and the stepper walks inside that part.
  *
- * The number is how hard one named latent fires on that protein. It is one latent and not a
- * blend, because a blend cannot be checked against the rows on screen. The control says which
- * latent it uses, and the reader can change it. An earlier version offered two blended rankings
+ * The number is how hard one named latent fires on that protein, or how much of the annotated
+ * region all the concept's latents together fire on. Each can be checked against a row on
+ * screen: the row of that latent, or the last row, which joins them. The control says which
+ * number it uses, and the reader can change it. An earlier version offered two blended rankings
  * and never said what they ranked against, which is not a control a reader can trust.
  */
 
@@ -26,10 +27,14 @@ const BANDS: [string, number, number][] = [
 ];
 
 export interface ChooserSource {
-  /** Shown on the control, for example "f/831 · F1 0.857". The first word names the latent. */
-  label: string;
-  /** How to print one value. */
-  format(v: number): string;
+  /** The entry of the order menu, for example "f/831 fires hardest first". */
+  option: string;
+  /** Put the entry above the others in the menu, and not in the order of the list. */
+  first?: boolean;
+  /** One sentence about the protein on screen, from its value. */
+  says(v: number): string;
+  /** One sentence about the whole list, from its highest value, or '' when there is none. */
+  saysTop?(top: number): string;
   /** One value per item, higher first. Absent until `load` has run. */
   values?: Float32Array;
   /**
@@ -79,10 +84,12 @@ export function proteinChooser(opts: {
   const sourceSelect = el('select');
   sourceSelect.title = 'Order the proteins by how hard this latent fires on them.';
   sources.forEach((s, i) => {
-    const o = el('option', undefined, `${s.label.split(' ')[0]} fires hardest first`);
+    const o = el('option', undefined, s.option);
     o.value = String(i);
-    sourceSelect.append(o);
+    if (s.first) sourceSelect.prepend(o);
+    else sourceSelect.append(o);
   });
+  sourceSelect.value = String(source);
   sourceSelect.addEventListener('change', () => {
     void useSource(Number(sourceSelect.value));
   });
@@ -92,11 +99,11 @@ export function proteinChooser(opts: {
     const s = sources[i];
     if (!s.values && s.load) {
       sourceSelect.disabled = true;
-      note.textContent = `Reading where ${s.label.split(' ')[0]} fires…`;
+      note.textContent = 'Reading the order…';
       try {
         s.values = await s.load();
       } catch {
-        note.textContent = `The ranking for ${s.label.split(' ')[0]} could not be read.`;
+        note.textContent = 'This order could not be read.';
         sourceSelect.disabled = false;
         sourceSelect.value = String(source);
         return;
@@ -179,20 +186,16 @@ export function proteinChooser(opts: {
     const s = sources[source];
     pos.textContent = `${label} ${at + 1} of ${slice.length.toLocaleString('en-US')}`;
     name.textContent = items[idx];
-    // The number the order uses, and how many latents fire here. When the latent's strongest
-    // protein is not in this list, a third sentence says so, because the first protein of the
-    // order is then not the latent's strongest case. 1 is the latent's own maximum.
-    const who = s.label.split(' ')[0];
-    const top = s.values ? s.values[order[0]] : 1;
+    // The number the order uses, how many latents fire here, and what the order's source has to
+    // say about the whole list.
+    const top = s.values ? s.values[order[0]] : 0;
+    const topNote = s.values && s.saysTop ? s.saysTop(top) : '';
     note.textContent =
-      (s.values ? `${who} fires at ${s.format(s.values[idx])} here. ` : '') +
+      (s.values ? `${s.says(s.values[idx])} ` : '') +
       (firing && firing.length === items.length
         ? `${firing[idx]} of the ${nLatents} latents fire on this protein.`
         : '') +
-      (s.values && top < 1
-        ? ` On these proteins ${who} reaches at most ${s.format(top)} of its maximum, so it ` +
-          'fires harder on proteins that do not carry the concept.'
-        : '');
+      (topNote ? ` ${topNote}` : '');
     opts.onPick(items[idx]);
   }
 

@@ -21,12 +21,19 @@ files never change after that. A later release goes into a new version of the re
     # publish the draft, after a person checked it on zenodo.org
     python3 zenodo_upload.py ../data/release --draft 1234567 --publish
 
-An upload to Zenodo moved about 0.3 MB/s on 2026-10-13. Parallel uploads did not add up: with 2
-or 3 at the same time, one of them failed each time, and the total stayed under 0.5 MB/s. With 6,
-almost all failed with 502. So PARALLEL is 1 by default, and the 8.6 GB of a release take about
-8 hours. On the same day Zenodo also answered many requests with 502 or 504, so each file gets
-RETRIES attempts, 8 by default, with a longer wait after each failure. Downloads are different:
-they add up, and the fetch container uses 8 at a time.
+An upload to Zenodo moved about 0.3 MB/s on 2026-10-13. Parallel uploads did not add up on that
+day: with 2 or 3 at the same time, one of them failed each time, and the total stayed under
+0.5 MB/s. With 6, almost all failed with 502. On 2026-11-20 the same link was faster, and four
+connections helped a little (see the measurement below), so the default is four. Use `--jobs 1`
+where four streams did not help, and `--jobs 8` only where a person measured that it does. Each
+file gets RETRIES attempts, 8 by default, with a longer wait after each failure. Downloads are
+different: they add up, and the fetch container uses 8 at a time.
+
+Measured again on 2026-11-20 from the Mac, with a throwaway draft that was deleted afterwards:
+one 400 MB part went up at 6.92 MB/s in 61 s, and four 34 MB parts at --jobs 4 took 16.1 s
+against 19.3 s at --jobs 1. So four connections gave 1.2x on a fast link, where one stream is
+already quick. On the 0.3 MB/s of 2026-10-13 they would not have helped, so try --jobs 1 when an
+upload stalls.
 
 The token is a Zenodo personal access token with the scopes deposit:write and deposit:actions,
 in the file that ZENODO_TOKEN_FILE names (~/.zenodo-token by default). The script never prints
@@ -68,7 +75,8 @@ from pathlib import Path
 ZENODO = os.environ.get("ZENODO_URL", "https://zenodo.org").rstrip("/")
 TOKEN_FILE = Path(os.environ.get("ZENODO_TOKEN_FILE", Path.home() / ".zenodo-token"))
 METADATA = Path(__file__).with_name("zenodo-metadata.json")
-PARALLEL = max(1, int(os.environ.get("PARALLEL", "1")))
+# Four at a time: on 2026-11-20 that was 1.2x one stream. --jobs 1 for a link where it is not.
+JOBS = max(1, int(os.environ.get("PARALLEL", "4")))
 RETRIES = max(1, int(os.environ.get("RETRIES", "8")))
 INTERFACE = os.environ.get("UPLOAD_INTERFACE", "")
 
@@ -185,7 +193,7 @@ def upload(deposition_id: int, bucket: str, path: Path) -> str:
     return error
 
 
-def sync_files(deposition: dict, wanted: list[Path]) -> None:
+def sync_files(deposition: dict, wanted: list[Path], jobs: int) -> None:
     """Make the files of the draft equal to `wanted`, by name and md5."""
     did = deposition["id"]
     have = draft_files(did)
@@ -210,9 +218,9 @@ def sync_files(deposition: dict, wanted: list[Path]) -> None:
     todo.sort(key=lambda p: -p.stat().st_size)
     total = sum(p.stat().st_size for p in todo)
     say(f"  {len(todo)} of {len(wanted)} files to upload, {total / 1e9:.1f} GB, "
-        f"{PARALLEL} at a time")
+        f"{jobs} at a time")
     bucket = deposition["links"]["bucket"]
-    with ThreadPoolExecutor(max_workers=PARALLEL) as pool:
+    with ThreadPoolExecutor(max_workers=jobs) as pool:
         results = list(pool.map(lambda p: upload(did, bucket, p), todo))
     errors = {p.name: e for p, e in zip(todo, results) if e}
     if errors:
@@ -266,7 +274,7 @@ def run(a: argparse.Namespace) -> None:
     release["zenodo_record"] = str(did)
     release_file.write_text(json.dumps(release, indent=2) + "\n")
 
-    sync_files(deposition, parts + [release_file])
+    sync_files(deposition, parts + [release_file], a.jobs)
 
     meta = json.loads(METADATA.read_text())["metadata"]
     meta["version"] = release["release"]
@@ -282,9 +290,14 @@ def main() -> None:
     group = ap.add_mutually_exclusive_group()
     group.add_argument("--draft", type=int, help="continue this draft")
     group.add_argument("--new-version-of", type=int, help="start a new version of this record")
+    ap.add_argument("--jobs", type=int, default=JOBS,
+                    help="upload this many files at a time (default 4)")
     ap.add_argument("--publish", action="store_true", help="publish the draft. This is final.")
+    args = ap.parse_args()
+    if args.jobs < 1:
+        ap.error("--jobs must be at least 1")
     try:
-        run(ap.parse_args())
+        run(args)
     except ZenodoError as err:
         sys.exit(f"FAILED: {err}")
 

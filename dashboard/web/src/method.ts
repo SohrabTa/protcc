@@ -374,8 +374,9 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
       ),
       para(
         'The evaluation set is a different set of proteins: ',
-        el('strong', undefined, `${num(d.manifest.counts.proteins)} Swiss-Prot proteins`),
-        ' of annotation score 3, 4 or 5, at most 512 residues. The set is divided into two ' +
+        el('strong', undefined, `${num(d.manifest.counts.proteins)} proteins`),
+        ' of the reviewed Swiss-Prot entries of release 2026_04, at most 10,000 residues. ' +
+          'The set is divided into two ' +
           'halves, a validation set and a test set. The validation set picks the pairings, and ' +
           'every pairing score on this site is measured on the test set.',
       ),
@@ -442,9 +443,8 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
       generousPicture(),
       para(
         el('strong', undefined, 'The set is one set. '),
-        'Everything here is Swiss-Prot, at most 512 residues, with an annotation score of 3 or ' +
-          'more. A latent that fires on something Swiss-Prot does not annotate cannot pair here, ' +
-          'and ',
+        'Everything here is Swiss-Prot, at most 10,000 residues. A latent that fires on ' +
+          'something Swiss-Prot does not annotate cannot pair here, and ',
         el('strong', undefined, `${num(h.latents_alive - h.features_paired)} live latents`),
         ' pair with no concept. They are not noise. This evaluation set has no concept for ' +
           'them.',

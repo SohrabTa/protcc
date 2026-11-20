@@ -518,8 +518,8 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
   ],
   proteins: (f) => [
     para(
-      `The evaluation set is ${num(f.proteins)} Swiss-Prot proteins with an annotation score ` +
-        'of 3, 4 or 5, each of at most 512 residues. Every latent was measured on every one of ' +
+      `The evaluation set is ${num(f.proteins)} reviewed Swiss-Prot proteins of release ` +
+        '2026_04, each of at most 10,000 residues. Every latent was measured on every one of ' +
         'them, so a protein count on this site is a full count and not a sample.',
     ),
     para(

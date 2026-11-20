@@ -8,7 +8,8 @@ site only renders.
 ## What the browser fetches, and when
 
     manifest.json          once     provenance and the headline figures
-    concepts.json          once     all 408 concepts with their paired latents inline
+    concepts.json          once     every concept with a paired latent, with the pairings
+                                 inline
     features.json          once     every live latent, enough to draw the feature map
     depth.bin              once     24 decoder norms and 24 cosines per latent
     concept_proteins.bin   once     which proteins carry each concept
@@ -165,13 +166,22 @@ def main():
                     help="experiment_config.yaml of the last training job")
     ap.add_argument("--training-corpus", type=Path, default=None,
                     help="manifest.json of the training corpus chunks")
+    ap.add_argument("--eval-set", default=None,
+                    help="the evaluation set name for manifest.json; derived from stage 1's "
+                         "acts_dir when absent")
     ap.add_argument("--out", type=Path, required=True)
     a = ap.parse_args()
     (a.out / "feature").mkdir(parents=True, exist_ok=True)
 
-    cats = pd.read_csv(a.stage0).set_index("concept")
+    cats = pd.read_csv(a.stage0, keep_default_na=False).set_index("concept")
     best = pd.read_csv(a.pairings / "heldout_top_pairings.csv", index_col=0)
     allp = pd.read_csv(a.pairings / "heldout_all_top_pairings.csv")
+    # The dashboard counts the concepts in heldout_top_pairings.csv: every non-amino-acid concept
+    # whose best feature clears the pairing cut on the validation half, 853 on the PP-18 set.
+    # A concept without a row there has no page, which keeps the site and the paper apart.
+    best = best[~best["concept"].astype(str).str.startswith("amino_acid_")]
+    allp = allp[~allp["concept"].astype(str).str.startswith("amino_acid_")]
+    concept_names = best.concept.astype(str).tolist()
 
     offsets = np.load(a.stage1 / "rank_offsets.npy")
     r_prot = np.load(a.stage1 / "rank_protein.npy")
@@ -322,15 +332,20 @@ def main():
 
     # ---- manifest --------------------------------------------------------
     identified = int(allp.concept.nunique())
+    if a.eval_set:
+        eval_set = a.eval_set
+    else:
+        acts = json.loads((a.stage1 / "manifest.json").read_text()).get("acts_dir", "")
+        eval_set = os.path.basename(acts.rstrip("/")) or "unknown"
     manifest = {
         "stage": "4-indexes",
         "built": date.today().isoformat(),
         "partial": partial,
         "crosscoder": "crosscoder_l8192_k32_bs512_full_uniref50/jumprelu_global_10990182",
-        "eval_set": "uniprotkb_modern_score345",
+        "eval_set": eval_set,
         "headline": {
             "avg_best_test_f1": round(float(best.f1_per_domain.mean()), 4),
-            "concepts_total": int(len(best)),
+            "concepts_total": len(concept_names),
             "concepts_identified": identified,
             "features_paired": int(allp.feature.nunique()),
             "latents_total": int(n_lat),
