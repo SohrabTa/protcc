@@ -11,7 +11,7 @@
  * tree it describes.
  */
 
-import type { Data } from './data';
+import type { Data, Interval, Model } from './data';
 import { METHOD_SECTIONS, METRIC_INFO, type SectionId } from './metrics';
 import { peakBand } from './depthmap';
 import { archFigure } from './archfigure';
@@ -190,12 +190,53 @@ function section(id: SectionId, body: (Node | string)[]): HTMLElement {
   return p;
 }
 
+const MODEL_NAMES: Record<Model, string> = {
+  crosscoder: 'Crosscoder',
+  baseline_model: 'Baseline model',
+  neurons: 'Neuron baseline',
+};
+
+/** A value and its 95% interval, as "0.4119 [0.4117, 0.4170]". */
+function withInterval([point, low, high]: Interval, digits: number): string {
+  const f = (x: number) => (digits ? x.toFixed(digits) : num(x));
+  return `${f(point)} [${f(low)}, ${f(high)}]`;
+}
+
+/** The headline of the crosscoder and of the two baselines, at the two levels of F1. */
+function comparisonTable(d: Data): HTMLElement {
+  const total = d.manifest.headline.concepts_total;
+  const table = el('table', 'spread');
+  const head = el('tr');
+  for (const name of ['', 'F1', 'Concepts identified', 'Latents or neurons paired', 'Avg best test F1']) {
+    head.append(el('th', undefined, name));
+  }
+  table.append(head);
+  for (const level of ['domain', 'residue'] as const) {
+    for (const model of Object.keys(MODEL_NAMES) as Model[]) {
+      const v = d.manifest.comparison[model][level];
+      const row = el('tr');
+      row.append(
+        el('td', 'spread-name', MODEL_NAMES[model]),
+        el('td', 'spread-name', level === 'domain' ? 'per domain' : 'per residue'),
+        el('td', 'num', `${withInterval(v.concepts_identified, 0)} of ${num(total)}`),
+        el('td', 'num', withInterval(v.features_paired, 0)),
+        el('td', 'num', withInterval(v.avg_best_test_f1, 4)),
+      );
+      table.append(row);
+    }
+  }
+  const wrap = el('div', 'tbl-scroll');
+  wrap.append(table);
+  return wrap;
+}
+
 export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
   host.textContent = '';
   const views = el('div', 'views');
   const h = d.manifest.headline;
   const band = peakBand(d);
   const t = d.manifest.training;
+  const ev = d.manifest.eval;
 
   const intro = panel(
     'Method',
@@ -374,13 +415,25 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
       ),
       para(
         'The evaluation set is a different set of proteins: ',
-        el('strong', undefined, `${num(d.manifest.counts.proteins)} proteins`),
-        ' of the reviewed Swiss-Prot entries of release 2026_04, at most 10,000 residues. ' +
-          'The set is divided into two ' +
-          'halves, a validation set and a test set. The validation set picks the pairings, and ' +
-          'every pairing score on this site is measured on the test set.',
+        el('strong', undefined, `${ev.name}, ${num(d.manifest.counts.proteins)} proteins`),
+        '. These are the reviewed Swiss-Prot entries of release 2026_04, at most 10,000 ' +
+          'residues each. The set is divided into two halves, a validation set and a test set. ' +
+          'The validation set picks the pairings, and every pairing score on this site is ' +
+          'measured on the test set.',
       ),
-      dataSetsPicture(t, d.manifest.counts.proteins),
+      para(
+        'The halves are made by ',
+        el('strong', undefined, 'the cluster split'),
+        `. The proteins are grouped into clusters at ${ev.identity_pct}% sequence identity, and ` +
+          'all proteins of one cluster go to the same half. Thus no test protein is a close ' +
+          'relative of a validation protein, and a pairing must hold on protein families that ' +
+          'the validation set did not see.' +
+          (ev.proteins_valid !== null
+            ? ` The validation set has ${num(ev.proteins_valid)} proteins and the test set ` +
+              `${num(ev.proteins_test)}.`
+            : ''),
+      ),
+      dataSetsPicture(t, d.manifest.counts.proteins, ev),
       para(
         'The exact checkpoint, the evaluation set and the build date are at the end of the ',
         link('/glossary', 'glossary'),
@@ -400,26 +453,42 @@ export function renderMethod(d: Data, host: HTMLElement, want?: string): void {
           'annotation is.',
       ),
       para(
-        `Swiss-Prot contributes ${h.concepts_total} concepts to this evaluation set. A domain, ` +
-          'a motif, an active site, a zinc finger. For every concept and every latent, the ' +
-          'pipeline compares the residues the latent fires on against the residues the concept ' +
-          'covers. That comparison gives precision and recall. A latent pairs with a concept ' +
-          'when its F1 per domain is more than 0.5 on the validation set and again on the ' +
-          'test set.',
+        'Swiss-Prot annotates domains, motifs, active sites, zinc fingers and more. Each kind ' +
+          'of annotation is a concept. A concept counts on this site only when each half of ' +
+          `the cluster split has more than ${ev.rule_min_residues} residues or more than ` +
+          `${ev.rule_min_domains} domains of it (the per-half rule). Without this rule, a ` +
+          'concept whose proteins fall into one half could never be scored. ' +
+          `${num(h.concepts_total)} concepts pass the rule.`,
+      ),
+      para(
+        'For every concept and every latent, the pipeline compares the residues the latent ' +
+          'fires on against the residues the concept covers. That comparison gives precision ' +
+          'and recall. A latent pairs with a concept when its F1 per domain is more than 0.5 ' +
+          'on the validation set and again on the test set.',
       ),
       pairingRulePicture(),
       para(
         el(
           'strong',
           undefined,
-          `${h.concepts_identified} of the ${h.concepts_total} concepts have at least one ` +
-            `latent, and ${num(h.features_paired)} latents pair with at least one concept.`,
+          `${num(h.concepts_identified)} of the ${num(h.concepts_total)} concepts have at least ` +
+            `one latent, and ${num(h.features_paired)} latents pair with at least one concept.`,
         ),
-        ` The average best F1 per domain over all ${h.concepts_total} concepts, on the test ` +
-          'set, is ',
+        ` The average best F1 per domain on the test set is `,
         el('strong', undefined, h.avg_best_test_f1.toFixed(3)),
-        '. The last box of the schematic at the top of the landing page shows the first of these numbers.',
+        `. It is the mean over the ${num(h.concepts_scored)} concepts whose picked latent has a ` +
+          `test F1. The other ${num(h.concepts_total - h.concepts_scored)} concepts have no page ` +
+          'on this site. The last box of the schematic at the top of the landing page shows the ' +
+          'first of these numbers.',
       ),
+      para(
+        'The table gives each number with its 95% interval, from 2,000 resamples of the ' +
+          'shards of the test set. It also gives two baselines on the same concepts. The ' +
+          'baseline model is a crosscoder of the same size, trained on a ProtT5 with shuffled ' +
+          'weights. The neuron baseline pairs the concepts with the single neurons of the ' +
+          `${t.layers} ProtT5 layers instead of latents.`,
+      ),
+      comparisonTable(d),
       para(
         'A concept rarely pairs with only one latent. Most paired concepts pair with a group of ' +
           'latents, and each latent in the group fires on a part of the region. The Splitting panel on the ',

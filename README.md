@@ -35,6 +35,9 @@ next to the data:
 ## The model this code serves
 
 The preprint default is the full-UniRef50 crosscoder,
-`crosscoder_l8192_k32_bs512_full_uniref50/jumprelu_global_10990182`, evaluated on the
-annotation-score {3,4,5} Swiss-Prot set: 0.479 average best test F1, 187 of 408 concepts
-identified, 1020 features paired, 8128 of 8192 latents alive.
+`crosscoder_l8192_k32_bs512_full_uniref50/jumprelu_global_10990182`. Since 2026-11-22 the
+dashboard shows it on Swiss-Prot 2026_04 (487,776 proteins) with the cluster split: clusters at
+30 % sequence identity and the per-half rule, 765 concepts. It gets 261 [256, 264] of 765 concepts
+identified, 0.4119 [0.4117, 0.4170] average best test F1 and 1,058 [1,042, 1,063] latents paired
+(F1 job `5915084`, bootstrap job `5915364`, doc 14 of the paper repo). Releases up to 2026-10-26.2
+showed the annotation-score {3,4,5} set (0.479, 187 of 408 concepts, 1020 latents).

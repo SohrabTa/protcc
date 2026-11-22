@@ -23,19 +23,23 @@ export interface Manifest {
   built: string;
   partial: boolean;
   crosscoder: string;
+  /** The raw ID of the evaluation set, for the provenance list. */
   eval_set: string;
+  eval: EvalSet;
   headline: {
     avg_best_test_f1: number;
+    /** The concepts that the per-half rule keeps. */
     concepts_total: number;
+    /** The concepts whose pick has a test F1. Only these have a page. */
+    concepts_scored: number;
     concepts_identified: number;
     features_paired: number;
     latents_total: number;
     latents_alive: number;
     layers: number;
-    /** The same pairing rule with the residue-level F1. Absent when stage 4 had no counts file. */
-    concepts_identified_per_residue?: number;
-    features_paired_per_residue?: number;
   };
+  /** The crosscoder and the two baselines on the same concepts, with 95% intervals. */
+  comparison: Record<Model, { domain: Level; residue: Level }>;
   counts: {
     proteins: number;
     feature_files: number;
@@ -50,6 +54,34 @@ export interface Manifest {
   };
   /** How the crosscoder was trained, from the files of the training run (stage 4). */
   training: Training;
+}
+
+/** A value with its 95% interval: point, low end, high end. */
+export type Interval = [number, number, number];
+
+export type Model = 'crosscoder' | 'baseline_model' | 'neurons';
+
+/** One level of the headline, F1 per domain or F1 per residue. */
+export interface Level {
+  avg_best_test_f1: Interval;
+  concepts_identified: Interval;
+  features_paired: Interval;
+  concepts_scored: Interval;
+}
+
+/** The evaluation set and its split into a validation set and a test set (stage 4). */
+export interface EvalSet {
+  /** The name for readers, for example "Swiss-Prot 2026_04". */
+  name: string;
+  split: 'cluster';
+  /** No test protein shares a cluster at this sequence identity with a validation protein. */
+  identity_pct: number;
+  /** A concept counts when each half has more positive residues than this, or more domains. */
+  rule_min_residues: number;
+  rule_min_domains: number;
+  /** Absent in a tree built from a subset of shards. */
+  proteins_valid: number | null;
+  proteins_test: number;
 }
 
 export interface Training {

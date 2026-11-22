@@ -40,14 +40,21 @@ export interface Facts {
   latentsMulti: number;
   /** Pairs of a latent and a concept. A latent with two concepts makes two. */
   pairs: number;
+  /** The concepts that the per-half rule of the cluster split keeps. */
   conceptsTotal: number;
+  /** The concepts whose pick has a test F1. Only these have a page. */
+  conceptsScored: number;
   conceptsFound: number;
   proteins: number;
+  /** The name of the evaluation set for readers, for example "Swiss-Prot 2026_04". */
+  evalName: string;
+  /** The sequence identity of the clusters that the cluster split keeps apart. */
+  identityPct: number;
   avgBestF1: number;
   medianRecallDomain: number;
   medianRecallResidue: number;
-  conceptsFoundPerResidue?: number;
-  latentsPairedPerResidue?: number;
+  conceptsFoundPerResidue: number;
+  latentsPairedPerResidue: number;
   /** The Swiss-Prot field that holds the most paired latents, and its share of them. */
   biggestField: { name: string; share: string };
   /** The most proteins one latent fires on. */
@@ -79,6 +86,7 @@ let cache: { d: Data; facts: Facts } | null = null;
 export function facts(d: Data): Facts {
   if (cache?.d === d) return cache.facts;
   const h = d.manifest.headline;
+  const residue = d.manifest.comparison.crosscoder.residue;
   const pairs = d.concepts.flatMap((c) => c.feats ?? []);
   const perLatent = new Map<number, number>();
   for (const [id] of pairs) perLatent.set(id, (perLatent.get(id) ?? 0) + 1);
@@ -99,13 +107,16 @@ export function facts(d: Data): Facts {
     latentsMulti: [...perLatent.values()].filter((n) => n > 1).length,
     pairs: pairs.length,
     conceptsTotal: h.concepts_total,
+    conceptsScored: h.concepts_scored,
     conceptsFound: h.concepts_identified,
     proteins: d.manifest.counts.proteins,
+    evalName: d.manifest.eval.name,
+    identityPct: d.manifest.eval.identity_pct,
     avgBestF1: h.avg_best_test_f1,
     medianRecallDomain: median(pairs.flatMap(([, , , , recd]) => (recd === undefined ? [] : [recd]))),
     medianRecallResidue: median(pairs.map(([, , , rec]) => rec)),
-    conceptsFoundPerResidue: h.concepts_identified_per_residue,
-    latentsPairedPerResidue: h.features_paired_per_residue,
+    conceptsFoundPerResidue: residue.concepts_identified[0],
+    latentsPairedPerResidue: residue.features_paired[0],
     biggestField: { name: field, share: `${((inField / paired.length) * 100).toFixed(1)}%` },
     mostProteins: Math.max(...d.features.map((f) => f.np)),
     medianSpreadLayers: median(d.features.map((f) => f.sp)),
@@ -125,11 +136,11 @@ export function useFacts(d: Data): void {
     latents_alive: num(f.latentsAlive),
     latents_paired: num(f.latentsPaired),
     concepts_total: num(f.conceptsTotal),
+    concepts_scored: num(f.conceptsScored),
     concepts_found: num(f.conceptsFound),
     proteins: num(f.proteins),
     avg_best_f1: f.avgBestF1.toFixed(3),
-    concepts_found_per_residue:
-      f.conceptsFoundPerResidue === undefined ? 'fewer' : num(f.conceptsFoundPerResidue),
+    concepts_found_per_residue: num(f.conceptsFoundPerResidue),
   };
 }
 

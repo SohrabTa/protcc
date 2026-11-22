@@ -285,9 +285,11 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
   pairing: (f) => [
     pairingRulePicture(),
     para(
-      'The evaluation set is divided into two halves, the validation set and the test set. A ' +
-      'pair must clear 0.5 on the validation set and again on the test set, so a score that is ' +
-      'high by chance on one set does not count. InterPLM sets this rule, and this site keeps it.',
+      'The evaluation set is divided into two halves, the validation set and the test set. ' +
+        `The cluster split puts all proteins of one cluster at ${f.identityPct}% sequence ` +
+        'identity into the same half. A pair must clear 0.5 on the validation set and again on ' +
+        'the test set, so a score that is high by chance on one set does not count. InterPLM ' +
+        'sets this rule, and this site keeps it.',
     ),
     formula('pairs with the concept  =  F1 per domain > 0.5 on the validation set and on the test set'),
     para(
@@ -370,17 +372,13 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
     residuePicture(true),
     para('It asks whether the latent covers the region, not whether it notices the region.'),
     formula('F1 per residue = 2 · precision · recall per residue / (precision + recall per residue)'),
-    ...(f.conceptsFoundPerResidue !== undefined && f.latentsPairedPerResidue !== undefined
-      ? [
-          para(
-            'The two scores disagree, and the size of the disagreement is measured. With the ' +
-              `same pairing rule, F1 per residue pairs ${num(f.conceptsFoundPerResidue)} of the ` +
-              `${num(f.conceptsTotal)} concepts, against ${num(f.conceptsFound)} for F1 per ` +
-              `domain. It pairs ${num(f.latentsPairedPerResidue)} latents, against ` +
-              `${num(f.latentsPaired)}.`,
-          ),
-        ]
-      : []),
+    para(
+      'The two scores disagree, and the size of the disagreement is measured. With the same ' +
+        `pairing rule, F1 per residue pairs ${num(f.conceptsFoundPerResidue)} of the ` +
+        `${num(f.conceptsTotal)} concepts, against ${num(f.conceptsFound)} for F1 per domain. ` +
+        `It pairs ${num(f.latentsPairedPerResidue)} latents, against ${num(f.latentsPaired)}. ` +
+        'The Method page gives each number with its 95% interval.',
+    ),
     para(
       'The site pairs on F1 per domain, because that is what InterPLM does and what the ' +
       'published comparison needs. This entry exists so that the reader knows what the choice ' +
@@ -473,7 +471,9 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
     para(
       'This is the paper’s rule. For each concept, the validation set picks one latent, and ' +
         'the test set scores it. That score is the Best F1, and its average over the ' +
-        `${num(f.conceptsTotal)} concepts is ${f.avgBestF1.toFixed(3)}.`,
+        `${num(f.conceptsScored)} concepts whose Best latent has a test F1 is ` +
+        `${f.avgBestF1.toFixed(3)}. The other ${num(f.conceptsTotal - f.conceptsScored)} of the ` +
+        `${num(f.conceptsTotal)} concepts have no page.`,
     ),
     para(
       'A concept can have a Best F1 above 0.5 and still no paired latent. This happens when its ' +
@@ -518,9 +518,9 @@ const BODIES: Record<string, (f: Facts) => Node[]> = {
   ],
   proteins: (f) => [
     para(
-      `The evaluation set is ${num(f.proteins)} reviewed Swiss-Prot proteins of release ` +
-        '2026_04, each of at most 10,000 residues. Every latent was measured on every one of ' +
-        'them, so a protein count on this site is a full count and not a sample.',
+      `The evaluation set, ${f.evalName}, is ${num(f.proteins)} reviewed Swiss-Prot proteins ` +
+        'of release 2026_04, each of at most 10,000 residues. Every latent was measured on ' +
+        'every one of them, so a protein count on this site is a full count and not a sample.',
     ),
     para(
       'In a concept table, the Proteins column counts the proteins whose Swiss-Prot annotation ' +
@@ -599,13 +599,24 @@ export function renderGlossary(d: Data, host: HTMLElement, slug?: string): void 
     dl.append(dd);
   };
   put('Crosscoder', el('span', 'mono', man.crosscoder));
-  put('Evaluation set', el('span', 'mono', man.eval_set));
+  const evalSet = el('span', undefined, `${man.eval.name}, the cluster split at ${man.eval.identity_pct}% sequence identity `);
+  evalSet.append(el('span', 'mono', `(${man.eval_set})`));
+  put('Evaluation set', evalSet);
   put('Built', man.built);
   put('Proteins', num(man.counts.proteins));
   put('Latent-protein pairs', num(man.counts.latent_protein_pairs));
   put('Latents', `${num(man.headline.latents_alive)} live of ${num(man.headline.latents_total)}`);
-  put('Concepts', `${man.headline.concepts_identified} of ${man.headline.concepts_total} have a paired latent`);
-  put('Average best test F1', man.headline.avg_best_test_f1.toFixed(3));
+  const xc = man.comparison.crosscoder.domain;
+  put(
+    'Concepts',
+    `${xc.concepts_identified[0]} [${xc.concepts_identified[1]}, ${xc.concepts_identified[2]}] ` +
+      `of ${man.headline.concepts_total} have a paired latent`,
+  );
+  put(
+    'Average best test F1',
+    `${xc.avg_best_test_f1[0].toFixed(3)} [${xc.avg_best_test_f1[1].toFixed(3)}, ` +
+      `${xc.avg_best_test_f1[2].toFixed(3)}]`,
+  );
   const fromEbi = man.counts.structures_from_ebi ?? 0;
   const missing = man.counts.no_structure ?? 0;
   const note = man.counts.no_structure_note;

@@ -13,6 +13,7 @@ import ts from 'typescript';
 const ALLOWED = new Map([
   ['1,024', 'the width of the ProtT5 residual stream'],
   ['512', 'the length limit of the training sequences'],
+  ['2,000', 'the number of bootstrap resamples behind each 95% interval, a property of the method (pp18_headline_bootstrap.py)'],
   ['10,000', 'the residue cap of the PP-18 evaluation set, a property of the set definition'],
   ['300', 'the length of the protein in a worked example'],
   ['600', 'the growth of the ProtT5 residual stream, a property of the model (build_depth_profiles.py)'],

@@ -47,10 +47,16 @@ The cluster is reachable as `ssh ai`. Cluster paths under
 | Input | Path |
 |---|---|
 | Crosscoder | `model_checkpoints/crosscoder_l8192_k32_bs512_full_uniref50/jumprelu_global_10990182/` |
-| Activation store | `data/crosscoder_activations/uniprotkb_modern_score345/shard_*/` |
-| Concept pairings | `data/crosscoder_eval/full_uniref/normalized/uniprotkb_modern_score345/test_counts/` |
-| Per-residue pairing counts | `data/dashboard_cache/pairing_metric/residue_level_pairing_counts.json`, from `documentation/scripts/residue_level_pairing_counts.py` in the paper repo |
-| Eval set | `data/eval_dataset/uniprotkb_modern_score345/` |
+| Activation store | `data/crosscoder_activations/pp18_swissprot_2026_04_cap10000/shard_*/` (488 shards on DSS, 4 on the Mac) |
+| Feature maxima | `model_checkpoints/crosscoder_l8192_k32_bs512_full_uniref50/pp18_normalize_cap10000_cluster30_10990182/feature_stats/max.npy` (normalize job `5914271`) |
+| Concept pairings | `data/pp18/report_metrics/cap10000_cluster30/`, the cluster split (F1 job `5915084`) |
+| Concept rule | `data/pp18/cluster30_build_check/per_concept.tsv`, the per-half rule of each concept |
+| Intervals and baselines | `data/pp18/headline_bootstrap/cap10000_cluster30_per_half_rule_crosscoder_baseline.json` (crosscoder and baseline model) and `documentation/data/pp33_neuron_bootstrap_cap10000_cluster30_per_half_rule.json` in the paper repo (neuron baseline) |
+| Eval set | `data/eval_dataset/uniprotkb_swissprot_2026_04_full/processed_annotations_cap10000/` (the concept annotations are the same in the two splits) |
+
+Stage 4 recomputes the per-half rule from the counts in `per_concept.tsv` and refuses the file when its flag disagrees. It refuses a bootstrap file whose crosscoder point values differ from the ones it computes from the pairing tables.
+
+The section below on the full build of 2026-09-08 describes the score-{3,4,5} set, the set of the releases up to 2026-10-26.2.
 
 The store holds 2,068,021,126 non-zero activations over 62,655,684 residues in 208 shards, at a
 mean L0 of 33.01.
@@ -71,8 +77,9 @@ the residues of the protein where it fires hardest. Tracks are stored as the non
 
 Every stage is a script that runs end to end from its inputs. Each one records the checkpoint, the
 evaluation set and the Slurm job that produced its inputs into the manifest, so any number on the
-site can be traced back. The site's headline figures must reproduce the published result: 0.479
-average best test F1, 187 of 408 concepts, 1020 features paired, 8128 live latents.
+site can be traced back. The site's headline figures must reproduce the preprint headline (doc 14
+of the paper repo): 261 [256, 264] of 765 concepts, 0.4119 [0.4117, 0.4170] average best test F1,
+1,058 [1,042, 1,063] latents paired.
 
 ## The full build of 2026-09-08
 

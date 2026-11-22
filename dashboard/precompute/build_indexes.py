@@ -49,9 +49,12 @@ Reads
 <stage1>/{rank_*.npy, feature_stats.csv, protein_ids.json, manifest.json}
 <stage3>/{depth_norms.npy, depth_cos.npy, depth_summary.csv}
 <stage5>/{concept_offsets.npy, concept_protein.npy, concepts.txt}   optional
-<pairings>/heldout_{top,all_top}_pairings.csv
-<residue-counts>  residue_level_pairing_counts.json, optional. Refused when its per-domain headline
-                  differs from the one computed here.
+<pairings>/heldout_{top,all_top}_pairings.csv from the 30 % identity cluster split
+<concept-rule> per_concept.tsv with counts for each half and the per_half_rule flag
+<bootstrap> crosscoder and baseline 95 % intervals for the cluster split and per-half rule
+<neuron-bootstrap> neuron 95 % intervals for the same split and rule
+The per-half rule is RULE_MIN_RESIDUES and RULE_MIN_DOMAINS below, checked against the flag.
+The rule excludes amino-acid concepts. The crosscoder points must match the headline.
 <training-config> experiment_config.yaml of the last training job, optional, with
 <training-corpus> manifest.json of the UniRef50 chunks it trained on. Refused when the two disagree
                   on the batch size or the length cut, or when the latent count is not the headline's.
@@ -63,7 +66,8 @@ Writes
 Repro
 -----
 uv run python build_indexes.py --stage0 … --stage1 … --stage3 … --pairings … \
-  --residue-counts … --training-config … --training-corpus … --out …
+  --concept-rule … --bootstrap … --neuron-bootstrap … \
+  --training-config … --training-corpus … --out …
 Deterministic, no randomness, no seed.
 """
 
@@ -79,6 +83,9 @@ import numpy as np
 import pandas as pd
 import yaml
 
+RULE_MIN_RESIDUES = 750
+RULE_MIN_DOMAINS = 12.5
+
 MAGIC_RANK, MAGIC_DEPTH, MAGIC_CONCEPT = 0x50435231, 0x50434431, 0x50434331
 
 
@@ -86,25 +93,52 @@ def q255(a):
     return np.clip(np.rint(np.asarray(a, dtype=np.float64) * 255), 0, 255).astype(np.uint8)
 
 
-def add_residue_headline(manifest, path):
-    """The same pairing rule, counted with the residue-level F1, from its precomputed file.
+def add_comparison(manifest, bootstrap_path, neuron_path):
+    """Check the cluster split inputs and add the three models with 95 % intervals."""
+    bootstrap = json.loads(bootstrap_path.read_text())
+    neurons = json.loads(neuron_path.read_text())
+    crosscoder = bootstrap["models"]["crosscoder"]["rules"]["per_half_rule"]
+    headline = manifest["headline"]
+    metrics = ("avg_best_test_f1", "concepts_identified", "features_paired", "concepts_scored")
+    for metric in metrics:
+        point = crosscoder["levels"]["domain"][metric]["point"]
+        if metric == "avg_best_test_f1":
+            point = round(point, 4)
+        if point != headline[metric]:
+            raise SystemExit(f"{bootstrap_path} has a different {metric}: {point}")
+    if crosscoder["concepts_in_rule"] != headline["concepts_total"]:
+        raise SystemExit(f"{bootstrap_path} has a different concepts_in_rule")
+    if neurons["concepts_in_rule"] != headline["concepts_total"] or neurons["rule"] != "per_half_rule":
+        raise SystemExit(f"{neuron_path} has a different concept rule")
 
-    The site prints these two numbers beside the headline, so they must come from the same eval
-    data and the same rule. The file repeats the per-domain headline it was made with, and a file
-    whose per-domain numbers differ from the ones this stage computed is refused.
-    """
-    real = json.loads(path.read_text())["models"]["real"]
-    h = manifest["headline"]
-    made_with = (real["per_domain"]["concepts_identified"], real["per_domain"]["features_paired"],
-                 round(real["per_domain"]["avg_best_test_f1"], 4))
-    if made_with != (h["concepts_identified"], h["features_paired"], h["avg_best_test_f1"]):
-        raise SystemExit(f"{path} was made with another headline: {made_with}")
-    h["concepts_identified_per_residue"] = int(real["per_residue"]["concepts_identified"])
-    h["features_paired_per_residue"] = int(real["per_residue"]["features_paired"])
-    # Relative to the working folder, like the other sources: the manifest goes into a public
-    # release, and an absolute path names the home folder of the machine that built it.
-    manifest["sources"]["residue_counts"] = os.path.relpath(path)
-
+    levels_by_model = {
+        "crosscoder": crosscoder["levels"],
+        "baseline_model": bootstrap["models"]["baseline"]["rules"]["per_half_rule"]["levels"],
+        "neurons": neurons["models"]["neurons"]["subsets"]["all"]["levels"],
+    }
+    manifest["comparison"] = {
+        model: {
+            level: {
+                metric: [round(levels[level][metric][key], 4) if metric == "avg_best_test_f1"
+                         else int(levels[level][metric][key])
+                         for key in ("point", "ci95_low", "ci95_high")]
+                for metric in metrics
+            }
+            for level in ("domain", "residue")
+        }
+        for model, levels in levels_by_model.items()
+    }
+    proteins_test = int(bootstrap["proteins_per_shard"]["total"])
+    manifest["eval"] = {
+        "name": "Swiss-Prot 2026_04",
+        "split": "cluster",
+        "identity_pct": 30,
+        "rule_min_residues": RULE_MIN_RESIDUES,
+        "rule_min_domains": RULE_MIN_DOMAINS,
+        "proteins_valid": (None if manifest["partial"]
+                           else manifest["counts"]["proteins"] - proteins_test),
+        "proteins_test": proteins_test,
+    }
 
 
 class _ConfigLoader(yaml.SafeLoader):
@@ -159,9 +193,13 @@ def main():
     ap.add_argument("--stage5", type=Path, default=None, help="the protein bundle directory")
     ap.add_argument("--stage6", type=Path, default=None,
                     help="the structure directory, read only for its missing.txt count")
-    ap.add_argument("--pairings", type=Path, required=True, help="the test_counts directory")
-    ap.add_argument("--residue-counts", type=Path, default=None,
-                    help="residue_level_pairing_counts.json, for the per-residue headline")
+    ap.add_argument("--pairings", type=Path, required=True, help="the cluster-split pairing directory")
+    ap.add_argument("--concept-rule", type=Path, required=True,
+                    help="per_concept.tsv with counts and the per_half_rule flag")
+    ap.add_argument("--bootstrap", type=Path, required=True,
+                    help="crosscoder and baseline bootstrap intervals for the cluster split")
+    ap.add_argument("--neuron-bootstrap", type=Path, required=True,
+                    help="neuron bootstrap intervals for the cluster split")
     ap.add_argument("--training-config", type=Path, default=None,
                     help="experiment_config.yaml of the last training job")
     ap.add_argument("--training-corpus", type=Path, default=None,
@@ -176,12 +214,24 @@ def main():
     cats = pd.read_csv(a.stage0, keep_default_na=False).set_index("concept")
     best = pd.read_csv(a.pairings / "heldout_top_pairings.csv", index_col=0)
     allp = pd.read_csv(a.pairings / "heldout_all_top_pairings.csv")
-    # The dashboard counts the concepts in heldout_top_pairings.csv: every non-amino-acid concept
-    # whose best feature clears the pairing cut on the validation half, 853 on the PP-18 set.
-    # A concept without a row there has no page, which keeps the site and the paper apart.
+    # The dashboard reports the 30 % identity cluster split with the per-half rule.
+    # A concept has a page only when heldout_top_pairings.csv has a row for it.
     best = best[~best["concept"].astype(str).str.startswith("amino_acid_")]
     allp = allp[~allp["concept"].astype(str).str.startswith("amino_acid_")]
-    concept_names = best.concept.astype(str).tolist()
+    rule = pd.read_csv(a.concept_rule, sep="\t")
+    passes = ((rule.valid_residues > RULE_MIN_RESIDUES) | (rule.valid_domains > RULE_MIN_DOMAINS)) & (
+        (rule.test_residues > RULE_MIN_RESIDUES) | (rule.test_domains > RULE_MIN_DOMAINS)
+    )
+    mismatch = passes != rule.per_half_rule
+    if mismatch.any():
+        names = rule.loc[mismatch, "concept"].astype(str).tolist()
+        raise SystemExit(f"{a.concept_rule} has inconsistent per_half_rule flags: {names}")
+    rule_set = set(rule.loc[
+        passes & ~rule.concept.astype(str).str.contains("amino_acid", case=False, regex=False),
+        "concept",
+    ].astype(str))
+    best = best[best.concept.astype(str).isin(rule_set)]
+    allp = allp[allp.concept.astype(str).isin(rule_set)]
 
     offsets = np.load(a.stage1 / "rank_offsets.npy")
     r_prot = np.load(a.stage1 / "rank_protein.npy")
@@ -283,8 +333,8 @@ def main():
         if g is not None and len(g):
             # The latent the validation half chose, as in the paper: Best F1 is its score on the
             # held-out half, so the two always belong together. It is one of the paired latents
-            # for every concept that has any. The highest held-out F1 picked another latent for
-            # 27 of the 187 concepts.
+            # for every concept that has any. On the score-{3,4,5} set, the highest held-out F1
+            # picked another latent for 27 of the 187 identified concepts.
             chosen = int(r.feature)
             row["bf"] = chosen if chosen in set(g.feature.astype(int)) else int(g.feature.iloc[0])
             # latent, F1 per domain, precision, recall per residue, recall per domain, cut. The
@@ -345,7 +395,8 @@ def main():
         "eval_set": eval_set,
         "headline": {
             "avg_best_test_f1": round(float(best.f1_per_domain.mean()), 4),
-            "concepts_total": len(concept_names),
+            "concepts_total": len(rule_set),
+            "concepts_scored": len(best),
             "concepts_identified": identified,
             "features_paired": int(allp.feature.nunique()),
             "latents_total": int(n_lat),
@@ -363,12 +414,15 @@ def main():
             "structures": len(protein_ids) - n_no_structure,
             "no_structure": n_no_structure,
         },
-        "sources": {"stage1": str(a.stage1), "stage3": str(a.stage3),
+        "sources": {"pairings": os.path.relpath(a.pairings),
+                    "concept_rule": os.path.relpath(a.concept_rule),
+                    "bootstrap": os.path.relpath(a.bootstrap),
+                    "neuron_bootstrap": os.path.relpath(a.neuron_bootstrap),
+                    "stage1": str(a.stage1), "stage3": str(a.stage3),
                     "stage5": str(a.stage5) if a.stage5 else None,
                     "stage6": str(a.stage6) if a.stage6 else None},
     }
-    if a.residue_counts:
-        add_residue_headline(manifest, a.residue_counts)
+    add_comparison(manifest, a.bootstrap, a.neuron_bootstrap)
     if a.training_config and a.training_corpus:
         add_training(manifest, a.training_config, a.training_corpus)
     (a.out / "manifest.json").write_text(json.dumps(manifest, indent=2))
@@ -380,6 +434,7 @@ def main():
     h = manifest["headline"]
     print(f"  headline: {h['avg_best_test_f1']} avg best test F1, "
           f"{h['concepts_identified']} of {h['concepts_total']} concepts, "
+          f"{h['concepts_scored']} concepts scored, "
           f"{h['features_paired']} features paired, "
           f"{h['latents_alive']} of {h['latents_total']} latents alive")
     print(f"  {len(concepts)} concepts, {len(feats)} live latents, {n_files} feature files, "

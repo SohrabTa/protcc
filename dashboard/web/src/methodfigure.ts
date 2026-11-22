@@ -59,7 +59,7 @@ export function methodFigure(d: Data): HTMLElement {
     el('span', 'mf-lane mf-lt', 'Train'),
     evaluateLabel(),
     node('td', t.corpus, `${amount(t.sequences)} sequences, ${amount(t.residues)} residues`, 'training'),
-    node('ed', 'Swiss-Prot', `${num(d.manifest.counts.proteins)} annotated proteins`, 'naming'),
+    node('ed', d.manifest.eval.name, `${num(d.manifest.counts.proteins)} annotated proteins, the cluster split`, 'naming'),
     node('pt', 'ProtT5 encoder', `${t.layers} layers, frozen. 1,024 numbers per residue between layers.`, 'why'),
     stream(t.layers),
     node('cc', 'Crosscoder', `one dictionary of ${num(t.latents)} latents for all ${t.layers} layers`, 'one-dictionary'),

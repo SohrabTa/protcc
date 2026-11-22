@@ -7,7 +7,7 @@
  * shows a measured number reads it from the data tree, as the text does (`facts.ts`).
  */
 
-import type { Training } from './data';
+import type { EvalSet, Training } from './data';
 import type { Facts } from './facts';
 import { amount, el, num } from './ui';
 
@@ -181,19 +181,19 @@ export function batchTopKPicture(t: Training): HTMLElement {
   ]);
 }
 
-/** The two data sets: the training corpus, and the evaluation set with its two halves. */
-export function dataSetsPicture(t: Training, proteins: number): HTMLElement {
-  const s = svg(660, 132, 'UniRef50 trains the crosscoder. Swiss-Prot, divided into a validation set and a test set, evaluates it.');
+/** The two data sets: the training corpus, and the evaluation set with its cluster split. */
+export function dataSetsPicture(t: Training, proteins: number, ev: EvalSet): HTMLElement {
+  const s = svg(660, 132, `UniRef50 trains the crosscoder. Swiss-Prot, divided by clusters at ${ev.identity_pct}% sequence identity into a validation set and a test set, evaluates it.`);
   label(s, 0, 16, `${t.corpus}, for the training`, { fill: 'var(--ink-2)', 'font-weight': 600 });
   add(s, 'rect', { x: 0, y: 24, width: 660, height: 22, rx: 3, fill: 'var(--line-strong)', opacity: 0.5 });
   label(s, 10, 40, `${amount(t.sequences)} sequences, ${amount(t.residues)} residues, no annotations`, { fill: 'var(--ink)' });
-  label(s, 0, 80, 'Swiss-Prot, for the evaluation', { fill: 'var(--ink-2)', 'font-weight': 600 });
+  label(s, 0, 80, `${ev.name}, for the evaluation`, { fill: 'var(--ink-2)', 'font-weight': 600 });
   add(s, 'rect', { x: 0, y: 88, width: 327, height: 22, rx: 3, fill: 'var(--accent)', opacity: 0.35 });
   add(s, 'rect', { x: 333, y: 88, width: 327, height: 22, rx: 3, fill: 'var(--accent)', opacity: 0.6 });
   label(s, 10, 104, 'validation set: picks each pairing', { fill: 'var(--ink)' });
   label(s, 343, 104, 'test set: scores it', { fill: 'var(--ink)' });
-  label(s, 0, 128, `${num(proteins)} proteins with annotations, divided into two halves`, { 'font-size': 12 });
-  return pic(s, 'The two data sets. The bars are not to scale. Some Swiss-Prot sequences are also in UniRef50, so the evaluation tests what the latents encode, not how they do on unseen proteins.');
+  label(s, 0, 128, `${num(proteins)} proteins with annotations. No test protein shares a cluster with a validation protein.`, { 'font-size': 12 });
+  return pic(s, `The two data sets. The bars are not to scale. The cluster split groups the Swiss-Prot proteins by ${ev.identity_pct}% sequence identity, and each cluster goes to one half only. Some Swiss-Prot sequences are also in UniRef50, so the evaluation tests what the latents encode, not how they do on unseen proteins.`);
 }
 
 /** The pairing rule as two cases: one latent clears 0.5 on the two sets, one does not. */

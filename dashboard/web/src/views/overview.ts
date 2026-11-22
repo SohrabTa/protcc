@@ -25,6 +25,7 @@ export function renderOverview(d: Data, host: HTMLElement): void {
   let family = '';
   const famOrder = familyOrder(d);
   const found = d.concepts.filter((c) => c.nf > 0).length;
+  const h = d.manifest.headline;
   const families = famOrder.filter(([fam]) => fam !== 'unassigned').length;
   const unassigned = famOrder.find(([fam]) => fam === 'unassigned')?.[1].length ?? 0;
 
@@ -33,9 +34,11 @@ export function renderOverview(d: Data, host: HTMLElement): void {
 
   const p = panel(
     'Concepts',
-    `${found} of ${d.concepts.length} concepts have a paired latent`,
-    `Every Swiss-Prot concept in the evaluation set, in ${families} concept families` +
+    `${found} of ${h.concepts_total} concepts have a paired latent`,
+    `${h.concepts_total} Swiss-Prot concepts pass the per-half rule of the cluster split. ` +
+      `${d.concepts.length} of them have a page here, in ${families} concept families` +
       (unassigned ? ` and ${unassigned} concepts without a family yet. ` : '. ') +
+      `The other ${h.concepts_total - d.concepts.length} have no test F1 for their Best latent. ` +
       'A latent pairs with a concept when its F1 per domain is more than 0.5 on the validation ' +
       'set and again on the test set of the evaluation set. Open a concept to see each paired ' +
       'latent with its scores and depth profile, the proteins that carry the concept, and where ' +

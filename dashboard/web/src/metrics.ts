@@ -207,8 +207,8 @@ export const METRIC_INFO: MetricInfo[] = [
     section: 'naming',
     title: 'Concept',
     short:
-      'One Swiss-Prot annotation type, for example a named domain or a binding site. There are ' +
-      '{concepts_total} of them in this evaluation set.',
+      'One Swiss-Prot annotation type, for example a named domain or a binding site. ' +
+      '{concepts_total} of them pass the per-half rule of the cluster split.',
   },
   {
     slug: 'proteins',
@@ -268,7 +268,8 @@ const BY_KEY: Record<string, { slug: string; short: string }> = {
     slug: 'f1-per-domain',
     short:
       'The F1 per domain on the test set of the Best latent, the latent that the validation set ' +
-      'picked for this concept. The average over all {concepts_total} concepts is {avg_best_f1}.',
+      'picked for this concept. The average over the {concepts_scored} concepts with a page is ' +
+        '{avg_best_f1}.',
   },
   'proteins it fires on': {
     slug: 'proteins-fired',
