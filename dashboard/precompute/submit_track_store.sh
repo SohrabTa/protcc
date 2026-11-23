@@ -22,7 +22,8 @@ set -euo pipefail
 CONTAINER="${RERUN_CONTAINER:-/dss/dsshome1/08/ga25ley2/nvidia+pytorch+25.12-py3.sqsh}"
 INTERPLM_DIR="/dss/dsshome1/08/ga25ley2/code/InterPLM"
 CROSSCODE_DIR="/dss/dsshome1/08/ga25ley2/code/crosscode"
-PROTCC_DIR="/dss/dsshome1/08/ga25ley2/code/protcc"
+# A pinned clone of one pushed commit (~/code/wt/protcc-<hash>) overrides this copy.
+PROTCC_DIR="${PROTCC_DIR:-/dss/dsshome1/08/ga25ley2/code/protcc}"
 CKPT_DIR="/dss/dssfs02/lwp-dss-0001/pn67na/pn67na-dss-0000/ga25ley2/model_checkpoints"
 DATA_DIR="/dss/dssfs02/lwp-dss-0001/pn67na/pn67na-dss-0000/ga25ley2/data"
 
@@ -46,6 +47,7 @@ export UV_LINK_MODE=copy
 echo "Store        : ${ACTS_DIR}"
 echo "Divisor      : ${FEATURE_MAX}"
 echo "Output       : ${OUT_DIR}"
+echo "protcc       : ${PROTCC_DIR} at $(git -C "${PROTCC_DIR}" log -1 --format=%h 2>/dev/null || echo "no git checkout")"
 echo "Starting on $(hostname) at $(date)"
 START_TIME=$(date +%s)
 
